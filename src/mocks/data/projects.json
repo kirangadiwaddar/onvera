@@ -1,0 +1,282 @@
+{
+  "projects": [
+    {
+      "id": 1,
+      "slug": "digital-redesign-think-company",
+      "title": "Digital Redesign for Think Company",
+      "templateId": "web-development",
+      "status": "completed",
+      "createdAt": "2026-01-15",
+      "avatarSrc": "https://img.logo.dev/thinkcompany.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [
+        1
+      ],
+      "extraMembers": [
+        {
+          "id": 101,
+          "name": "Robert Junior",
+          "role": "Consultant",
+          "image": ""
+        }
+      ],
+      "updatedAt": "2026-02-28",
+      "submissions": {
+        "logo": {
+          "value": "https://drive.google.com/logo.png",
+          "status": "approved"
+        },
+        "guidelines": {
+          "value": "https://drive.google.com/brand-guidelines.pdf",
+          "status": "submitted"
+        },
+        "fonts": {
+          "value": "https://drive.google.com/fonts-folder",
+          "status": "approved"
+        },
+        "hosting": {
+          "value": "Hosting: Vercel\nProject Name: think-company-web\nAccess shared via email.",
+          "status": "approved"
+        },
+        "domain": {
+          "value": "Domain managed via GoDaddy.\nLogin credentials shared securely.",
+          "status": "submitted"
+        },
+        "cms": {
+          "value": "Headless CMS - Sanity.io\nAdmin access provided.",
+          "status": "approved"
+        },
+        "docs": [
+          {
+            "name": "Website Sitemap",
+            "url": "https://drive.google.com/sitemap",
+            "status": "approved"
+          },
+          {
+            "name": "Homepage Copy",
+            "url": "https://docs.google.com/homepage-copy",
+            "status": "submitted"
+          }
+        ],
+        "drive-links": [
+          {
+            "name": "Product Images Folder",
+            "url": "https://drive.google.com/product-images",
+            "status": "approved"
+          },
+          {
+            "name": "Team Photos",
+            "url": "https://drive.google.com/team-photos",
+            "status": "submitted"
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "slug": "cyber-duck-ux-optimization",
+      "title": "Cyber-Duck UX Optimization",
+      "templateId": "ui/ux-experience",
+      "status": "ongoing",
+      "createdAt": "2026-02-10",
+      "avatarSrc": "https://img.logo.dev/cyber-duck.co.uk?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [
+        2
+      ],
+      "extraMembers": [
+        {
+          "id": 125,
+          "name": "Johnson Perk",
+          "role": "Graphic Designer",
+          "image": ""
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "slug": "web-app-revamp-ramotion",
+      "title": "Web App Revamp – Ramotion",
+      "templateId": "app-development",
+      "status": "onhold",
+      "createdAt": "2026-03-02",
+      "avatarSrc": "https://img.logo.dev/ramotion.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 4,
+      "slug": "ecommerce-build-thrive-agency",
+      "title": "E-Commerce Build for Thrive Agency",
+      "templateId": "ecommerce",
+      "status": "overdue",
+      "createdAt": "2026-02-05",
+      "avatarSrc": "https://img.logo.dev/thriveagency.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 5,
+      "slug": "seo-digital-growth-webfx",
+      "title": "SEO & Digital Growth — WebFx",
+      "templateId": "digital-marketing",
+      "status": "waiting",
+      "createdAt": "2026-01-20",
+      "avatarSrc": "https://img.logo.dev/webfx.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 6,
+      "slug": "fullstack-portal-polcode",
+      "title": "Fullstack Portal – Polcode",
+      "templateId": "saas-platform",
+      "status": "completed",
+      "createdAt": "2026-03-12",
+      "avatarSrc": "https://img.logo.dev/polcode.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 7,
+      "slug": "lead-gen-campaign-orange-mantra",
+      "title": "Lead Gen Campaign – OrangeMantra",
+      "templateId": "digital-marketing",
+      "status": "completed",
+      "createdAt": "2026-02-18",
+      "avatarSrc": "https://img.logo.dev/orangemantra.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 8,
+      "slug": "brand-refresh-gaumina",
+      "title": "Brand Strategy Refresh – Gaumina",
+      "templateId": "branding",
+      "status": "waiting",
+      "createdAt": "2026-03-01",
+      "avatarSrc": "https://img.logo.dev/gaumina.co.uk?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 9,
+      "slug": "responsive-redesign-digitalsilk",
+      "title": "Responsive Redesign – Digital Silk",
+      "templateId": "web-development",
+      "status": "overdue",
+      "createdAt": "2026-01-28",
+      "avatarSrc": "https://img.logo.dev/digitalsilk.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 10,
+      "slug": "seo-content-campaign-ninehertz",
+      "title": "SEO & Content Campaign – The NineHertz",
+      "templateId": "digital-marketing",
+      "status": "waiting",
+      "createdAt": "2026-03-07",
+      "avatarSrc": "https://img.logo.dev/theninehertz.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 11,
+      "slug": "cms-platform-build-iprospect-india",
+      "title": "CMS Platform Build – iProspect India",
+      "templateId": "ecommerce",
+      "status": "completed",
+      "createdAt": "2026-02-22",
+      "avatarSrc": "https://img.logo.dev/iprospect.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 12,
+      "slug": "mobile-site-optimization-rogue-media",
+      "title": "Mobile Site Optimization – Rogue Media",
+      "templateId": "web-development",
+      "status": "waiting",
+      "createdAt": "2026-01-30",
+      "avatarSrc": "https://img.logo.dev/rougemedia.co.uk?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 13,
+      "slug": "ecommerce-redesign-nova-retail",
+      "title": "E-commerce Redesign – Nova Retail",
+      "templateId": "web-development",
+      "status": "ongoing",
+      "createdAt": "2026-02-05",
+      "avatarSrc": "https://img.logo.dev/novaretail.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 14,
+      "slug": "branding-revamp-orbit-creative",
+      "title": "Branding Revamp – Orbit Creative",
+      "templateId": "branding",
+      "status": "completed",
+      "createdAt": "2026-01-18",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 15,
+      "slug": "crm-dashboard-integration-skyline",
+      "title": "CRM Dashboard Integration – Skyline Corp",
+      "templateId": "web-development",
+      "status": "overdue",
+      "createdAt": "2026-01-12",
+      "avatarSrc": "https://img.logo.dev/skylinecorp.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 16,
+      "slug": "landing-page-launch-zenith-labs",
+      "title": "Landing Page Launch – Zenith Labs",
+      "templateId": "digital-marketing",
+      "status": "waiting",
+      "createdAt": "2026-02-01",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 17,
+      "slug": "mobile-app-ui-refresh-pixelworks",
+      "title": "Mobile App UI Refresh – PixelWorks",
+      "templateId": "app-development",
+      "status": "ongoing",
+      "createdAt": "2026-02-08",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 18,
+      "slug": "seo-optimization-greenleaf",
+      "title": "SEO Optimization – GreenLeaf Co.",
+      "templateId": "digital-marketing",
+      "status": "completed",
+      "createdAt": "2026-01-25",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 19,
+      "slug": "analytics-dashboard-quantum-tech",
+      "title": "Analytics Dashboard – Quantum Tech",
+      "templateId": "web-development",
+      "status": "overdue",
+      "createdAt": "2026-01-28",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    }
+  ]
+}

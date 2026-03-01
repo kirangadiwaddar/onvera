@@ -1,0 +1,53 @@
+{
+    "templates": [
+        {
+            "id": "web-development",
+            "title": "Web Development",
+            "description": "Build responsive and scalable web applications.",
+            "icon": "Globe",
+            "badge": "Core"
+        },
+        {
+            "id": "ui/ux-experience",
+            "title": "UI/UX Experience",
+            "description": "Design modern and user-friendly interfaces.",
+            "icon": "Palette",
+            "badge": "Experience"
+        },
+        {
+            "id": "app-development",
+            "title": "App Development",
+            "description": "Create mobile and cross-platform apps.",
+            "icon": "Smartphone",
+            "badge": "Mobile-First"
+        },
+        {
+            "id": "saas-platform",
+            "title": "SaaS Platform",
+            "description": "Launch scalable SaaS products.",
+            "icon": "AppWindowMac",
+            "badge": "Scale-Ready"
+        },
+        {
+            "id": "ecommerce",
+            "title": "E-Commerce",
+            "description": "Build powerful online stores.",
+            "icon": "ShoppingCart",
+            "badge": "Revenue"
+        },
+        {
+            "id": "digital-marketing",
+            "title": "Digital Marketing",
+            "description": "Grow traffic and conversions.",
+            "icon": "Megaphone",
+            "badge": "Growth"
+        },
+        {
+            "id": "branding",
+            "title": "Branding",
+            "description": "Create strong brand identities.",
+            "icon": "Brush",
+            "badge": "Launch"
+        }
+    ]
+}
