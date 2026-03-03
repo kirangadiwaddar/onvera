@@ -34,11 +34,12 @@ export function NavMain({
             return (
             <SidebarMenuItem key={item.title}>
               <Link href={item.url}>
-              <SidebarMenuButton tooltip={item.title} size="lg" className={`pl-3 group-data-[state=collapsed]:gap-0 group-data-[state=collapsed]:justify-center group-data-[state=collapsed]:p-5! transition-colors cursor-pointer ${
+              <SidebarMenuButton tooltip={item.title} size="lg" className={`pl-3 group-data-[state=collapsed]:gap-0 group-data-[state=collapsed]:justify-center group-data-[state=collapsed]:p-5! rounded-full transition-colors cursor-pointer ${
                     isActive
-                      ? "bg-linear-to-r from-violet-200 to-violet-200 text-violet-900 font-medium"
-                      : "hover:bg-linear-to-r from-violet-200 to-violet-50 hover:text-violet-900"
+                      ? "bg-linear-to-r from-violet-100 to-violet-100 text-violet-900 font-medium pl-5"
+                      : "hover:bg-linear-to-r from-violet-100 to-violet-50 hover:text-violet-900 hover:pl-5 transition-all duration-200"
                   }`}>
+                {/* {isActive ? <span className="text-sm group-data-[state=collapsed]:hidden w-2 h-2 rounded-full bg-violet-700"></span> : null} */}
                 {item.icon && <item.icon className="size-5!" strokeWidth={1.5} />}
                 <span className="text-sm group-data-[state=collapsed]:hidden">{item.title}</span>
               </SidebarMenuButton>

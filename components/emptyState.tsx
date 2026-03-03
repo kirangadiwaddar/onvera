@@ -28,7 +28,7 @@ export function EmptyState({
   return (
     <Empty className="rounded-none">
       <EmptyHeader>
-        <EmptyMedia variant="icon" className="w-14 h-14 bg-violet-50 text-violet-500">
+        <EmptyMedia variant="icon" className="w-14 h-14 bg-violet-50 text-violet-500 rounded-full">
           {icon}
         </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>

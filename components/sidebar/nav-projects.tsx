@@ -30,10 +30,10 @@ const projectArray = Array.isArray(data)
 const recentProjects = [...projectArray]
   .sort(
     (a, b) =>
-      new Date(b.createdAt).getTime() -
-      new Date(a.createdAt).getTime()
+      new Date(b.ongoing).getTime() -
+      new Date(a.ongoing).getTime()
   )
-  .slice(0, 5)
+  .slice(0, 7)
   .map((project) => ({
     name: project.title,
     url: `/projects/${project.slug}`,
@@ -44,16 +44,16 @@ export function NavProjects() {
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel className="text-violet-600">Recent Projects</SidebarGroupLabel>
+      <SidebarGroupLabel className="text-violet-600"><span className="w-3 h-3 rounded-full bg-violet-600 mr-2"></span> Ongoing Projects</SidebarGroupLabel>
       <SidebarMenu>
         {recentProjects.map((item) => (
           <SidebarMenuItem key={item.name}>
-            <SidebarMenuButton asChild className="text-sm text-zinc-600" size="sm">
+            <SidebarMenuButton asChild className="text-xs text-zinc-600 h-auto py-1" size="sm">
               <a href={item.url}>
                 <span>{item.name}</span>
               </a>
             </SidebarMenuButton>
-            <DropdownMenu>
+            {/* <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuAction
                   showOnHover
@@ -78,7 +78,7 @@ export function NavProjects() {
                   <span>Delete</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
-            </DropdownMenu>
+            </DropdownMenu> */}
           </SidebarMenuItem>
         ))}
       </SidebarMenu>

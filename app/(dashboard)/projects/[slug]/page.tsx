@@ -31,7 +31,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { BadgeCheck, Check, Files, Plus, Trash2, User, Users } from "lucide-react"
+import { ArrowDownToLine, BadgeCheck, Check, Files, Plus, Trash2, User, Users } from "lucide-react"
 
 import {
   Dialog,
@@ -193,6 +193,10 @@ export default function ProjectDetailPage() {
     setOpenInvite(false)
   }
 
+  function deleteMember(id: any): void {
+    throw new Error("Function not implemented.")
+  }
+
   return (
     <div className="flex flex-col py-4 md:py-6">
       <div className="flex flex-col lg:flex-row items-center justify-between px-7 pb-2 gap-4 lg:gap-5">
@@ -226,8 +230,8 @@ export default function ProjectDetailPage() {
             <Copy />Copy Link
           </Button>
           <Link href={`/onboarding/${project.slug}`} target="_blank">
-            <Button variant="gradient" size="sm">
-              View Client <ArrowUpRight />
+            <Button variant="gradient">
+              Generate Client URL <ArrowUpRight />
             </Button>
           </Link>
         </div>
@@ -258,10 +262,10 @@ export default function ProjectDetailPage() {
 
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              Delete Section?
+                            <AlertDialogTitle className="text-base">
+                              Delete "<span className="">{section.title}</span>"?
                             </AlertDialogTitle>
-                            <AlertDialogDescription>
+                            <AlertDialogDescription className="text-sm">
                               This action cannot be undone. This will permanently remove this custom section.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
@@ -358,8 +362,6 @@ export default function ProjectDetailPage() {
               <h2 className="text-muted-foreground text-sm mb-6">
                 Uploaded Files
               </h2>
-
-
               <div className="flex items-center gap-3 flex-wrap">
                 {Object.entries(project.submissions || {}).map(([key]) => (
                   <div
@@ -370,6 +372,9 @@ export default function ProjectDetailPage() {
                   </div>
                 ))}
               </div>
+                <Separator className="my-5 bg-gray-100 " />
+                <Button className="py-2 px-3 text-sm capitalize font-normal flex items-center gap-2 h-auto bg-emerald-50 text-emerald-800" variant="secondary"><ArrowDownToLine /> Download Assets</Button>
+
             </div>
           }
 
@@ -379,29 +384,104 @@ export default function ProjectDetailPage() {
       <Separator className=" bg-gray-100" />
 
       {project.members?.length === 0 ? (
-        // <div className="p-7 pt-0">
-        // <div className="title-flex flex items-center justify-between gap-3 mb-5">
-        //   <h3 className="text-base font-medium">Team members in this project</h3>
-        //   <Button size="sm" variant="default"><Plus />Add Member</Button>
-        // </div>
-        // </div>
-        <EmptyState icon={<Users />} title="No Team Found" description="Create team or add existing team" buttonText="Add Team/Members" />
+        <EmptyState icon={<Users />} title="No Team Found" description="Create team or add existing team" buttonText="Add Team/Members" onClick={() => setOpenInvite(true)} />
       ) :
         <div className="p-7">
           <div className="title-flex flex items-center justify-between gap-3 mb-5">
             <h3 className="text-base font-medium">Team members in this project</h3>
             <div className="right-btns space-x-2">
-              {/* <Button size="sm" variant="gradient"><Users />Invite Team</Button> */}
-              <Dialog open={openInvite} onOpenChange={setOpenInvite}>
-                <DialogTrigger asChild>
-                  <Button size="sm" variant="gradient">
-                    <Users className="mr-2 h-4 w-4" />
-                    Invite Team
-                  </Button>
-                </DialogTrigger>
+              <Button variant="gradient" onClick={() => setOpenInvite(true)}><Plus />Add Team / Member</Button>
+            </div>
+          </div>
+          <div className="rounded-xl border overflow-hidden">
+            <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead></TableHead>
+                  <TableHead className="text-right"></TableHead>
+                </TableRow>
+              </TableHeader>
 
+              <TableBody>
+                {project.members?.map((member) => (
+                  <TableRow key={member.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={member.image} />
+                          <AvatarFallback className={`font-bold ${getAvatarColor(String(member.id))}`}>
+                            {member.name.slice(0, 1).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+
+                        <span className="font-medium">
+                          {member.name}
+                        </span>
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      {member.role || "-"}
+                    </TableCell>
+
+                    <TableCell className="space-x-2">
+                      {member.isLead && (
+                        <Badge className="px-2 py-1 text-xs bg-sky-100 text-sky-700 rounded-full">
+                          Team Lead
+                        </Badge>
+                      )}
+                      {member.isExternal && (
+                        <Badge className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded-full">
+                          External
+                        </Badge>
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-right">
+                      {member.isExternal && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <button className="text-red-500 hover:text-red-700">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </AlertDialogTrigger>
+
+                          <AlertDialogContent size="sm">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                <div className="bg-destructive/10 p-2 rounded-full flex items-center justify-center w-14 h-14 mx-auto mb-5"><Trash2 className="size-6 text-destructive" /></div> Are you absolutely sure?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Removing <span className="text-red-700"> {member.name} - {member.role}</span> cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>
+                                Cancel
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteMember(member.id)}
+                                className="bg-red-600 hover:bg-red-700"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>}
+
+        <Dialog open={openInvite} onOpenChange={setOpenInvite}>               
                 <DialogContent className="space-y-6">
-
                   <DialogHeader>
                     <DialogTitle>Add Team or Member</DialogTitle>
                   </DialogHeader>
@@ -500,100 +580,12 @@ export default function ProjectDetailPage() {
                           : addTeam
                       }
                     >
-                      <Plus /> Add
+                      <Plus /> Add Team/Member
                     </Button>
                   </DialogFooter>
 
                 </DialogContent>
               </Dialog>
-            </div>
-          </div>
-          <div className="rounded-xl border overflow-hidden">
-            <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Position</TableHead>
-                  <TableHead className="text-right"></TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {project.members?.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={member.image} />
-                          <AvatarFallback className={`font-bold ${getAvatarColor(String(member.id))}`}>
-                            {member.name.slice(0, 1).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-
-                        <span className="font-medium">
-                          {member.name}
-                        </span>
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      {member.role || "-"}
-                    </TableCell>
-
-                    <TableCell className="space-x-2">
-                      {member.isLead && (
-                        <Badge className="px-2 py-1 text-xs bg-sky-100 text-sky-700 rounded">
-                          Team Lead
-                        </Badge>
-                      )}
-                      {member.isExternal && (
-                        <Badge className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded">
-                          External
-                        </Badge>
-                      )}
-                    </TableCell>
-
-                    <TableCell className="text-right">
-                      {member.isExternal && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <button className="text-red-500 hover:text-red-700">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </AlertDialogTrigger>
-
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Remove {member.name} - {member.role}
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>
-                                Cancel
-                              </AlertDialogCancel>
-                              <AlertDialogAction
-                                // onClick={() => deleteMember(member.id)}
-                                className="bg-red-600 hover:bg-red-700"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>}
 
     </div>
   )

@@ -89,7 +89,17 @@
           "role": "Graphic Designer",
           "image": ""
         }
-      ]
+      ],
+      "submissions": {
+        "logo": {
+          "value": "https://drive.google.com/logo.png",
+          "status": "approved"
+        },
+        "design-system": {
+          "value": "https://drive.google.com/brand-guidelines.pdf",
+          "status": "submitted"
+        }
+      }
     },
     {
       "id": 3,
@@ -131,6 +141,7 @@
       "templateId": "saas-platform",
       "status": "completed",
       "createdAt": "2026-03-12",
+      "updatedAt": "2026-03-25",
       "avatarSrc": "https://img.logo.dev/polcode.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
       "teamIds": [],
       "memberIds": []
@@ -142,6 +153,7 @@
       "templateId": "digital-marketing",
       "status": "completed",
       "createdAt": "2026-02-18",
+      "updatedAt": "2026-03-05",
       "avatarSrc": "https://img.logo.dev/orangemantra.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
       "teamIds": [],
       "memberIds": []
@@ -186,6 +198,7 @@
       "templateId": "ecommerce",
       "status": "completed",
       "createdAt": "2026-02-22",
+      "updatedAt": "2026-03-15",
       "avatarSrc": "https://img.logo.dev/iprospect.com?token=pk_HZG90BK1TlaseL87Yh9Jng&retina=true",
       "teamIds": [],
       "memberIds": []
@@ -219,6 +232,7 @@
       "templateId": "branding",
       "status": "completed",
       "createdAt": "2026-01-18",
+      "updatedAt": "2026-02-10",
       "avatarSrc": "",
       "teamIds": [],
       "memberIds": []
@@ -263,6 +277,7 @@
       "templateId": "digital-marketing",
       "status": "completed",
       "createdAt": "2026-01-25",
+      "updatedAt": "2026-02-20",
       "avatarSrc": "",
       "teamIds": [],
       "memberIds": []
@@ -274,6 +289,242 @@
       "templateId": "web-development",
       "status": "overdue",
       "createdAt": "2026-01-28",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 20,
+      "slug": "saas-platform-rebuild-novus",
+      "title": "SaaS Platform Rebuild – Novus Labs",
+      "templateId": "saas-platform",
+      "status": "completed",
+      "createdAt": "2025-04-12",
+      "updatedAt": "2025-05-03",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 21,
+      "slug": "branding-launch-elevate-co",
+      "title": "Branding Launch – Elevate Co.",
+      "templateId": "branding",
+      "status": "completed",
+      "createdAt": "2025-05-08",
+      "updatedAt": "2025-06-01",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 22,
+      "slug": "ecommerce-migration-aurora",
+      "title": "E-Commerce Migration – Aurora Retail",
+      "templateId": "ecommerce",
+      "status": "overdue",
+      "createdAt": "2025-05-19",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 23,
+      "slug": "mobile-app-development-zenpay",
+      "title": "Mobile App Development – ZenPay",
+      "templateId": "app-development",
+      "status": "completed",
+      "createdAt": "2025-06-03",
+      "updatedAt": "2025-07-10",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 24,
+      "slug": "marketing-automation-nexa",
+      "title": "Marketing Automation – Nexa Growth",
+      "templateId": "digital-marketing",
+      "status": "completed",
+      "createdAt": "2025-06-21",
+      "updatedAt": "2025-07-15",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 25,
+      "slug": "crm-integration-orbit-tech",
+      "title": "CRM Integration – Orbit Tech",
+      "templateId": "web-development",
+      "status": "ongoing",
+      "createdAt": "2025-07-04",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 26,
+      "slug": "dashboard-redesign-brightdata",
+      "title": "Dashboard Redesign – BrightData",
+      "templateId": "ui/ux-experience",
+      "status": "completed",
+      "createdAt": "2025-07-18",
+      "updatedAt": "2025-08-02",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 27,
+      "slug": "seo-campaign-skybridge",
+      "title": "SEO Campaign – SkyBridge Media",
+      "templateId": "digital-marketing",
+      "status": "completed",
+      "createdAt": "2025-08-09",
+      "updatedAt": "2025-09-01",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 28,
+      "slug": "enterprise-portal-hyperion",
+      "title": "Enterprise Portal – Hyperion Systems",
+      "templateId": "saas-platform",
+      "status": "overdue",
+      "createdAt": "2025-08-24",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 29,
+      "slug": "landing-page-optimization-vanta",
+      "title": "Landing Page Optimization – Vanta Labs",
+      "templateId": "web-development",
+      "status": "completed",
+      "createdAt": "2025-09-05",
+      "updatedAt": "2025-09-25",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 30,
+      "slug": "performance-audit-stratos",
+      "title": "Performance Audit – Stratos AI",
+      "templateId": "web-development",
+      "status": "completed",
+      "createdAt": "2025-09-20",
+      "updatedAt": "2025-10-12",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 31,
+      "slug": "analytics-suite-revamp-insightly",
+      "title": "Analytics Suite Revamp – Insightly",
+      "templateId": "saas-platform",
+      "status": "ongoing",
+      "createdAt": "2025-10-03",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 32,
+      "slug": "brand-refresh-northstar",
+      "title": "Brand Refresh – Northstar Group",
+      "templateId": "branding",
+      "status": "completed",
+      "createdAt": "2025-10-18",
+      "updatedAt": "2025-11-05",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 33,
+      "slug": "product-launch-campaign-ignite",
+      "title": "Product Launch Campaign – Ignite Labs",
+      "templateId": "digital-marketing",
+      "status": "completed",
+      "createdAt": "2025-11-07",
+      "updatedAt": "2025-12-01",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 34,
+      "slug": "ecommerce-expansion-vertex",
+      "title": "E-Commerce Expansion – Vertex Retail",
+      "templateId": "ecommerce",
+      "status": "completed",
+      "createdAt": "2025-11-22",
+      "updatedAt": "2025-12-15",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 35,
+      "slug": "mobile-app-redesign-lumina",
+      "title": "Mobile App Redesign – Lumina Tech",
+      "templateId": "app-development",
+      "status": "completed",
+      "createdAt": "2025-12-04",
+      "updatedAt": "2026-01-10",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 36,
+      "slug": "saas-security-upgrade-fortify",
+      "title": "SaaS Security Upgrade – Fortify",
+      "templateId": "saas-platform",
+      "status": "completed",
+      "createdAt": "2025-12-20",
+      "updatedAt": "2026-01-28",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 37,
+      "slug": "conversion-optimization-nimbus",
+      "title": "Conversion Optimization – Nimbus",
+      "templateId": "digital-marketing",
+      "status": "completed",
+      "createdAt": "2026-01-08",
+      "updatedAt": "2026-02-05",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 38,
+      "slug": "ui-refresh-orion-digital",
+      "title": "UI Refresh – Orion Digital",
+      "templateId": "ui/ux-experience",
+      "status": "completed",
+      "createdAt": "2026-02-14",
+      "updatedAt": "2026-03-02",
+      "avatarSrc": "",
+      "teamIds": [],
+      "memberIds": []
+    },
+    {
+      "id": 39,
+      "slug": "enterprise-dashboard-build-apex",
+      "title": "Enterprise Dashboard Build – Apex Corp",
+      "templateId": "web-development",
+      "status": "completed",
+      "createdAt": "2026-03-05",
+      "updatedAt": "2026-03-25",
       "avatarSrc": "",
       "teamIds": [],
       "memberIds": []

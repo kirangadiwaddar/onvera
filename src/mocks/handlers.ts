@@ -158,7 +158,7 @@ export const handlers = [
       new Date(b.createdAt).getTime()
     )
   })
-  .slice(0, 6)
+  .slice(0, 5)
   .map(attachRelations)
 
     return HttpResponse.json({

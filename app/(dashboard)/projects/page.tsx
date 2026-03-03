@@ -154,7 +154,7 @@ export default function Page() {
           <div className="flex flex-col lg:flex-row items-center justify-between px-7 gap-4 lg:gap-5">
             <p className="text-sm flex-1 lg:line-clamp-2">Manage and track all your projects, monitor progress, and stay on top of deadlines in one place.</p>
             <div className="right-actions flex items-center gap-3 justify-end">
-              <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+              <div className="flex items-center border border-gray-300 rounded-full overflow-hidden">
                 {/* Template Filter */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

@@ -16,6 +16,7 @@ import { RecentActivity } from "@/components/dashboard/recentActivity"
 import { Project } from "@/types/project"
 
 import { getTemplateMap } from "@/lib/templateUtils";
+import { MonthlyProjectsChart } from "@/components/dashboard/monthlyProjects"
 
 
 
@@ -40,7 +41,7 @@ export default function Page() {
       title: "Total Projects",
       value: data.stats.total,
       icon: GalleryVerticalEnd,
-      color: "text-blue-500",
+      color: "text-sky-500",
     },
     {
       title: "Waiting Projects",
@@ -64,7 +65,7 @@ export default function Page() {
       title: "Pending Projects",
       value: data.stats.overdue,
       icon: ClipboardClock,
-      color: "text-orange-500",
+      color: "text-violet-500",
     },
   ]
 
@@ -75,46 +76,24 @@ export default function Page() {
 
   return (
 
-    <div className="flex flex-col gap-2 pb-4 md:pb-6">
+    <div className="flex flex-col gap-2 pb-4 md:pb-6"> 
       <SectionCards stats={stats} />
       {/* <Separator className="my-0 bg-gray-100" /> */}
       <div className="grid xl:grid-cols-3 gap-5 mx-5">
         <div className="col-span-2 rounded-xl w-full">
-          <AttentionTable projects={data.lists.latestWaitingOverdue} />
+          {/* <AttentionTable projects={data.lists.latestWaitingOverdue} /> */}
+          <MonthlyProjectsChart />
         </div>
-        <div className="rounded-xl w-full space-y-5">
+        <div className="rounded-xl w-full h-full space-y-5">
           <CompletedProjectsChart
             completed={data.stats.completed}
             total={data.stats.total}
           />
-          <RecentActivity />
         </div>
       </div>
-      <Separator className="my-5 bg-gray-100" />
-      <div className="trending-projects">
-        <div className="dash-title  flex items-center justify-between px-7">
-          <div>
-            <h1 className="text-xl font-medium">Ongoing Projects ({projectCards.length})</h1>
-            <p className="text-sm text-muted-foreground">Projects that require ongoing attention.</p>
-          </div>          
-          <Link href="/projects"><Button variant="gradient" size="sm" className="text-xs">View All Projects <ArrowUp /></Button></Link>
-        </div>
-        <div className="grid lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 mx-5 my-5">
-          {projectCards.map((project) => (
-            <ProjectCard
-              key={project.id}
-              id={project.id}
-              slug={project.slug}
-              title={project.title}
-              templateTitle={templateMap[project.templateId]}
-              // status={project.status}
-              createdAt={project.createdAt}
-              avatarSrc={project.avatarSrc}
-              // teams={project.teams}
-              members={project.members}
-            />
-          ))}
-        </div>
+      <div className="grid xl:grid-cols-3 gap-5 mx-5 mt-5">
+        <RecentActivity />
+        <AttentionTable projects={data.lists.latestWaitingOverdue} />
       </div>
     </div>
   )

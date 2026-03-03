@@ -80,7 +80,7 @@ export default function TeamDetailPage() {
             <div className="space-y-6 p-6">
                 <div className="flex items-center gap-10 justify-between">
                     <h2 className="text-lg font-semibold">Team Members</h2>
-                    <Button variant="default"><Plus /> Invite Member</Button>
+                    <Button variant="gradient"><Plus /> Invite Member</Button>
                 </div>
 
                 <div className="rounded-xl border overflow-hidden">
@@ -122,7 +122,7 @@ export default function TeamDetailPage() {
                                     </TableCell>
 
                                     <TableCell className="text-center py-4">
-                                        <span className="px-2 py-1 text-xs bg-sky-100 text-sky-700 rounded">
+                                        <span className="px-2 py-1 text-xs bg-sky-100 text-sky-700 font-medium rounded-full">
                                             Team Lead
                                         </span>
                                     </TableCell>

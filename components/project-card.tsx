@@ -128,15 +128,12 @@ export function ProjectCard({
 
                     <CardAction className="flex items-start justify-end gap-1">
                         {variant === "compact" && createdAt && (
-                            <Badge className="bg-white border border-zinc-100 flex items-center gap-1 justify-start text-[10px] mr-2">
-                                <CalendarCheck size={12} className="text-black" />
-                                <strong className="font-light text-muted-foreground mt-0.5">
-                                    {formattedDate}
-                                </strong>
+                            <Badge className="bg-sky-100 text-sky-700 border border-zinc-100 flex items-center gap-1 py-1 px-2 justify-start text-xs mr-2">
+                                <CalendarCheck size={12} className="" /> {formattedDate}
                             </Badge>
                         )}
                         {status && (
-                            <Badge className={`${statusStyles[status]}`}>
+                            <Badge className={`${statusStyles[status]} py-1 px-2`}>
                                 {statusLabel[status]}
                             </Badge>
                         )}

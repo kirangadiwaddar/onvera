@@ -22,6 +22,7 @@ import { BadgeCheck, Check, Files } from "lucide-react"
 import { EmptyState } from "@/components/emptyState"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { LoadingState } from "@/components/loadingState"
 
 export default function ClientOnboardingPage() {
   const { slug } = useParams()
@@ -41,8 +42,8 @@ export default function ClientOnboardingPage() {
 
   if (loading)
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        Loading...
+  <div className="min-h-screen flex items-center justify-center">
+      <LoadingState title="Project Loading" description="Please wait We're fetching the project" />
       </div>
     )
 
@@ -65,14 +66,7 @@ export default function ClientOnboardingPage() {
   const members = project.members || []
 
   const visibleMembers = members.slice(0, 3)
-  const remainingCount =
-    members.length > 3 ? members.length - 3 : 0
-
-    const getProgressColor = (value: number) => {
-  if (value < 40) return "!bg-red-500"
-  if (value < 80) return "!bg-yellow-500"
-  return "!bg-green-600"
-}
+  const remainingCount = members.length > 3 ? members.length - 3 : 0
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -144,7 +138,7 @@ export default function ClientOnboardingPage() {
               <span>Progress</span>
               <span>{progress}%</span>
             </div>
-            <Progress value={progress}  className={`[&>div]:${getProgressColor(progress)}`} />
+            <Progress value={progress} />
           </div>
 
           {/* Sections */}
@@ -202,16 +196,16 @@ export default function ClientOnboardingPage() {
             <div className="border border-zinc-200 rounded-lg space-y-3 text-sm">
               <div className="flex justify-between items-center text-sm border-b p-2.5 last:border-b-0">
                 <p className="font-medium text-xs">Project Created</p>
-                <p className="text-muted-foreground">
+                <Badge className="bg-violet-100 text-violet-600 py-1 px-3">
                   {new Date(project.createdAt).toLocaleDateString()}
-                </p>
+                </Badge>
               </div>
               {project.updatedAt && (
               <div className="flex justify-between items-center text-sm border-b p-2.5 pt-0 last:border-b-0">
                 <p className="font-medium text-xs">Last Updated</p>
-                <p className="text-muted-foreground">
+                <Badge className="bg-violet-100 text-violet-600 py-1 px-3">
                   {new Date(project.updatedAt).toLocaleDateString()}
-                </p>
+                </Badge>
               </div>)}
             </div>
           </div>

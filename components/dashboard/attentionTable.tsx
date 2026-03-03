@@ -23,7 +23,7 @@ type Props = {
 const attentionTable = ({ projects }: Props) => {
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-destructive/20 h-full">
+    <div className="col-span-2 overflow-hidden rounded-2xl border border-destructive/20 h-full">
       <div className="flex items-center justify-between p-5 py-4 bg-destructive/5">
         <div className="text-destructive space-y-2">
           <p className="text-sm flex items-center gap-2">

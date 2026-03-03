@@ -52,16 +52,16 @@ const data = {
     },
   ],
   navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: Settings,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: HelpCircle,
-    },
+    // {
+    //   title: "Settings",
+    //   url: "#",
+    //   icon: Settings,
+    // },
+    // {
+    //   title: "Get Help",
+    //   url: "#",
+    //   icon: HelpCircle,
+    // },
     {
       title: "Notifications",
       url: "#",
@@ -79,7 +79,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuButton
               asChild
               size="lg"
-              className="data-[slot=sidebar-menu-button]:p-2 group-data-[slot=collapsed]:p-0! group-data-[slot=collapsed]:justify-center!"
+              className="data-[slot=sidebar-menu-button]:p-2 group-data-[slot=collapsed]:p-0! group-data-[slot=collapsed]:justify-center! rounded-full"
             >
               <a>
                 <Logo className="w-8! h-8!" />
@@ -91,9 +91,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />  
-        {/* <Separator className="group-data-[collapsible=icon]:hidden" /> */}
-        {/* <NavProjects /> */}
-        {/* <UpgradeBlock /> */}
+        <Separator className="group-data-[collapsible=icon]:hidden" />
+        <NavProjects />
+         {/* <UpgradeBlock /> */}
         <NavSecondary items={data.navSecondary} className="mt-auto" />  
       </SidebarContent>
       <SidebarFooter>        
