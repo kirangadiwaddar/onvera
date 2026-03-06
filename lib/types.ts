@@ -1,17 +1,19 @@
-export type FieldType = "upload" | "url" | "text" | "textarea"
+export type FieldType =
+  | "upload"
+  | "url"
+  | "text"
+  | "textarea"
 
-export type ItemType = "predefined" | "dynamic"
-
-export interface ChecklistItem {
+export interface SectionItem {
   id: string
   label: string
-  type: ItemType
   fieldType: FieldType
 }
 
 export interface Section {
   id: string
   title: string
-  items: ChecklistItem[]
+  items: SectionItem[]
   dynamic?: boolean
+  fieldType?: FieldType
 }

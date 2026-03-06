@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ListFilter, Plus } from "lucide-react"
 import { LoadingState } from "@/components/loadingState"
+import { Project } from "@/types/project"
+// import { CreateProjectDialog } from "@/components/project-dialog"
 
 import {
   Pagination,
@@ -30,6 +32,8 @@ import { FolderOpenDot } from "lucide-react"
 import Link from "next/link"
 
 import { getTemplateMap } from "@/lib/templateUtils";
+import { ProjectDialog } from "@/components/project-dialog"
+import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 
 
 const statuses = [
@@ -66,20 +70,73 @@ const templateOptions = [
 
 export default function Page() {
 
-  const [projects, setProjects] = useState<any[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
 
   const [currentPage, setCurrentPage] = useState(1)
   const [status, setStatus] = useState("all")
   const [template, setTemplate] = useState<string[]>(["all"])
+  const [templatesList, setTemplatesList] = useState<any[]>([])
+
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+
+  const [open, setOpen] = useState(false)
+
+  // useEffect(() => {
+  //   fetch('/api/projects', { cache: 'no-store' })
+  //     .then(res => res.json())
+  //     .then(data => {
+  //       setProjects(data.projects)
+  //       setLoading(false)
+  //     })
+  // }, [])
 
   useEffect(() => {
-    fetch('/api/projects', { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => {
-        setProjects(data.projects)
+    const fetchProjects = async () => {
+      try {
+        const res = await fetch("/api/projects", {
+          cache: "no-store",
+        })
+
+        if (!res.ok) {
+          const err = await res.json()
+          console.error("Projects fetch failed:", err)
+          setProjects([])
+          return
+        }
+
+        const data = await res.json()
+
+        setProjects(Array.isArray(data) ? data : [])
+      } catch (error) {
+        console.error("Fetch projects error:", error)
+        setProjects([])
+      } finally {
         setLoading(false)
-      })
+      }
+    }
+
+    fetchProjects()
+  }, [])
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const res = await fetch("/api/templates", {
+          cache: "no-store",
+        })
+
+        if (!res.ok) return
+
+        const data = await res.json()
+        setTemplatesList(Array.isArray(data) ? data : [])
+      } catch (err) {
+        console.error("Template fetch failed:", err)
+      }
+    }
+
+    fetchTemplates()
   }, [])
 
   const filteredProjects = useMemo(() => {
@@ -90,7 +147,7 @@ export default function Page() {
 
       const templateMatch =
         template.includes("all") ||
-        template.includes(project.templateId)
+        template.includes(project.template_id)
 
       return statusMatch && templateMatch
     })
@@ -110,7 +167,19 @@ export default function Page() {
     title="Loading Projects..."
     description="Fetching your projects, please wait."
   />)
-  if (projects.length === 0) return <div>No projects found</div>
+  if (projects.length === 0) return <>
+    <EmptyState
+      icon={<FolderOpenDot />}
+      title="No Projects "
+      description="You have no projects created"
+      action={<ProjectDialog
+        mode="create"
+        onSaved={(project) => {
+          setProjects((prev) => [project, ...prev])
+        }}
+      />}
+    />
+  </>
 
   const toggleOption = (value: string) => {
     if (value === "all") {
@@ -137,7 +206,32 @@ export default function Page() {
   const totalActiveFilters =
     activeTemplateCount + (isStatusActive ? 1 : 0)
 
-  const templateMap = getTemplateMap();
+  const templateMap = templatesList.reduce(
+    (acc: Record<string, string>, t) => {
+      acc[t.id] = t.title
+      return acc
+    },
+    {}
+  )
+
+  const handleProjectUpdated = (updatedProject: Project | null) => {
+    if (!updatedProject) return
+
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === updatedProject.id ? updatedProject : p
+      )
+    )
+  }
+
+  const handleProjectDeleted = (id: number) => {
+    setProjects((prev) =>
+      prev.filter((p) => p.id !== id)
+    )
+  }
+  const handleProjectCreated = (newProject: Project) => {
+    setProjects((prev) => [newProject, ...prev])
+  }
 
   return (
     <>
@@ -213,7 +307,11 @@ export default function Page() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <Button variant="gradient"><Plus strokeWidth={2} /> Create New</Button>
+              {/* <Button variant="gradient"> Create New</Button> */}
+              <ProjectDialog mode="create"
+                onSaved={(project) => {
+                  setProjects((prev) => [project, ...prev])
+                }} />
             </div>
           </div>
 
@@ -226,12 +324,17 @@ export default function Page() {
                 id={project.id}
                 slug={project.slug}
                 title={project.title}
-                templateTitle={templateMap[project.templateId]}
+                templateTitle={templateMap[project.template_id]}
                 status={project.status}
-                createdAt={project.createdAt}
-                avatarSrc={project.avatarSrc}
-                // teams={project.teams}
+                created_at={project.created_at}
+                avatar_src={project.avatar_src}
                 members={project.members}
+                project={{
+                  ...project,
+                  templateTitle: templateMap[project.template_id],
+                }}
+                onEdit={handleProjectUpdated}
+                onDelete={handleProjectDeleted}
               />
             ))}
           </div>
@@ -278,3 +381,5 @@ export default function Page() {
     </>
   )
 }
+
+

@@ -1,202 +1,273 @@
 import { Section } from "./types"
 
+/* =====================================================
+   GLOBAL DEFAULT SECTIONS
+===================================================== */
+
+const docs: Section = {
+  id: "docs",
+  title: "Documents",
+  dynamic: true,
+  fieldType: "url",
+  items: [],
+}
+
+const spreadsheets: Section = {
+  id: "spreadsheets",
+  title: "Spreadsheets",
+  dynamic: true,
+  fieldType: "url",
+  items: [],
+}
+
+const driveLinks: Section = {
+  id: "drive-links",
+  title: "Drive / Dropbox Links",
+  dynamic: true,
+  fieldType: "url",
+  items: [],
+}
+
+/* =====================================================
+   DEFAULT SECTION INJECTOR
+===================================================== */
+
+const withDefaults = (sections: Section[]): Section[] => {
+  return [
+    ...sections,
+    docs,
+    spreadsheets,
+    driveLinks,
+  ]
+}
+
+/* =====================================================
+   TEMPLATE STRUCTURE
+===================================================== */
+
 export const templateStructure: Record<string, Section[]> = {
-  // =====================================================
-  // 1️⃣ Web Development
-  // =====================================================
-  "web-development": [
+
+  /* =====================================================
+     1️⃣ Web Development
+  ===================================================== */
+
+  "web-development": withDefaults([
+
     {
       id: "branding",
-      title: "Branding",
+      title: "Brand Assets",
       items: [
-        { id: "logo", label: "Brand Logo", type: "predefined", fieldType: "upload" },
-        { id: "guidelines", label: "Brand Guidelines", type: "predefined", fieldType: "upload" },
-        { id: "fonts", label: "Fonts", type: "predefined", fieldType: "upload" },
+        { id: "logo", label: "Brand Logo", fieldType: "upload" },
+        { id: "guidelines", label: "Brand Guidelines", fieldType: "upload" },
+        { id: "fonts", label: "Fonts", fieldType: "upload" },
       ],
     },
+
     {
       id: "access",
       title: "Access",
       items: [
-        { id: "hosting", label: "Hosting Access", type: "predefined", fieldType: "textarea" },
-        { id: "domain", label: "Domain Access", type: "predefined", fieldType: "textarea" },
-        { id: "cms", label: "CMS Access", type: "predefined", fieldType: "textarea" },
+        { id: "hosting", label: "Hosting Access", fieldType: "textarea" },
+        { id: "domain", label: "Domain Access", fieldType: "textarea" },
+        { id: "cms", label: "CMS Access", fieldType: "textarea" },
       ],
     },
-    {
-      id: "docs",
-      title: "Docs",
-      items: [],
-      dynamic: true,
-    },
-    {
-      id: "drive-links",
-      title: "Drive Links",
-      items: [],
-      dynamic: true,
-    },
-  ],
 
-  // =====================================================
-  // 2️⃣ UI/UX Experience
-  // =====================================================
-  "ui/ux-experience": [
+  ]),
+
+  /* =====================================================
+     2️⃣ UI / UX Experience
+  ===================================================== */
+
+  "ui/ux-experience": withDefaults([
+
     {
       id: "brand-assets",
       title: "Brand Assets",
       items: [
-        { id: "logo", label: "Logo", type: "predefined", fieldType: "upload" },
-        { id: "design-system", label: "Existing Design System", type: "predefined", fieldType: "upload" },
+        { id: "logo", label: "Logo", fieldType: "upload" },
+        { id: "guidelines", label: "Brand Guidelines", fieldType: "upload" },
+        { id: "design-system", label: "Existing Design System", fieldType: "upload" },
       ],
     },
+
     {
       id: "product-info",
       title: "Product Information",
-      items: [],
       dynamic: true,
+      fieldType: "text",
+      items: [],
     },
+
     {
       id: "research",
       title: "Research & References",
-      items: [],
       dynamic: true,
+      fieldType: "url",
+      items: [],
     },
-  ],
 
-  // =====================================================
-  // 3️⃣ App Development
-  // =====================================================
-  "app-development": [
+  ]),
+
+  /* =====================================================
+     3️⃣ App Development
+  ===================================================== */
+
+  "app-development": withDefaults([
+
     {
       id: "brand-assets",
       title: "Brand Assets",
       items: [
-        { id: "logo", label: "Logo", type: "predefined", fieldType: "upload" },
-        { id: "app-icon", label: "App Icon Assets", type: "predefined", fieldType: "upload" },
+        { id: "logo", label: "Logo", fieldType: "upload" },
+        { id: "guidelines", label: "Brand Guidelines", fieldType: "upload" },
       ],
     },
+
     {
       id: "product-scope",
       title: "Product Scope",
-      items: [],
       dynamic: true,
+      fieldType: "text",
+      items: [],
     },
+
     {
       id: "technical-access",
       title: "Technical Access",
       items: [
-        { id: "repo", label: "Git Repository Access", type: "predefined", fieldType: "textarea" },
-        { id: "api-docs", label: "API Documentation", type: "predefined", fieldType: "textarea" },
+        { id: "repo", label: "Git Repository Access", fieldType: "textarea" },
+        { id: "api-docs", label: "API Documentation", fieldType: "textarea" },
       ],
     },
-  ],
 
-  // =====================================================
-  // 4️⃣ SaaS Platform
-  // =====================================================
-  "saas-platform": [
+  ]),
+
+  /* =====================================================
+     4️⃣ SaaS Platform
+  ===================================================== */
+
+  "saas-platform": withDefaults([
+
     {
       id: "branding",
-      title: "Branding",
+      title: "Brand Assets",
       items: [
-        { id: "logo", label: "Logo", type: "predefined", fieldType: "upload" },
-        { id: "guidelines", label: "Brand Guidelines", type: "predefined", fieldType: "upload" },
+        { id: "logo", label: "Logo", fieldType: "upload" },
+       { id: "guidelines", label: "Brand Guidelines", fieldType: "upload" },
       ],
     },
-    {
-      id: "product-documentation",
-      title: "Product Documentation",
-      items: [],
-      dynamic: true,
-    },
+
     {
       id: "cloud-access",
       title: "Hosting & Cloud Access",
       items: [
-        { id: "hosting", label: "Cloud Hosting Access", type: "predefined", fieldType: "textarea" },
-        { id: "analytics", label: "Analytics Access", type: "predefined", fieldType: "textarea" },
+        { id: "hosting", label: "Cloud Hosting Access", fieldType: "textarea" },
+        { id: "analytics", label: "Analytics Access", fieldType: "textarea" },
       ],
     },
-  ],
 
-  // =====================================================
-  // 5️⃣ E-Commerce
-  // =====================================================
-  "ecommerce": [
+    {
+      id: "product-documentation",
+      title: "Product Documentation",
+      dynamic: true,
+      fieldType: "url",
+      items: [],
+    },
+
+  ]),
+
+  /* =====================================================
+     5️⃣ E-Commerce
+  ===================================================== */
+
+  "ecommerce": withDefaults([
+
     {
       id: "brand-assets",
       title: "Brand Assets",
       items: [
-        { id: "logo", label: "Logo", type: "predefined", fieldType: "upload" },
-        { id: "product-photos", label: "Product Photography Folder", type: "predefined", fieldType: "upload" },
+        { id: "logo", label: "Logo", fieldType: "upload" },
+        { id: "guidelines", label: "Brand Guidelines", fieldType: "upload" },
       ],
     },
+
     {
       id: "product-data",
       title: "Product Data",
-      items: [],
       dynamic: true,
+      fieldType: "text",
+      items: [],
     },
+
     {
       id: "store-access",
       title: "Store Access",
       items: [
-        { id: "platform", label: "Shopify / WooCommerce Access", type: "predefined", fieldType: "textarea" },
-        { id: "payment", label: "Payment Gateway Access", type: "predefined", fieldType: "textarea" },
+        { id: "platform", label: "Shopify / WooCommerce Access", fieldType: "textarea" },
+        { id: "payment", label: "Payment Gateway Access", fieldType: "textarea" },
       ],
     },
-  ],
 
-  // =====================================================
-  // 6️⃣ Digital Marketing
-  // =====================================================
-  "digital-marketing": [
+  ]),
+
+  /* =====================================================
+     6️⃣ Digital Marketing
+  ===================================================== */
+
+  "digital-marketing": withDefaults([
+
     {
       id: "brand-assets",
       title: "Brand Assets",
       items: [
-        { id: "logo", label: "Logo", type: "predefined", fieldType: "upload" },
+        { id: "logo", label: "Logo", fieldType: "upload" },
+        { id: "guidelines", label: "Brand Guidelines", fieldType: "upload" },
       ],
     },
+
     {
       id: "platform-access",
       title: "Platform Access",
       items: [
-        { id: "facebook", label: "Facebook Ads Access", type: "predefined", fieldType: "textarea" },
-        { id: "google-ads", label: "Google Ads Access", type: "predefined", fieldType: "textarea" },
-        { id: "analytics", label: "Google Analytics Access", type: "predefined", fieldType: "textarea" },
+        { id: "facebook", label: "Facebook Ads Access", fieldType: "textarea" },
+        { id: "google-ads", label: "Google Ads Access", fieldType: "textarea" },
+        { id: "analytics", label: "Google Analytics Access", fieldType: "textarea" },
       ],
     },
+
     {
       id: "campaign-details",
       title: "Campaign Details",
-      items: [],
       dynamic: true,
+      fieldType: "text",
+      items: [],
     },
-  ],
 
-  // =====================================================
-  // 7️⃣ Branding
-  // =====================================================
-  "branding": [
+  ]),
+
+  /* =====================================================
+     7️⃣ Branding
+  ===================================================== */
+
+  "branding": withDefaults([
+
     {
       id: "brand-discovery",
       title: "Brand Discovery",
-      items: [],
       dynamic: true,
+      fieldType: "text",
+      items: [],
     },
-    {
-      id: "existing-assets",
-      title: "Existing Assets",
-      items: [
-        { id: "existing-logo", label: "Existing Logo (if any)", type: "predefined", fieldType: "upload" },
-      ],
-    },
+
     {
       id: "references",
       title: "References & Inspiration",
-      items: [],
       dynamic: true,
+      fieldType: "url",
+      items: [],
     },
-  ],
+
+  ]),
+
 }

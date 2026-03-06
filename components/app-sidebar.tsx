@@ -2,11 +2,17 @@
 
 import * as React from "react"
 
-import { Home, FolderOpenDot, LayoutPanelTop, CirclePile, BookText, Settings, HelpCircle, Bell } from "lucide-react"
+import {
+  Home,
+  FolderOpenDot,
+  LayoutPanelTop,
+  CirclePile,
+  Bell
+} from "lucide-react"
 
-// import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/sidebar/nav-main"
 import { NavUser } from "@/components/sidebar/nav-user"
+
 import {
   Sidebar,
   SidebarContent,
@@ -16,19 +22,17 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+
 import Logo from "./ui/logo"
-import UpgradeBlock from "./sidebar/upgrade-block"
 import { NavProjects } from "./sidebar/nav-projects"
 import { Separator } from "./ui/separator"
-import { NavSecondary } from "./sidebar/nav-secondary"
 
+import { User } from "@supabase/supabase-js"
+import { ProjectDialog } from "./project-dialog"
+import { Project } from "@/types/project"
+import { useRouter } from "next/navigation"
 
 const data = {
-  user: {
-    name: "Kiran Gadiwaddar",
-    email: "kgadiwaddar@gmail.com",
-    avatar: "https://randomuser.me/api/portraits/men/20.jpg",
-  },
   navMain: [
     {
       title: "Dashboard",
@@ -51,54 +55,110 @@ const data = {
       icon: CirclePile,
     },
   ],
-  navSecondary: [
-    // {
-    //   title: "Settings",
-    //   url: "#",
-    //   icon: Settings,
-    // },
-    // {
-    //   title: "Get Help",
-    //   url: "#",
-    //   icon: HelpCircle,
-    // },
-    {
-      title: "Notifications",
-      url: "#",
-      icon: Bell,
-    },
-  ],
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  user: User
+}
+
+export function AppSidebar({ user, ...props }: AppSidebarProps) {
+
+  const [projects, setProjects] = React.useState<Project[]>([])
+  const [role, setRole] = React.useState<string | undefined>(undefined)
+
+  const router = useRouter()
+
+  /* LOAD ROLE */
+
+  React.useEffect(() => {
+
+    const loadRole = async () => {
+      const res = await fetch("/api/me")
+      const data = await res.json()
+      setRole(data.role)
+    }
+
+    loadRole()
+
+  }, [])
+
+  /* FILTER SIDEBAR */
+
+ const filteredNav = data.navMain.filter(item => {
+  // Freelancer → hide teams
+  if (role === "freelancer" && item.url === "/teams") {
+    return false
+  }
+  // Member → hide dashboard and templates
+  if (role === "member" && (item.url === "/dashboard" || item.url === "/templates")) {
+    return false
+  }
+  return true
+})
+  
+
+  const displayName =
+    user.user_metadata?.display_name || "User"
+
   return (
+
     <Sidebar collapsible="icon" {...props}>
+
       <SidebarHeader>
+
         <SidebarMenu>
+
           <SidebarMenuItem>
+
             <SidebarMenuButton
               asChild
               size="lg"
               className="data-[slot=sidebar-menu-button]:p-2 group-data-[slot=collapsed]:p-0! group-data-[slot=collapsed]:justify-center! rounded-full"
             >
+
               <a>
                 <Logo className="w-8! h-8!" />
                 <span className="text-base font-semibold">Onvera</span>
               </a>
+
             </SidebarMenuButton>
+
           </SidebarMenuItem>
+
         </SidebarMenu>
+
       </SidebarHeader>
+
       <SidebarContent>
-        <NavMain items={data.navMain} />  
+        {role !== "member" && (
+        <ProjectDialog
+          mode="create"
+          onSaved={(project) => {
+
+            setProjects((prev) => [project, ...prev])
+
+            router.push(`/projects/${project.slug}`)
+
+          }}
+        />)}
+
+        {/* FILTERED NAVIGATION */}
+        <NavMain items={filteredNav} />
+
         <Separator className="group-data-[collapsible=icon]:hidden" />
+
         <NavProjects />
-         {/* <UpgradeBlock /> */}
-        <NavSecondary items={data.navSecondary} className="mt-auto" />  
+
       </SidebarContent>
-      <SidebarFooter>        
-        <NavUser user={data.user} /> 
+
+      <SidebarFooter>
+
+        <NavUser user={user} role={role} />
+
       </SidebarFooter>
+
     </Sidebar>
+
   )
+
 }

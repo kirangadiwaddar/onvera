@@ -1,20 +1,74 @@
 import type { status } from "@/lib/project-status"
 
+/* -----------------------------
+   PROJECT EXTERNAL MEMBER
+----------------------------- */
+
+export type ProjectMember = {
+  id: string | number
+  name: string
+  role?: string
+  avatar_src?: string | null
+  isExternal?: boolean
+}
+
+/* -----------------------------
+   TEAM MEMBER (team_members table)
+----------------------------- */
+
+export type TeamMember = {
+  id: number | string
+  name: string
+  team_role?: string
+  designation?: string
+  avatar_src?: string | null
+}
+
+/* -----------------------------
+   TEAM STRUCTURE
+----------------------------- */
+
+export type Team = {
+  id: number
+  name: string
+  members?: TeamMember[]
+}
+
+/* -----------------------------
+   PROJECT TYPE
+----------------------------- */
+
 export type Project = {
   id: number
-  title: string
   slug: string
+  title: string
+  template_id: string
   status: status
-  templateId: string
-  templateTitle?: string
-  createdAt: string
-  avatarSrc?: string
-  teamIds: number[]
-  memberIds: number[]
-  teams?: any[]
-  members?: any[]
-  extraMembers?: any[]
+  avatar_src: string | null
+
+  created_at: string
+  completed_at: string | null
+  updated_at: string | null
+
+  /* MULTIPLE TEAMS */
+  teams?: Team[]
+
+  /* EXTERNAL PROJECT MEMBERS */
+  members?: ProjectMember[]
 
   submissions?: Record<string, any>
-  updatedAt: string
+
+  template?: {
+    id: string
+    title: string
+  }
+
+  templateTitle?: string
+
+  client_token?: string
+client_password?: string | null
+client_link_enabled?: boolean
+client_link_expires_at?: string | null
+
+custom_sections?: any[]
 }

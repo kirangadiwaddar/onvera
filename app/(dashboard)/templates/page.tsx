@@ -2,8 +2,30 @@ import TemplateCards from '@/components/templateCard'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import React from 'react'
+import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
 
-export default function Page() {
+export default async function Page() {
+
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/login")
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+
+  // block members
+  if (profile?.role === "member") {
+    redirect("/projects")
+  }
+
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
       <div className="flex flex-col lg:flex-row items-center justify-between px-7 gap-4 lg:gap-5">

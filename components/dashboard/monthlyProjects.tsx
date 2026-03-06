@@ -1,142 +1,165 @@
 "use client"
 
 import * as React from "react"
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card"
 
 import {
-    ChartContainer,
-    ChartTooltip,
-    ChartTooltipContent,
-    ChartLegend,
-    ChartLegendContent,
-    type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
 } from "@/components/ui/chart"
 
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select"
 
-import projects from "@/src/mocks/data/projects.json"
+type Project = {
+  id: number
+  created_at: string
+  updated_at?: string | null
+  status: string
+}
 
 type MonthlyData = {
-    label: string
-    month: number
-    year: number
-    created: number
-    completed: number
-    overdue: number
+  label: string
+  month: number
+  year: number
+  created: number
+  completed: number
+  overdue: number
 }
 
 const chartConfig = {
-    created: {
-        label: "Created",
-        color: "var(--chart-1)",
-    },
-    completed: {
-        label: "Completed",
-        color: "var(--chart-2)",
-    },
-    overdue: {
-        label: "Overdue",
-        color: "var(--chart-3)",
-    },
+  created: { label: "Created", color: "var(--chart-1)" },
+  completed: { label: "Completed", color: "var(--chart-2)" },
+  overdue: { label: "Overdue", color: "var(--chart-3)" },
 } satisfies ChartConfig
 
 export function MonthlyProjectsChart() {
-    const [range, setRange] = React.useState("12m")
+  const [range, setRange] = React.useState("12m")
+  const [projects, setProjects] = React.useState<Project[]>([])
+  const [loading, setLoading] = React.useState(true)
 
-    // Build full 12-month dataset
-    const fullData = React.useMemo<MonthlyData[]>(() => {
-        const now = new Date()
-        const months: MonthlyData[] = []
-
-        for (let i = 11; i >= 0; i--) {
-            const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-
-            months.push({
-                label: date.toLocaleString("default", { month: "short" }),
-                month: date.getMonth(),
-                year: date.getFullYear(),
-                created: 0,
-                completed: 0,
-                overdue: 0,
-            })
-        }
-
-        projects.projects.forEach((project) => {
-            const createdDate = new Date(project.createdAt)
-
-            const createdIndex = months.findIndex(
-                (m) =>
-                    m.month === createdDate.getMonth() &&
-                    m.year === createdDate.getFullYear()
-            )
-
-            if (createdIndex !== -1) {
-                months[createdIndex].created++
-            }
-
-            if (project.status === "completed" && project.updatedAt) {
-                const completedDate = new Date(project.updatedAt)
-
-                const completedIndex = months.findIndex(
-                    (m) =>
-                        m.month === completedDate.getMonth() &&
-                        m.year === completedDate.getFullYear()
-                )
-
-                if (completedIndex !== -1) {
-                    months[completedIndex].completed++
-                }
-            }
-
-            if (project.status === "overdue") {
-                const overdueDate = new Date(
-                    project.updatedAt ?? project.createdAt
-                )
-
-                const overdueIndex = months.findIndex(
-                    (m) =>
-                        m.month === overdueDate.getMonth() &&
-                        m.year === overdueDate.getFullYear()
-                )
-
-                if (overdueIndex !== -1) {
-                    months[overdueIndex].overdue++
-                }
-            }
+  // 🔥 Fetch live data
+  React.useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const res = await fetch("/api/projects", {
+          cache: "no-store",
         })
 
-        return months
-    }, [])
+        if (!res.ok) return
 
-    // Filter dataset based on dropdown
-    const filteredData = React.useMemo(() => {
-        if (range === "3m") return fullData.slice(-3)
-        if (range === "6m") return fullData.slice(-6)
-        return fullData
-    }, [range, fullData])
-
-    const rangeLabelMap: Record<string, string> = {
-        "3m": "last 3 months",
-        "6m": "last 6 months",
-        "12m": "last 12 months",
+        const data = await res.json()
+        setProjects(Array.isArray(data) ? data : [])
+      } catch (err) {
+        console.error("Chart fetch failed:", err)
+      } finally {
+        setLoading(false)
+      }
     }
 
-    return (
-        <Card className="pt-0 shadow-none relative overflow-hidden gap-0">
+    fetchProjects()
+  }, [])
+
+  // 🔥 Build monthly dataset dynamically
+  const fullData = React.useMemo<MonthlyData[]>(() => {
+    const now = new Date()
+    const months: MonthlyData[] = []
+
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+
+      months.push({
+        label: date.toLocaleString("default", { month: "short" }),
+        month: date.getMonth(),
+        year: date.getFullYear(),
+        created: 0,
+        completed: 0,
+        overdue: 0,
+      })
+    }
+
+    projects.forEach((project) => {
+      const createdDate = new Date(project.created_at)
+
+      const createdIndex = months.findIndex(
+        (m) =>
+          m.month === createdDate.getMonth() &&
+          m.year === createdDate.getFullYear()
+      )
+
+      if (createdIndex !== -1) {
+        months[createdIndex].created++
+      }
+
+      if (project.status === "completed" && project.updated_at) {
+        const completedDate = new Date(project.updated_at)
+
+        const completedIndex = months.findIndex(
+          (m) =>
+            m.month === completedDate.getMonth() &&
+            m.year === completedDate.getFullYear()
+        )
+
+        if (completedIndex !== -1) {
+          months[completedIndex].completed++
+        }
+      }
+
+      if (project.status === "overdue") {
+        const overdueDate = new Date(
+          project.updated_at ?? project.created_at
+        )
+
+        const overdueIndex = months.findIndex(
+          (m) =>
+            m.month === overdueDate.getMonth() &&
+            m.year === overdueDate.getFullYear()
+        )
+
+        if (overdueIndex !== -1) {
+          months[overdueIndex].overdue++
+        }
+      }
+    })
+
+    return months
+  }, [projects])
+
+  const filteredData = React.useMemo(() => {
+    if (range === "3m") return fullData.slice(-3)
+    if (range === "6m") return fullData.slice(-6)
+    return fullData
+  }, [range, fullData])
+
+  const rangeLabelMap: Record<string, string> = {
+    "3m": "last 3 months",
+    "6m": "last 6 months",
+    "12m": "last 12 months",
+  }
+
+  if (loading) {
+    return <div className="p-6 text-sm">Loading chart...</div>
+  }
+
+  return (
+    <Card className="pt-0 shadow-none relative overflow-hidden gap-0">
             <CardHeader className="flex items-center justify-between border-b py-4! bg-white">
                 <div className="">
                     <CardTitle className="text-sm">Monthly Project Overview</CardTitle>
@@ -214,7 +237,7 @@ export function MonthlyProjectsChart() {
                             stroke="#ef4444"
                             strokeWidth={2.5}
                             fill="url(#fillOverdue)"
-                            stackId="1"
+                            stackId="3"
                         />
 
                         {/* Completed first (second bottom layer) */}
@@ -224,7 +247,7 @@ export function MonthlyProjectsChart() {
                             stroke="#22c55e"
                             strokeWidth={2.5}
                             fill="url(#fillCompleted)"
-                            stackId="1"
+                            stackId="2"
                         />
 
                         {/* Created on top */}
@@ -242,5 +265,5 @@ export function MonthlyProjectsChart() {
                 </ChartContainer>
             </CardContent>
         </Card>
-    )
+  )
 }

@@ -8,6 +8,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Plus } from "lucide-react"
+import { useEffect, useState } from "react"
 // import { IconFolderCode } from "@tabler/icons-react"
 
 interface EmptyStateProps {
@@ -16,6 +17,7 @@ interface EmptyStateProps {
   buttonText?: string
   onClick?: () => void
   icon?: React.ReactNode
+  action?: React.ReactNode
 }
 
 export function EmptyState({
@@ -24,7 +26,20 @@ export function EmptyState({
   buttonText,
   onClick,
   icon,
+  action
 }: EmptyStateProps) {
+
+    const [role, setRole] = useState<string | null>(null)
+    useEffect(() => {
+    const loadRole = async () => {
+      const res = await fetch("/api/me")
+      const data = await res.json()
+      setRole(data.role)
+    }
+  
+    loadRole()
+  }, [])
+  
   return (
     <Empty className="rounded-none">
       <EmptyHeader>
@@ -34,12 +49,13 @@ export function EmptyState({
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>
       </EmptyHeader>
-
-      {buttonText && (
         <EmptyContent className="flex-row justify-center gap-2">
+           {role !== "member" && action}
+           {buttonText && (
           <Button variant="gradient" onClick={onClick}><Plus className="w-4 h-4" />{buttonText}</Button>
+           )}
         </EmptyContent>
-      )}
+     
     </Empty>
   )
 }

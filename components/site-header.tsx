@@ -1,57 +1,80 @@
 "use client"
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { CalendarDays, ArrowLeft } from "lucide-react"
-
-import { projects } from "@/src/mocks/data/projects.json"
-import { Button } from "./ui/button";
+import { Button } from "./ui/button"
 
 export function SiteHeader() {
+  const pathname = usePathname()
+  const router = useRouter()
 
-  const pathname = usePathname();
-  const router = useRouter();
+  const [title, setTitle] = useState("Dashboard")
 
   const segments = pathname.split("/").filter(Boolean)
 
-  // slug page = more than 1 segment
   const isDetailPage = segments.length > 1
-
-  // parent path (e.g., "/projects")
   const parentPath = "/" + segments[0]
 
-  const getTitle = () => {
-    if (pathname === "/") return "Home";
+  useEffect(() => {
+    const resolveTitle = async () => {
+      if (pathname === "/") {
+        setTitle("Home")
+        return
+      }
 
-    const segments = pathname.split("/").filter(Boolean);
+      const segments = pathname.split("/").filter(Boolean)
 
-    // Example: /projects/portfolio-site
-    if (segments[0] === "projects" && segments[1]) {
-      const project = projects.find(
-        (p) => p.slug === segments[1]
-      );
+      // If on project detail page
+      if (segments[0] === "projects" && segments[1]) {
+        try {
+          const res = await fetch(`/api/projects/${segments[1]}`, {
+            cache: "no-store",
+          })
 
-      if (project) return project.title;
+          if (!res.ok) {
+            setTitle("Project")
+            return
+          }
+
+          const data = await res.json()
+          setTitle(data.title || "Project")
+        } catch (err) {
+          console.error("Header fetch failed:", err)
+          setTitle("Project")
+        }
+
+        return
+      }
+
+      // Fallback: format last URL segment
+      const last = segments[segments.length - 1]
+
+      if (!last) {
+        setTitle("Home")
+        return
+      }
+
+      const formatted = last
+        .split("-")
+        .map((word) =>
+          word.charAt(0).toUpperCase() + word.slice(1)
+        )
+        .join(" ")
+
+      setTitle(formatted)
     }
 
-    // fallback formatting
-    const last = segments[segments.length - 1];
-    return last
-      ? last
-        .split("-")
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ")
-      : "Home";
-  };
+    resolveTitle()
+  }, [pathname])
 
-  const today = new Date();
-
-  const day = today.getDate();
-  const month = today.toLocaleString("en-US", { month: "short" });
-  const year = today.getFullYear();
-
+  const today = new Date()
+  const day = today.getDate()
+  const month = today.toLocaleString("en-US", { month: "short" })
+  const year = today.getFullYear()
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b border-b-gray-200 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
@@ -62,28 +85,34 @@ export function SiteHeader() {
           className="mx-2 data-[orientation=vertical]:h-4"
         />
 
-        {isDetailPage && (<>
-          <Button variant="ghost"
-            size="icon"
+        {isDetailPage && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push(parentPath)}
+              className="size-7"
+            >
+              <ArrowLeft size={26} />
+            </Button>
 
-            onClick={() => router.push(parentPath)}
-            className="size-7"
-          >
-            <ArrowLeft size={26} />
-          </Button>
-          <Separator
-            orientation="vertical"
-            className="mx-2 data-[orientation=vertical]:h-4"
-          />
-        </>
+            <Separator
+              orientation="vertical"
+              className="mx-2 data-[orientation=vertical]:h-4"
+            />
+          </>
         )}
 
+        <h1 className="text-base font-medium">{title}</h1>
 
-        <h1 className="text-base font-medium">{getTitle()}</h1>
         <div className="ml-auto flex items-center gap-2">
-          <div className="flex items-center gap-2 ">
-            <p className="text-[12px] text-black uppercase">{`${day} ${month}, ${year}`}</p>
-            <span className="w-8 h-8 rounded-full bg-violet-50 text-violet-600 flex items-center justify-center"><CalendarDays size={16} /></span>
+          <div className="flex items-center gap-2">
+            <p className="text-[12px] text-black uppercase">
+              {`${day} ${month}, ${year}`}
+            </p>
+            <span className="w-8 h-8 rounded-full bg-violet-50 text-violet-600 flex items-center justify-center">
+              <CalendarDays size={16} />
+            </span>
           </div>
         </div>
       </div>

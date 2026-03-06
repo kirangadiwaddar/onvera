@@ -1,15 +1,13 @@
 export type TeamMember = {
   id: number
+  team_id: number
   name: string
-  role: string
-  image: string
-}
-
-export type TeamLead = {
-  id: number
-  name: string
-  role: string
-  image: string
+  email?: string
+  team_role: "lead" | "member"
+  designation?: string
+  avatar_src?: string | null
+  is_lead?: boolean
+  status?: "active" | "pending"
 }
 
 export type Team = {
@@ -19,8 +17,7 @@ export type Team = {
   description: string
   template: string
   status: "active" | "inactive"
-  lead?: TeamLead
+  created_at: string
   members: TeamMember[]
-  projectsAssigned?: number
-  createdAt: string
+  projectsAssigned?: number   // ✅ now valid again
 }

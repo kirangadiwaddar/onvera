@@ -1,14 +1,15 @@
 "use client"
 
+import { useState } from "react"
+import Link from "next/link"
+
 import {
-    Calendar,
     CalendarCheck,
     MoreVertical,
     PencilIcon,
     Share2,
     TrashIcon,
 } from "lucide-react"
-import Link from "next/link"
 
 import {
     Card,
@@ -23,12 +24,12 @@ import {
     DropdownMenuContent,
     DropdownMenuGroup,
     DropdownMenuItem,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+
 import {
     Avatar,
     AvatarImage,
@@ -36,24 +37,26 @@ import {
     AvatarGroup,
     AvatarGroupCount,
 } from "@/components/ui/avatar"
-import { on } from "events"
+
 import { getAvatarColor } from "@/lib/get-avatar-colors"
 import { status } from "@/lib/project-status"
 
-// type status = "completed" | "overdue" | "waiting" | "ongoing" | "onhold"
+import { ProjectDialog } from "@/components/project-dialog"
+import { DeleteProjectDialog } from "./delete-project-dialog"
 
+import { Project } from "@/types/project"
+import { ProjectActions } from "./projectActions"
 
 export interface ProjectCardProps {
-    id: number,
-    slug: string,
+    id: number
+    slug: string
     title: string
     templateTitle?: string
+    template_id?: string
     status?: status
-    avatarSrc?: string
-    createdAt?: string
-    onEdit?: () => void
-    onDelete?: () => void
-    onShare?: () => void
+    avatar_src?: string
+    created_at?: string
+
     teams?: {
         id: number
         name: string
@@ -62,29 +65,39 @@ export interface ProjectCardProps {
     members?: {
         id: number
         name: string
-        image?: string
+        avatar_src?: string
     }[]
+    project: Project & {
+        templateTitle?: string
+    }
+    onEdit?: (project: Project) => void
+    onDelete?: (id: number) => void
+    onShare?: () => void
+
     variant?: "default" | "compact"
 }
-
-
 
 export function ProjectCard({
     id,
     slug,
     title,
     templateTitle,
+    template_id,
     status,
-    avatarSrc,
-    createdAt,
+    avatar_src,
+    created_at,
     teams = [],
     members = [],
     onEdit,
     onDelete,
     onShare,
+    project,
     variant = "default",
 }: ProjectCardProps) {
 
+
+    const [editOpen, setEditOpen] = useState(false)
+    const [deleteOpen, setDeleteOpen] = useState(false)
 
     const statusStyles: Record<status, string> = {
         completed: "bg-emerald-100 text-emerald-700",
@@ -103,8 +116,8 @@ export function ProjectCard({
     }
 
     const formattedDate =
-        createdAt &&
-        new Date(createdAt).toLocaleDateString("en-GB", {
+        created_at &&
+        new Date(created_at).toLocaleDateString("en-GB", {
             day: "2-digit",
             month: "short",
             year: "numeric",
@@ -114,29 +127,34 @@ export function ProjectCard({
     const visibleMembers = members.slice(0, MAX_VISIBLE)
     const remainingCount = members.length - MAX_VISIBLE
 
-
     return (
-        <Link href={`/projects/${slug}`} key={slug} className="block">
+        <>
+            <Link href={`/projects/${slug}`} className="block">
             <Card className="mx-auto w-full p-0 gap-2 shadow-none bg-gradient-violet rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+
                 <CardHeader className="p-5 pb-0">
+
                     <Avatar className="h-10 w-10">
-                        {avatarSrc && <AvatarImage src={avatarSrc} />}
+                        {avatar_src && <AvatarImage src={avatar_src} />}
                         <AvatarFallback className={`font-semibold ${getAvatarColor(title)}`}>
                             {title.substring(0, 2).toUpperCase()}
                         </AvatarFallback>
                     </Avatar>
 
                     <CardAction className="flex items-start justify-end gap-1">
-                        {variant === "compact" && createdAt && (
-                            <Badge className="bg-sky-100 text-sky-700 border border-zinc-100 flex items-center gap-1 py-1 px-2 justify-start text-xs mr-2">
-                                <CalendarCheck size={12} className="" /> {formattedDate}
+
+                        {variant === "compact" && created_at && (
+                            <Badge className="bg-sky-100 text-sky-700 flex items-center gap-1 text-xs mr-2">
+                                <CalendarCheck size={12} /> {formattedDate}
                             </Badge>
                         )}
+
                         {status && (
                             <Badge className={`${statusStyles[status]} py-1 px-2`}>
                                 {statusLabel[status]}
                             </Badge>
                         )}
+
                         {variant === "default" && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -144,64 +162,93 @@ export function ProjectCard({
                                         <MoreVertical className="size-5" />
                                     </Button>
                                 </DropdownMenuTrigger>
+
                                 <DropdownMenuContent align="end" className="rounded-lg">
+
                                     <DropdownMenuGroup>
-                                        <DropdownMenuItem onClick={onEdit} className="text-xs!">
+
+                                        <DropdownMenuItem
+                                            onClick={(e) => {
+                                                e.preventDefault()
+                                                e.stopPropagation()
+                                                setEditOpen(true)
+                                            }}
+                                            className="text-xs"
+                                        >
                                             <PencilIcon />
                                             Edit
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={onShare} className="text-xs!">
+
+                                        <DropdownMenuItem
+                                            onClick={onShare}
+                                            className="text-xs"
+                                        >
                                             <Share2 />
                                             Share
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={onDelete} variant="destructive" className="text-xs!">
+
+                                        <DropdownMenuItem
+                                            onClick={(e) => {
+                                                e.preventDefault()
+                                                e.stopPropagation()
+                                                setDeleteOpen(true)
+                                            }}
+                                            className="text-xs!"
+                                        >
                                             <TrashIcon />
                                             Delete
                                         </DropdownMenuItem>
+
                                     </DropdownMenuGroup>
+
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         )}
+
                     </CardAction>
                 </CardHeader>
-                <CardContent className="mb-5">
-                    <div className="flex gap-4 items-start min-w-0">
-                        <div className="space-y-1 flex-1 min-w-0">
-                            <h3 className="font-medium text-sm truncate">
-                                {title}
-                            </h3>
-                            {templateTitle && (
-                                <p className="text-xs text-muted-foreground truncate">
-                                    {templateTitle}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                    
 
-                    {variant === "default" && teams.length > 0 && (
-                        <p className="text-xs text-muted-foreground truncate">
-                            {teams.map(t => t.name).join(", ")}
-                        </p>
-                    )}
+                <CardContent className="mb-5">
+
+                    <div className="space-y-1">
+
+                        <h3 className="font-medium text-sm truncate">
+                            {title}
+                        </h3>
+
+                        {templateTitle && (
+                            <p className="text-xs text-muted-foreground truncate">
+                                {templateTitle}
+                            </p>
+                        )}
+
+                        {variant === "default" && teams.length > 0 && (
+                            <p className="text-xs text-muted-foreground truncate">
+                                {teams.map((t) => t.name).join(", ")}
+                            </p>
+                        )}
+
+                    </div>
+
                 </CardContent>
 
                 {variant === "default" && (
-                    <CardFooter className="border-t py-4! text-xs text-muted-foreground flex items-center justify-between">
-                        {createdAt && (
-                            <span className="flex items-center gap-1 justify-start">
+                    <CardFooter className="border-t py-4 text-xs text-muted-foreground flex items-center justify-between">
+
+                        {created_at && (
+                            <span className="flex items-center gap-1">
                                 <CalendarCheck size={16} className="text-black" />
-                                <strong className="font-medium text-black mt-0.5">
+                                <strong className="font-medium text-black">
                                     {formattedDate}
                                 </strong>
                             </span>
                         )}
 
-
                         <AvatarGroup>
+
                             {visibleMembers.map((member) => (
                                 <Avatar key={member.id} size="sm">
-                                    <AvatarImage src={member.image} alt={member.name} />
+                                    <AvatarImage src={member.avatar_src || ""} alt={member.name} />
                                     <AvatarFallback className={`font-bold ${getAvatarColor(String(member.id))}`}>
                                         {member.name.charAt(0).toUpperCase()}
                                     </AvatarFallback>
@@ -213,12 +260,42 @@ export function ProjectCard({
                                     +{remainingCount}
                                 </AvatarGroupCount>
                             )}
+
                         </AvatarGroup>
 
                     </CardFooter>
                 )}
 
             </Card>
-        </Link>
+            </Link>
+
+            <ProjectDialog
+                mode="edit"
+                project={{
+                    id,
+                    title,
+                    slug,
+                    template_id: template_id ?? "",
+                    avatar_src: avatar_src ?? ""
+                }}
+                open={editOpen}
+                onClose={() => setEditOpen(false)}
+                onSaved={(updatedProject) => {
+                    setEditOpen(false)
+                    onEdit?.(updatedProject)
+                }}
+            />
+
+            <ProjectActions
+                project={project}
+                editOpen={editOpen}
+                setEditOpen={setEditOpen}
+                deleteOpen={deleteOpen}
+                setDeleteOpen={setDeleteOpen}
+                onEdit={onEdit}
+                onDelete={onDelete}
+            />
+
+        </>
     )
 }
