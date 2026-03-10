@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Sora } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/components/providers/auth-provider"
+import { Toaster } from "sonner";
 
 const sora = Sora({
   subsets: ["latin"],
@@ -8,7 +10,7 @@ const sora = Sora({
   variable: "--font-sora",
 })
 
-import { MockProvider } from '../src/mocks/MockProvider'
+// import { MockProvider } from '../src/mocks/MockProvider'
 
 
 export const metadata: Metadata = {
@@ -24,9 +26,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={sora.className}>
-        <MockProvider>
-           {children}
-        </MockProvider>
+        {/* <MockProvider> */}
+          <AuthProvider>{children}</AuthProvider>
+        {/* </MockProvider> */}
+        <Toaster richColors closeButton position="top-center" />
       </body>
     </html>
   );

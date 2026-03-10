@@ -49,8 +49,8 @@ export function CompletedProjectsChart({ completed, total }: Props) {
 
   return (
     
-    <Card className="flex flex-col shadow-none rounded-2xl border border-zinc-200 w-full pt-0 overflow-hidden bg-transparent">
-      <CardHeader className="items-center text-center justify-center py-4 bg-violet-50">
+    <Card className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border bg-card/80 pt-0 shadow-none dark:bg-card/60">
+      <CardHeader className="items-center justify-center bg-violet-50 py-4 text-center dark:bg-violet-500/10">
         <CardTitle className="text-sm!">Completed Projects</CardTitle>
         <CardDescription className="text-xs">{completed} of {total} Total Finished</CardDescription>
       </CardHeader>
@@ -58,7 +58,7 @@ export function CompletedProjectsChart({ completed, total }: Props) {
       <CardContent className="flex-1 pb-0">
         <ChartContainer
           config={chartConfig}
-          className="mx-auto aspect-square max-h-44"
+          className="mx-auto aspect-square max-h-44 mt-3"
         >
           <RadialBarChart
             data={chartData}
@@ -122,7 +122,7 @@ export function CompletedProjectsChart({ completed, total }: Props) {
             </PolarRadiusAxis>
           </RadialBarChart>
         </ChartContainer>
-        <div className="flex items-center justify-center gap-2 leading-none font-medium mt-3 text-sm">
+        <div className="flex items-center justify-center gap-2 leading-none font-medium mt-10 text-sm">
           {percentage}% completion rate <TrendingUp className="size-4" />
         </div>
       </CardContent>

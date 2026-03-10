@@ -36,8 +36,8 @@ export function NavMain({
               <Link href={item.url}>
               <SidebarMenuButton tooltip={item.title} size="lg" className={`pl-3 group-data-[state=collapsed]:gap-0 group-data-[state=collapsed]:justify-center group-data-[state=collapsed]:p-5! transition-colors cursor-pointer ${
                     isActive
-                      ? "bg-linear-to-r from-violet-200 to-violet-200 text-violet-900 font-medium"
-                      : "hover:bg-linear-to-r from-violet-200 to-violet-50 hover:text-violet-900"
+                      ? "bg-linear-to-r from-violet-200 to-violet-200 text-violet-900 font-medium hover:text-violet-900 dark:from-violet-300 dark:to-violet-100/50"
+                      : "hover:bg-linear-to-r from-violet-200 to-violet-50 hover:text-violet-900 dark:from-violet-300 dark:to-violet-100/50"
                   }`}>
                 {item.icon && <item.icon className="size-5!" strokeWidth={1.5} />}
                 <span className="text-sm group-data-[state=collapsed]:hidden">{item.title}</span>

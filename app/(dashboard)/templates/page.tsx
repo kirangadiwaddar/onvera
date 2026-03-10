@@ -9,7 +9,7 @@ export default function Page() {
       <div className="flex flex-col lg:flex-row items-center justify-between px-7 gap-4 lg:gap-5">
         <p className="text-sm flex-1 lg:line-clamp-2">Stop starting from scratch — build smarter with structured templates.</p>        
       </div> 
-      <Separator className="my-0 bg-gray-100" />
+      <Separator className="my-0 bg-border" />
     <TemplateCards />
     </div>
   )

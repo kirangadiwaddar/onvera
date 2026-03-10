@@ -15,7 +15,7 @@ export default function TestimonialCard({
   avatar,
 }: TestimonialCardProps) {
   return (
-    <div className="min-w-105 rounded-2xl border bg-white/80 border-white backdrop-blur-sm p-6">
+    <div className="min-w-105 rounded-2xl border border-white bg-white/80 backdrop-blur-sm p-6 dark:border-white/10 dark:bg-white/5">
       <p className="text-sm line-clamp-3 text-zinc-600 dark:text-zinc-400 whitespace-normal">
         {message}
       </p>

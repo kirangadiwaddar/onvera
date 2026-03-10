@@ -1,225 +1,790 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import type { Team } from "@/types/team"
+import type { Team, TeamMember } from "@/types/team"
+import type { Project } from "@/types/project"
+import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { Badge } from "@/components/ui/badge"
 import { LoadingState } from "@/components/loadingState"
 import { EmptyState } from "@/components/emptyState"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getAvatarColor } from "@/lib/get-avatar-colors"
-import { CalendarDays, Plus, Trash2 } from "lucide-react"
+import { CalendarDays, Copy, Crown, Plus, Trash2, UserRoundCheck } from "lucide-react"
 import { ProjectCard } from "@/components/project-card"
 
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { useAuth } from "@/components/providers/auth-provider"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+
+type TeamDetailResponse = {
+  team: Team
+  projects: Project[]
+}
 
 export default function TeamDetailPage() {
-    const params = useParams()
-    const slug = Array.isArray(params.slug)
-        ? params.slug[0]
-        : params.slug
+  const { user, profile } = useAuth()
+  const params = useParams()
+  const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug
 
-    const [team, setTeam] = useState<Team | null>(null)
-    const [projects, setProjects] = useState<any[]>([])
-    const [loading, setLoading] = useState(true)
+  const [team, setTeam] = useState<Team | null>(null)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [allProjects, setAllProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
 
-    useEffect(() => {
-        if (!slug) return
+  const [openInvite, setOpenInvite] = useState(false)
+  const [memberName, setMemberName] = useState("")
+  const [memberEmail, setMemberEmail] = useState("")
+  const [memberRole, setMemberRole] = useState("")
+  const [memberPosition, setMemberPosition] = useState<"member" | "lead">("member")
+  const [savingTeam, setSavingTeam] = useState(false)
+  const [openAssignProject, setOpenAssignProject] = useState(false)
+  const [selectedProjectSlug, setSelectedProjectSlug] = useState("")
+  const [assignSearch, setAssignSearch] = useState("")
+  const [pendingMemberDelete, setPendingMemberDelete] = useState<{ id: number; name: string; isLead: boolean } | null>(null)
+  const [pendingProjectUnassign, setPendingProjectUnassign] = useState<Project | null>(null)
+  const [confirmDemoteLead, setConfirmDemoteLead] = useState(false)
+  const [unassigningProject, setUnassigningProject] = useState(false)
+  const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
 
-        fetch(`/api/teams/${slug}`, { cache: "no-store" })
-            .then(res => {
-                if (!res.ok) throw new Error("Not found")
-                return res.json()
-            })
-            .then(data => {
-                setTeam(data.team)
-                setProjects(data.projects || [])
-            })
-            .catch(() => {
-                setTeam(null)
-            })
-            .finally(() => {
-                setLoading(false)
-            })
-    }, [slug])
+  const loadTeam = useCallback(async () => {
+    if (!slug) return
 
-    if (loading) return <div><LoadingState title="Loading Teams" description="Please wait we are fetching your teams" /></div>
+    const response = await fetchWithAuth(`/api/teams/${slug}`, { cache: "no-store" })
 
-    if (!team) return <EmptyState title="Team Not Found" description="We're Sorry could'nt find your team" />
+    if (!response.ok) {
+      throw new Error("Not found")
+    }
 
-    return (
-        <div className="team-inner-page">
-            <div className="team-header flex items-center justify-between gap-10 p-6">
-                <p className="text-sm text-muted-foreground">
-                    {team.description}
-                </p>
-                <div className="right-badges flex items-center justify-end gap-2">
-                    <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 py-2 px-3">
-                        <CalendarDays />{" "}
-                        {new Date(team.createdAt).toLocaleDateString("en-GB")}
-                    </Badge>
-                    <Badge className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 py-2 px-3 capitalize">Status: {team.status}</Badge>
-                    <Badge className="bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 py-2 px-3">
-                        Projects Assigned: {projects.length}
-                    </Badge>
-                </div>
-            </div>
+    const data = (await response.json()) as TeamDetailResponse
+    setTeam(data.team)
+    setProjects(data.projects || [])
 
+    const projectResponse = await fetchWithAuth("/api/projects", { cache: "no-store" })
+    const projectData = (await projectResponse.json()) as { projects?: Project[] }
+    setAllProjects(Array.isArray(projectData.projects) ? projectData.projects : [])
+  }, [slug])
 
-            <Separator className="my-0 bg-gray-100" />
+  useEffect(() => {
+    if (!slug) return
 
-            <div className="space-y-6 p-6">
-                <div className="flex items-center gap-10 justify-between">
-                    <h2 className="text-lg font-semibold">Team Members</h2>
-                    <Button variant="default"><Plus /> Invite Member</Button>
-                </div>
+    void loadTeam()
+      .catch(() => {
+        setTeam(null)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [loadTeam, slug])
 
-                <div className="rounded-xl border overflow-hidden">
-                    <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-75">Member</TableHead>
-                                <TableHead>Role</TableHead>
-                                <TableHead className="text-center">Type</TableHead>
-                                <TableHead></TableHead>
-                            </TableRow>
-                        </TableHeader>
+  const persistTeamMembers = async (nextLead: Team["lead"] | null, nextMembers: TeamMember[]) => {
+    if (!team) return
 
-                        <TableBody>
+    setSavingTeam(true)
+    try {
+      const response = await fetchWithAuth(`/api/teams/${team.slug}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          lead: nextLead,
+          members: nextMembers,
+        }),
+      })
 
-                            {/* Team Lead Always First */}
-                            {team.lead && (
-                                <TableRow className="bg-muted/50">
-                                    <TableCell className="flex items-center gap-3 py-4">
-                                        <Avatar>
-                                            <AvatarImage
-                                                src={team.lead.image}
-                                                alt={team.lead.name}
-                                            />
-                                            <AvatarFallback
-                                                className={`font-bold ${getAvatarColor(String(team.lead.id))}`}
-                                            >
-                                                {team.lead.name.charAt(0)}
-                                            </AvatarFallback>
-                                        </Avatar>
+      if (!response.ok) {
+        throw new Error("Unable to save team members")
+      }
 
-                                        <span className="font-medium">
-                                            {team.lead.name}
-                                        </span>
-                                    </TableCell>
+      const data = (await response.json()) as TeamDetailResponse
+      setTeam(data.team)
+      setProjects(data.projects || [])
+    } catch (error) {
+      console.error("Team member update failed:", error)
+    } finally {
+      setSavingTeam(false)
+    }
+  }
 
-                                    <TableCell className="py-4">
-                                        {team.lead.role}
-                                    </TableCell>
+  const handleInviteMember = async () => {
+    if (!team || !memberName.trim() || !memberRole.trim() || !memberEmail.trim()) return
 
-                                    <TableCell className="text-center py-4">
-                                        <span className="px-2 py-1 text-xs bg-sky-100 text-sky-700 rounded">
-                                            Team Lead
-                                        </span>
-                                    </TableCell>
-                                    <TableCell className="flex items-center gap-2 justify-end">
-                                        <Button size="sm" variant="destructiveLight"><Trash2 /></Button>
-                                    </TableCell>
-                                </TableRow>
-                            )}
+    const tokenBytes = new Uint8Array(12)
+    crypto.getRandomValues(tokenBytes)
+    const accessToken = Array.from(tokenBytes, (byte) => byte.toString(16).padStart(2, "0")).join("")
 
-                            {/* Regular Members */}
-                            {team.members.length > 0 ? (
-                                team.members.map((member) => (
-                                    <TableRow key={member.id}>
-                                        <TableCell className="flex items-center gap-3 py-4">
-                                            <Avatar>
-                                                <AvatarImage
-                                                    src={member.image}
-                                                    alt={member.name}
-                                                />
-                                                <AvatarFallback
-                                                    className={`font-bold ${getAvatarColor(String(member.id))}`}
-                                                >
-                                                    {member.name.charAt(0)}
-                                                </AvatarFallback>
-                                            </Avatar>
+    const newMember: TeamMember = {
+      id: Date.now(),
+      name: memberName.trim(),
+      role: memberRole.trim(),
+      image: "",
+      email: memberEmail.trim().toLowerCase(),
+      accessToken,
+    }
 
-                                            <span className="font-medium">
-                                                {member.name}
-                                            </span>
-                                        </TableCell>
+    const members = team.members ?? []
 
-                                        <TableCell className="py-4">
-                                            {member.role}
-                                        </TableCell>
+    if (memberPosition === "lead" && !team.lead) {
+      await persistTeamMembers(newMember, members)
+    } else {
+      await persistTeamMembers(team.lead ?? null, [...members, newMember])
+    }
 
-                                        <TableCell className="text-center py-4 text-muted-foreground text-xs">
-                                            Member
-                                        </TableCell>
-                                        <TableCell className="flex items-center gap-2 justify-end">
-                                            <Button size="sm" variant="destructiveLight"><Trash2 /></Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
-                                !team.lead && (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={3}
-                                            className="text-center py-8 text-muted-foreground"
-                                        >
-                                            No team members added
-                                        </TableCell>
-                                    </TableRow>
-                                )
-                            )}
+    const inviteResponse = await fetchWithAuth("/api/invitations/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: newMember.email,
+        name: newMember.name,
+        memberRole: "team_member",
+        token: newMember.accessToken,
+        contextName: team.name,
+        contextType: "team",
+      }),
+    })
+    const inviteData = await inviteResponse.json().catch(() => null) as { sent?: boolean; message?: string } | null
+    if (!inviteResponse.ok || inviteData?.sent === false) {
+      const errorMessage = inviteData?.message || "Failed to send invite email"
+      console.warn(errorMessage)
+      window.alert(errorMessage)
+    }
 
-                        </TableBody>
-                    </Table>
-                </div>
-            </div>
+    setMemberName("")
+    setMemberEmail("")
+    setMemberRole("")
+    setMemberPosition("member")
+    setOpenInvite(false)
+  }
 
-            {/* ================= Projects Assigned ================= */}
+  const handleRemoveMember = async (memberId: number, isLead: boolean) => {
+    if (!team) return
 
-<Separator className="my-0 bg-gray-100" />
+    if (isLead) {
+      await persistTeamMembers(null, team.members ?? [])
+      return
+    }
 
-<div className="space-y-6 p-6">
-  <div className="flex items-center justify-between">
-    <h2 className="text-lg font-semibold">
-      Projects Assigned ({projects.length})
-    </h2>
-  </div>
+    const nextMembers = (team.members ?? []).filter((member) => member.id !== memberId)
+    await persistTeamMembers(team.lead ?? null, nextMembers)
+  }
 
-  {projects.length > 0 ? (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      {projects.map((project) => (
-        <ProjectCard
-          key={project.id}
-          id={project.id}
-          slug={project.slug}
-          title={project.title}
-          templateTitle={project.templateTitle}
-          status={project.status}
-          createdAt={project.createdAt}
-          avatarSrc={project.avatarSrc}
-        //   teams={project.teams}
-          members={project.members}
-          variant="compact"
-        />
-      ))}
-    </div>
-  ) : (
-    <p className="text-sm text-muted-foreground">
-      No projects assigned to this team.
-    </p>
-  )}
-</div>   
+  const handleSetLead = async (member: TeamMember) => {
+    if (!team) return
+    if (team.lead) return
 
+    const withoutSelected = (team.members ?? []).filter((item) => item.id !== member.id)
+    const nextMembers = team.lead ? [...withoutSelected, team.lead] : withoutSelected
+
+    await persistTeamMembers(member, nextMembers)
+  }
+
+  const handleDemoteLeadToMember = async () => {
+    if (!team?.lead) return
+    await persistTeamMembers(null, [...(team.members ?? []), team.lead])
+  }
+
+  const handleAssignProject = async () => {
+    if (!team || !selectedProjectSlug) return
+
+    const selectedProject = allProjects.find((project) => project.slug === selectedProjectSlug)
+    if (!selectedProject) return
+
+    const nextTeamIds = Array.from(new Set([...(selectedProject.teamIds || []), team.id]))
+
+    try {
+      const response = await fetchWithAuth(`/api/projects/${selectedProject.slug}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          teamIds: nextTeamIds,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Unable to assign team to project")
+      }
+
+      setSelectedProjectSlug("")
+      setOpenAssignProject(false)
+      await loadTeam()
+    } catch (error) {
+      console.error("Project assignment failed:", error)
+    }
+  }
+
+  const handleUnassignProject = async (project: Project) => {
+    if (!team) return
+
+    const nextTeamIds = (project.teamIds || []).filter((teamId) => teamId !== team.id)
+
+    try {
+      setUnassigningProject(true)
+      const response = await fetchWithAuth(`/api/projects/${project.slug}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          teamIds: nextTeamIds,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Unable to unassign team from project")
+      }
+
+      await loadTeam()
+    } catch (error) {
+      console.error("Project unassignment failed:", error)
+    } finally {
+      setUnassigningProject(false)
+    }
+  }
+
+  if (loading) {
+    return <LoadingState title="Loading Teams" description="Please wait while we fetch your team" />
+  }
+
+  if (!team) {
+    return <EmptyState title="Team Not Found" description="We couldn't find this team." />
+  }
+
+  const formattedDate = new Date(team.createdAt).toLocaleDateString("en-GB")
+  const adminName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Admin"
+  const adminRoleLabel = profile?.role === "freelancer" ? "Freelancer" : "Agency"
+  const assignableProjects = allProjects.filter((project) => {
+    const notAssigned = !project.teamIds?.includes(team.id)
+    const matchesSearch = project.title.toLowerCase().includes(assignSearch.toLowerCase())
+    return notAssigned && matchesSearch
+  })
+  const selectedProject = allProjects.find((project) => project.slug === selectedProjectSlug) ?? null
+
+  return (
+    <div className="team-inner-page">
+      <div className="team-header flex items-center justify-between gap-10 p-6">
+        <p className="text-sm text-muted-foreground">{team.description}</p>
+        <div className="right-badges flex items-center justify-end gap-2">
+          <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 py-2 px-3">
+            <CalendarDays /> {formattedDate}
+          </Badge>
+          <Badge className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 py-2 px-3 capitalize">
+            Status: {team.status}
+          </Badge>
+          <Badge className="bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 py-2 px-3">
+            Projects Assigned: {projects.length}
+          </Badge>
         </div>
-    )
+      </div>
+
+      <Separator className="my-0 bg-border" />
+
+      <div className="space-y-6 p-6">
+        <div className="flex items-center gap-10 justify-between">
+          <h2 className="text-lg font-semibold">Team Members</h2>
+          {!isReadOnlyRole && (
+            <Button variant="gradient" onClick={() => setOpenInvite(true)}>
+              <Plus /> Invite Member
+            </Button>
+          )}
+        </div>
+
+        <div className="rounded-xl border overflow-hidden">
+          <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="">Member</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Designation</TableHead>
+                <TableHead>Position</TableHead>
+                <TableHead>Access Token</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {!isReadOnlyRole && (
+              <TableRow className="bg-zinc-50/70 dark:bg-white/5">
+                <TableCell className="flex items-center gap-3 py-4">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Avatar>
+                        <AvatarImage src={user?.user_metadata?.avatar_url || ""} alt={adminName} />
+                        <AvatarFallback className={`font-bold ${getAvatarColor(adminName)}`}>
+                          {adminName.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <span className="font-medium">{adminName}</span>
+                    </TooltipContent>
+                  </Tooltip>
+
+
+                </TableCell>
+                <TableCell>{user?.email || "-"}</TableCell>
+                <TableCell>{`Admin (${adminRoleLabel})`}</TableCell>
+                <TableCell>
+                  <Badge className="bg-zinc-900 text-white border border-zinc-800">Admin</Badge>
+                </TableCell>
+                <TableCell>-</TableCell>
+                <TableCell className="text-right text-xs text-muted-foreground">Owner Access</TableCell>
+              </TableRow>
+              )}
+
+              {team.lead ? (
+                <TableRow className="bg-muted/50">
+                  <TableCell className="flex items-center gap-3 py-4">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Avatar>
+                          <AvatarImage src={team.lead.image} alt={team.lead.name} />
+                          <AvatarFallback className={`font-bold ${getAvatarColor(String(team.lead.id))}`}>
+                            {team.lead.name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <span className="font-medium">{team.lead.name}</span>
+                      </TooltipContent>
+                    </Tooltip>
+
+
+                  </TableCell>
+                  <TableCell>{team.lead.email || "-"}</TableCell>
+                  <TableCell>{team.lead.role}</TableCell>
+                  <TableCell>
+                    <Badge className="bg-sky-100 text-sky-700 border border-sky-200">
+                      <Crown className="size-3.5" /> Lead
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {team.lead.accessToken ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs"
+                        onClick={() => navigator.clipboard.writeText(team.lead?.accessToken || "")}
+                      >
+                        <Copy className="size-3.5" /> Copy
+                      </Button>
+                    ) : "-"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {!isReadOnlyRole && <div className="flex items-center justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={savingTeam}
+                        onClick={() => setConfirmDemoteLead(true)}
+                      >
+                        Make Member
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructiveLight"
+                        disabled={savingTeam}
+                        onClick={() =>
+                          setPendingMemberDelete({
+                            id: team.lead!.id,
+                            name: team.lead!.name,
+                            isLead: true,
+                          })
+                        }
+                      >
+                        <Trash2 className="dark:text-white" />
+                      </Button>
+                    </div>}
+                  </TableCell>
+                </TableRow>
+              ) : null}
+
+              {(team.members ?? []).length > 0 ? (
+                (team.members ?? []).map((member) => (
+                  <TableRow key={member.id}>
+                    <TableCell className="flex items-center gap-3 py-4">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Avatar>
+                            <AvatarImage src={member.image} alt={member.name} />
+                            <AvatarFallback className={`font-bold ${getAvatarColor(String(member.id))}`}>
+                              {member.name.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <span className="font-medium">{member.name}</span>
+                        </TooltipContent>
+                      </Tooltip>
+
+
+                    </TableCell>
+                    <TableCell>{member.email || "-"}</TableCell>
+                    <TableCell>{member.role}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">Member</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {member.accessToken ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs"
+                          onClick={() => navigator.clipboard.writeText(member.accessToken || "")}
+                        >
+                          <Copy className="size-3.5" /> Copy
+                        </Button>
+                      ) : "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {!isReadOnlyRole && <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={savingTeam || !!team.lead}
+                          onClick={() => void handleSetLead(member)}
+                        >
+                          <UserRoundCheck /> Set Lead
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructiveLight"
+                          disabled={savingTeam}
+                          onClick={() =>
+                            setPendingMemberDelete({
+                              id: member.id,
+                              name: member.name,
+                              isLead: false,
+                            })
+                          }
+                        >
+                          <Trash2 className="dark:text-white" />
+                        </Button>
+                      </div>}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : !team.lead ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    No team members added
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <Separator className="my-0 bg-border" />
+
+      <div className="space-y-6 p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Projects Assigned ({projects.length})</h2>
+          {!isReadOnlyRole && (
+            <Button variant="gradient" onClick={() => setOpenAssignProject(true)}>
+              <Plus /> Assign Project
+            </Button>
+          )}
+        </div>
+
+        {projects.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+            {projects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                id={project.id}
+                slug={project.slug}
+                title={project.title}
+                templateTitle={project.templateTitle}
+                status={project.status}
+                createdAt={project.createdAt}
+                avatarSrc={project.avatarSrc}
+                members={project.members}
+                variant="compact"
+                footerClassName="pt-0"
+                footerAction={
+                  !isReadOnlyRole ? (
+                    <Button
+                      size="sm"
+                      variant="destructiveLight"
+                      className="text-xs dark:text-white"
+                      onClick={() => setPendingProjectUnassign(project)}
+                    >
+                      Unassign Team
+                    </Button>
+                  ) : null
+                }
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No projects assigned to this team.</p>
+        )}
+      </div>
+
+      <Dialog open={openInvite} onOpenChange={setOpenInvite}>
+        <DialogContent className="sm:max-w-md" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>Invite Member</DialogTitle>
+            <DialogDescription>
+              Add a member and optionally assign as lead if no lead is currently set.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="member-name">Member Name</Label>
+              <Input
+                id="member-name"
+                value={memberName}
+                onChange={(event) => setMemberName(event.target.value)}
+                placeholder="Jane Doe"
+                disabled={savingTeam}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="member-role">Designation</Label>
+              <Input
+                id="member-role"
+                value={memberRole}
+                onChange={(event) => setMemberRole(event.target.value)}
+                placeholder="Frontend Developer"
+                disabled={savingTeam}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="member-email">Email</Label>
+              <Input
+                id="member-email"
+                type="email"
+                value={memberEmail}
+                onChange={(event) => setMemberEmail(event.target.value)}
+                placeholder="member@company.com"
+                disabled={savingTeam}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="member-position">Position</Label>
+              <Select
+                value={team.lead ? "member" : memberPosition}
+                onValueChange={(value) => setMemberPosition(value as "member" | "lead")}
+                disabled={savingTeam || !!team.lead}
+              >
+                <SelectTrigger id="member-position" className="w-full">
+                  <SelectValue placeholder="Select position" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="member">Member</SelectItem>
+                  {!team.lead ? <SelectItem value="lead">Lead</SelectItem> : null}
+                </SelectContent>
+              </Select>
+              {team.lead ? (
+                <p className="text-xs text-muted-foreground">
+                  Lead already assigned. Invite is limited to member role.
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenInvite(false)} disabled={savingTeam}>
+              Cancel
+            </Button>
+            <Button variant="gradient" onClick={() => void handleInviteMember()} disabled={savingTeam || !memberEmail.trim()}>
+              {savingTeam ? "Saving..." : "Save Member"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={openAssignProject} onOpenChange={setOpenAssignProject}>
+        <DialogContent className="sm:max-w-md" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>Assign Project</DialogTitle>
+            <DialogDescription>
+              Assign this team to another project. One team can be linked to multiple projects.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="project-search">Project</Label>
+            <Input
+              id="project-search"
+              value={assignSearch}
+              onChange={(event) => {
+                setAssignSearch(event.target.value)
+                setSelectedProjectSlug("")
+              }}
+              placeholder="Type to search project..."
+            />
+            <div className="border rounded-md max-h-56 overflow-y-auto">
+              {assignableProjects.length > 0 ? (
+                assignableProjects.map((project) => (
+                  <button
+                    key={project.slug}
+                    type="button"
+                    onClick={() => {
+                      setSelectedProjectSlug(project.slug)
+                      setAssignSearch(project.title)
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${selectedProjectSlug === project.slug ? "bg-muted" : ""
+                      }`}
+                  >
+                    {project.title}
+                  </button>
+                ))
+              ) : (
+                <p className="px-3 py-2 text-xs text-muted-foreground">No matching projects</p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenAssignProject(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="gradient"
+              onClick={() => void handleAssignProject()}
+              disabled={!selectedProject}
+            >
+              Assign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={!!pendingMemberDelete}
+        onOpenChange={(open) => {
+          if (!open) setPendingMemberDelete(null)
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingMemberDelete
+                ? `Are you sure you want to remove ${pendingMemberDelete.name} from this team?`
+                : "Are you sure you want to remove this member?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={savingTeam}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={savingTeam}
+              onClick={() => {
+                if (!pendingMemberDelete) return
+                void handleRemoveMember(pendingMemberDelete.id, pendingMemberDelete.isLead)
+                setPendingMemberDelete(null)
+              }}
+            >
+              {savingTeam ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!pendingProjectUnassign}
+        onOpenChange={(open) => {
+          if (!open) setPendingProjectUnassign(null)
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unassign Team?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingProjectUnassign
+                ? `This will remove the team from "${pendingProjectUnassign.title}".`
+                : "This will remove the team from this project."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unassigningProject}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={unassigningProject}
+              onClick={() => {
+                if (!pendingProjectUnassign) return
+                void handleUnassignProject(pendingProjectUnassign)
+                setPendingProjectUnassign(null)
+              }}
+            >
+              {unassigningProject ? "Unassigning..." : "Unassign"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmDemoteLead} onOpenChange={setConfirmDemoteLead}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Make Lead a Member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to convert the current lead to a regular member?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={savingTeam}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={savingTeam}
+              onClick={() => {
+                void handleDemoteLeadToMember()
+                setConfirmDemoteLead(false)
+              }}
+            >
+              {savingTeam ? "Saving..." : "Make Member"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
 }

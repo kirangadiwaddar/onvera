@@ -3,6 +3,11 @@ export type TeamMember = {
   name: string
   role: string
   image: string
+  email?: string
+  accessToken?: string
+  isRegistered?: boolean
+  memberType?: "agency" | "freelancer"
+  isLead?: boolean
 }
 
 export type TeamLead = {
@@ -10,6 +15,11 @@ export type TeamLead = {
   name: string
   role: string
   image: string
+  email?: string
+  accessToken?: string
+  isRegistered?: boolean
+  memberType?: "agency" | "freelancer"
+  isLead?: boolean
 }
 
 export type Team = {
@@ -17,7 +27,6 @@ export type Team = {
   name: string
   slug: string
   description: string
-  template: string
   status: "active" | "inactive"
   lead?: TeamLead
   members: TeamMember[]

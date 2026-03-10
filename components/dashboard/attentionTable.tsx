@@ -23,8 +23,8 @@ type Props = {
 const attentionTable = ({ projects }: Props) => {
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-destructive/20 h-full">
-      <div className="flex items-center justify-between p-5 py-4 bg-destructive/5">
+    <div className="col-span-2 h-full w-full overflow-hidden rounded-2xl border border-destructive/20 dark:border-destructive/30">
+      <div className="flex items-center justify-between bg-destructive/5 p-5 py-4 dark:bg-destructive/10">
         <div className="text-destructive space-y-2">
           <p className="text-sm flex items-center gap-2">
             <OctagonAlert size={16} />
@@ -34,13 +34,13 @@ const attentionTable = ({ projects }: Props) => {
         </div>
 
         <Link href="/projects">
-          <Button variant="ghost" size="sm" className="hover:no-underline hover:bg-white">
+          <Button variant="ghost" size="sm" className="hover:no-underline hover:bg-white dark:hover:bg-white/5">
             View All Projects <ArrowUp size={16} />
           </Button>
         </Link>
       </div>
 
-      <Separator className="bg-gray-100" />
+      <Separator className="bg-border" />
 
       {projects.length === 0 ? (
         <div className="flex items-center justify-center h-1/2">
