@@ -325,6 +325,93 @@ export default function Home() {
             ))}
           </section>
 
+          <section className="rounded-3xl border border-black/10 bg-white/70 px-6 py-10 2xl:px-10 2xl:py-14 dark:border-white/10 dark:bg-white/5">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/60 bg-violet-500/10 px-3 py-1 text-xs text-violet-700 dark:border-violet-400/40 dark:text-violet-100">
+                  <Monitor className="h-4 w-4" />
+                  Product tour
+                </div>
+                <h2 className="text-3xl font-semibold text-zinc-900 2xl:text-4xl dark:text-white">
+                  Full client onboarding, shown end-to-end.
+                </h2>
+                <p className="max-w-2xl text-sm text-zinc-600 dark:text-white/70">
+                  See onboarding intake, approvals, and project tracking in a single, polished workspace.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {[
+                  "Client onboarding",
+                  "Project approvals",
+                  "Project tracking",
+                ].map((label) => (
+                  <span
+                    key={label}
+                    className="rounded-full border border-black/10 bg-white/80 px-3 py-1 text-xs text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-white/70"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="mt-8 overflow-hidden rounded-3xl border border-black/10 bg-black/95 shadow-2xl shadow-violet-500/15 dark:border-white/10">
+              <video
+                className="h-full w-full"
+                controls
+                playsInline
+                poster="/video-poster.png"
+              >
+                <source src="/product-demo.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div className="mt-4 text-xs text-zinc-500 dark:text-white/60">
+              Drop your MP4 in `public/product-demo.mp4` and a poster in `public/video-poster.png`.
+            </div>
+            <div className="mt-8 rounded-3xl border border-black/10 bg-gradient-to-br from-violet-100 via-white to-white p-6 dark:border-white/10 dark:from-[#1a1f2f] dark:via-[#0f131d] dark:to-[#0f131d]">
+              <div className="flex items-center justify-between">
+                <div className="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-white/50">
+                  Dashboard preview
+                </div>
+                <span className="rounded-full bg-violet-500/15 px-3 py-1 text-xs text-violet-700 dark:bg-violet-500/20 dark:text-violet-100">
+                  Live status
+                </span>
+              </div>
+              <div className="mt-6 grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+                <div className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
+                  <div className="flex items-center justify-between">
+                    <div className="h-3 w-28 rounded-full bg-black/10 dark:bg-white/10" />
+                    <div className="h-3 w-12 rounded-full bg-black/10 dark:bg-white/10" />
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-3">
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                      <div key={idx} className="h-16 rounded-xl bg-white/80 shadow-sm dark:bg-white/5" />
+                    ))}
+                  </div>
+                  <div className="mt-4 h-32 rounded-2xl bg-white/80 shadow-sm dark:bg-white/5" />
+                </div>
+                <div className="grid gap-3">
+                  {[
+                    "Approval timelines",
+                    "Client uploads",
+                    "Team status",
+                  ].map((item) => (
+                    <div
+                      key={item}
+                      className="rounded-2xl border border-black/10 bg-white/80 p-4 text-xs text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-white/70"
+                    >
+                      <p className="text-sm font-semibold text-zinc-900 dark:text-white">{item}</p>
+                      <p className="mt-2">Always visible, always in sync.</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-4 text-xs text-zinc-500 dark:text-white/60">
+                Replace the mock with a real screenshot in `public/dashboard-screenshot.png`.
+              </div>
+            </div>
+          </section>
+
           <section id="features" className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] 2xl:gap-12">
             <div className="space-y-4">
               <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/60 bg-violet-500/10 px-3 py-1 text-xs text-violet-700 dark:border-violet-400/40 dark:text-violet-100">
@@ -401,6 +488,67 @@ export default function Home() {
                   </span>
                   <p className="text-sm text-zinc-700 dark:text-white/80">{point}</p>
                 </motion.div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-black/10 bg-white/70 px-6 py-10 2xl:px-10 2xl:py-14 dark:border-white/10 dark:bg-white/5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-white/50">Roles & Access</p>
+                <h2 className="mt-2 text-3xl font-semibold text-zinc-900 2xl:text-4xl dark:text-white">
+                  A clear access map for every role.
+                </h2>
+                <p className="mt-2 text-sm text-zinc-600 dark:text-white/70">
+                  Keep responsibilities obvious with a structured permissions table.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 overflow-hidden rounded-2xl border border-black/10 bg-white/80 dark:border-white/10 dark:bg-white/5">
+              <div className="grid grid-cols-[1fr_1.2fr_1.8fr] gap-0 bg-zinc-100/70 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-zinc-500 dark:bg-white/5 dark:text-white/50">
+                <span>Role</span>
+                <span>Access scope</span>
+                <span>Typical actions</span>
+              </div>
+              {[
+                {
+                  role: "Admin",
+                  scope: "Full workspace access",
+                  actions: "Manage templates, teams, billing, and projects.",
+                },
+                {
+                  role: "Freelancer",
+                  scope: "Solo workspace",
+                  actions: "Run projects, invite external members, track approvals.",
+                },
+                {
+                  role: "Team Lead",
+                  scope: "Assigned teams",
+                  actions: "Review submissions, approve deliverables, lead updates.",
+                },
+                {
+                  role: "Team Member",
+                  scope: "Assigned projects",
+                  actions: "Update tasks, upload assets, collaborate on checklists.",
+                },
+                {
+                  role: "Project Member",
+                  scope: "Project-specific",
+                  actions: "View progress, submit assets, respond to feedback.",
+                },
+              ].map((row) => (
+                <div
+                  key={row.role}
+                  className="grid grid-cols-[1fr_1.2fr_1.8fr] gap-0 border-t border-black/5 px-4 py-4 text-xs text-zinc-600 dark:border-white/10 dark:text-white/70"
+                >
+                  <span className="flex items-center">
+                    <span className="rounded-full bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-500/20 dark:text-violet-100">
+                      {row.role}
+                    </span>
+                  </span>
+                  <span className="font-medium text-zinc-900 dark:text-white">{row.scope}</span>
+                  <span>{row.actions}</span>
+                </div>
               ))}
             </div>
           </section>

@@ -425,9 +425,28 @@ export default function ClientOnboardingPage() {
   const projectProgress = totalSections === 0
     ? 0
     : Math.min(Math.round((completedSections / totalSections) * 100), 100)
-  const uploadedCount = Object.keys(submissionsDraft || {}).filter(
-    (key) => key !== CUSTOM_SECTIONS_KEY && !key.startsWith("__section_complete:"),
-  ).length
+  const uploadedCount = sections.filter((section) => {
+    if (section.dynamic) {
+      const rows = submissionsDraft?.[section.id]
+      if (!Array.isArray(rows) || rows.length === 0) return false
+      return rows.some((row) => {
+        if (!row || typeof row !== "object") return false
+        const entry = row as { name?: unknown; url?: unknown }
+        return typeof entry.name === "string"
+          && entry.name.trim()
+          && typeof entry.url === "string"
+          && entry.url.trim()
+      })
+    }
+
+    return section.items.every((item) => {
+      const entry = submissionsDraft?.[item.id]
+      if (!entry || typeof entry !== "object") return false
+      const value = (entry as { value?: unknown }).value
+      if (typeof value === "string") return value.trim().length > 0
+      return Boolean(value)
+    })
+  }).length
   const progress = totalSections === 0
     ? 0
     : Math.min(Math.round((uploadedCount / totalSections) * 100), 100)

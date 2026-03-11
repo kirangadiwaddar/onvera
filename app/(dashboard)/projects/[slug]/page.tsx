@@ -62,7 +62,6 @@ import { getAvatarColor } from "@/lib/get-avatar-colors"
 import { statusStyles, statusLabel } from "@/lib/project-status"
 import { CalendarCheck } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
-import { Progress } from "@/components/ui/progress"
 import { EmptyState } from "@/components/emptyState"
 import { LoadingState } from "@/components/loadingState"
 import ClientAccessModal from "@/components/projects/client-access-modal"
@@ -253,14 +252,22 @@ export default function ProjectDetailPage() {
     fetchTeams()
   }, [])
 
+  const currentRole = (profile?.role || user?.user_metadata?.role || null) as string | null
+  const restrictedRole = currentRole === "project_member" || currentRole === "team_member"
+  const isFreelancer = currentRole === "freelancer"
+
   const availableTeams = teams.filter((team) => !project?.teamIds?.includes(team.id))
 
   useEffect(() => {
+    if (isFreelancer && inviteType === "team") {
+      setInviteType("member")
+      return
+    }
     if (!openInvite || inviteType !== "team") return
     if (!selectedTeamId && availableTeams.length > 0) {
       setSelectedTeamId(String(availableTeams[0].id))
     }
-  }, [availableTeams, inviteType, openInvite, selectedTeamId])
+  }, [availableTeams, inviteType, openInvite, selectedTeamId, isFreelancer])
 
   if (loading) {
     return (
@@ -276,9 +283,6 @@ export default function ProjectDetailPage() {
       </div>
     )
   }
-
-  const currentRole = (profile?.role || user?.user_metadata?.role || null) as string | null
-  const restrictedRole = currentRole === "project_member" || currentRole === "team_member"
   const currentEmail = (user?.email || "").toLowerCase()
   const isLeadMember = Boolean(
     project.members?.some(
@@ -302,13 +306,37 @@ export default function ProjectDetailPage() {
   const templateSections =
     templateStructure[project.templateId] || []
   const checklistSections = [...templateSections, ...customSections]
-  const completedSections = checklistSections.filter(
-    (section) => project.submissions?.[`__section_complete:${section.id}`] === true,
-  ).length
+  const totalSections = checklistSections.length
+  const uploadedCount = checklistSections.filter((section) => {
+    if (section.dynamic) {
+      const rows = project.submissions?.[section.id]
+      if (!Array.isArray(rows) || rows.length === 0) return false
+      return rows.some((row) => {
+        if (!row || typeof row !== "object") return false
+        const entry = row as { name?: unknown; url?: unknown }
+        return typeof entry.name === "string"
+          && entry.name.trim()
+          && typeof entry.url === "string"
+          && entry.url.trim()
+      })
+    }
+
+    return section.items.every((item) => {
+      const entry = project.submissions?.[item.id]
+      if (!entry || typeof entry !== "object") return false
+      const value = (entry as { value?: unknown }).value
+      if (typeof value === "string") return value.trim().length > 0
+      return Boolean(value)
+    })
+  }).length
   const checklistProgress =
-    checklistSections.length === 0
+    totalSections === 0
       ? 0
-      : Math.min(Math.round((completedSections / checklistSections.length) * 100), 100)
+      : Math.min(Math.round((uploadedCount / totalSections) * 100), 100)
+  const progressRadius = 22
+  const progressStroke = 4
+  const progressCircumference = 2 * Math.PI * progressRadius
+  const progressOffset = progressCircumference * (1 - checklistProgress / 100)
 
   const addCustomSection = () => {
     if (!newSectionTitle) return
@@ -716,17 +744,42 @@ export default function ProjectDetailPage() {
 
       <div className="px-7 py-0 grid grid-cols-3">
         <div className="left-block col-span-2 border-r border-zinc-100 dark:border-zinc-700 h-full py-5 pb-7 pr-5">
-          <h3 className="text-sm text-muted-foreground mb-6">
-            Project Onboarding Checklist
-          </h3>
-          <div className="mb-5 rounded-lg border border-border bg-background/60 px-4 py-3">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Checklist progress</span>
-              <span>{checklistProgress}%</span>
+          <div className="flex items-center justify-between gap-6 mb-6">
+            <div>
+              <h3 className="text-sm text-muted-foreground">
+                Project Onboarding Checklist
+              </h3>
+              <div className="text-xs text-muted-foreground mt-1">
+                {uploadedCount}/{totalSections} sections uploaded
+              </div>
             </div>
-            <Progress value={checklistProgress} className="mt-2 h-2" />
-            <div className="mt-1 text-[11px] text-muted-foreground">
-              {completedSections}/{checklistSections.length} sections completed
+            <div className="relative h-14 w-14">
+              <svg viewBox="0 0 52 52" className="-rotate-90 h-14 w-14">
+                <circle
+                  cx="26"
+                  cy="26"
+                  r={progressRadius}
+                  stroke="currentColor"
+                  strokeWidth={progressStroke}
+                  fill="none"
+                  className="text-zinc-200 dark:text-zinc-700"
+                />
+                <circle
+                  cx="26"
+                  cy="26"
+                  r={progressRadius}
+                  stroke="currentColor"
+                  strokeWidth={progressStroke}
+                  strokeLinecap="round"
+                  fill="none"
+                  className="text-emerald-500"
+                  strokeDasharray={progressCircumference}
+                  strokeDashoffset={progressOffset}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-zinc-700 dark:text-zinc-200">
+                {checklistProgress}%
+              </div>
             </div>
           </div>
 
@@ -741,7 +794,7 @@ export default function ProjectDetailPage() {
                     {isCustom && canManageChecklist && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <button className="absolute right-3 top-3.5 text-xs text-red-600 hover:underline mr-10">
+                          <button className="absolute right-10 cursor-pointer z-10 top-3.5 text-xs text-red-600 hover:underline mr-10">
                             Remove
                           </button>
                         </AlertDialogTrigger>
@@ -906,18 +959,20 @@ export default function ProjectDetailPage() {
       <div className="p-7 space-y-8">
         <div>
           <div className="title-flex flex items-center justify-between gap-3 mb-5">
-            <div className="flex items-center gap-3">
-              <h3 className="text-base font-medium">Teams in this project</h3>
-              {assignedTeams.length === 0 && externalMembers.length > 0 ? (
-                <Badge className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded-full border border-amber-200 dark:bg-amber-500/15 dark:text-amber-200 dark:border-amber-500/20">
-                  No teams added
-                </Badge>
-              ) : null}
-            </div>
+            <h3 className="text-base font-medium">
+              {isFreelancer ? "Project Members" : "Teams & Members"}
+            </h3>
             {canEditProject && (
-              <Button size="sm" variant="gradient" onClick={() => setOpenInvite(true)}>
+              <Button
+                size="sm"
+                variant="gradient"
+                onClick={() => {
+                  setInviteType(isFreelancer ? "member" : "member")
+                  setOpenInvite(true)
+                }}
+              >
                 <Users className="mr-2 h-4 w-4" />
-                Add Team/Members
+                {isFreelancer ? "Add Member" : "Add Team/Members"}
               </Button>
             )}
           </div>
@@ -925,41 +980,40 @@ export default function ProjectDetailPage() {
           {assignedTeams.length === 0 && externalMembers.length === 0 ? (
             <EmptyState
               icon={<Users />}
-              title="No Team Found"
-              description="Create team or add existing team"
-              buttonText={canEditProject ? "Add Team/Members" : undefined}
-              onClick={() => setOpenInvite(true)}
+              title="No members added"
+              description={isFreelancer ? "Invite external collaborators to this project." : "Create a team or invite external members to this project."}
+              buttonText={canEditProject ? (isFreelancer ? "Add Member" : "Add Team/Members") : undefined}
+              onClick={() => {
+                setInviteType(isFreelancer ? "member" : "member")
+                setOpenInvite(true)
+              }}
             />
-          ) : assignedTeams.length > 0 ? (
+          ) : (
             <div className="rounded-xl border overflow-hidden">
               <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Team</TableHead>
+                    <TableHead>Member/Team Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Lead / Email</TableHead>
+                    <TableHead>Members / Role</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Lead</TableHead>
-                    <TableHead>Members</TableHead>
+                    {canSeeAccessToken && <TableHead>Access</TableHead>}
                     <TableHead className="text-right"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {assignedTeams.map((team) => {
+                  {!isFreelancer && assignedTeams.map((team) => {
                     const members = [
                       ...(team.lead ? [{ ...team.lead, isLead: true }] : []),
                       ...(team.members ?? []),
                     ]
                     return (
-                      <TableRow key={team.id ?? team.slug ?? team.name}>
+                      <TableRow key={`team-${team.id ?? team.slug ?? team.name}`}>
                         <TableCell className="font-medium">{team.name}</TableCell>
                         <TableCell>
-                          <Badge
-                            className={`px-2 py-1 text-xs rounded-full ${
-                              team.status === "active"
-                                ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                                : "bg-amber-100 text-amber-700 border border-amber-200"
-                            }`}
-                          >
-                            {team.status === "active" ? "Active" : "Inactive"}
+                          <Badge className="px-2 py-1 text-xs bg-slate-100 text-slate-700 rounded-full">
+                            Team
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -978,6 +1032,18 @@ export default function ProjectDetailPage() {
                           )}
                         </TableCell>
                         <TableCell>{members.length}</TableCell>
+                        <TableCell>
+                          <Badge
+                            className={`px-2 py-1 text-xs rounded-full ${
+                              team.status === "active"
+                                ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                                : "bg-amber-100 text-amber-700 border border-amber-200"
+                            }`}
+                          >
+                            {team.status === "active" ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
+                        {canSeeAccessToken && <TableCell>-</TableCell>}
                         <TableCell className="text-right">
                           <Button size="sm" variant="secondary" onClick={() => setViewTeam(team)}>
                             View Members
@@ -986,34 +1052,9 @@ export default function ProjectDetailPage() {
                       </TableRow>
                     )
                   })}
-                </TableBody>
-              </Table>
-            </div>
-          ) : null}
-        </div>
 
-        {externalMembers.length === 0 ? null : (
-          <div>
-            <div className="title-flex flex items-center justify-between gap-3 mb-5">
-              <h3 className="text-base font-medium">External members in this project</h3>
-            </div>
-            <div className="rounded-xl border overflow-hidden">
-              <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Designation</TableHead>
-                    <TableHead>Position</TableHead>
-                    <TableHead>Status</TableHead>
-                    {canSeeAccessToken && <TableHead>Access Token</TableHead>}
-                    <TableHead className="text-right"></TableHead>
-                  </TableRow>
-                </TableHeader>
-
-                <TableBody>
                   {externalMembers.map((member) => (
-                    <TableRow key={member.id}>
+                    <TableRow key={`member-${member.id}`}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
@@ -1022,53 +1063,29 @@ export default function ProjectDetailPage() {
                               {member.name.slice(0, 1).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-
-                          <span className="font-medium">
-                            {member.name}
-                          </span>
+                          <span className="font-medium">{member.name}</span>
                         </div>
                       </TableCell>
-
                       <TableCell>
-                        {member.email || "-"}
-                      </TableCell>
-
-                      <TableCell>
-                        {member.role || "-"}
-                      </TableCell>
-
-                    <TableCell className="space-x-2">
-                      {member.isLead && (
-                        <Badge className="px-2 py-1 text-xs bg-sky-100 text-sky-700 rounded-full inline-flex items-center gap-1 border border-sky-200">
-                          <Crown className="size-3.5" />
-                          Team Lead
-                        </Badge>
-                      )}
-                      {member.isExternal && (
                         <Badge className="px-2 py-1 text-xs bg-violet-50 text-violet-700 rounded-full dark:bg-violet-500/15 dark:text-violet-200">
                           External
                         </Badge>
-                      )}
-                      {!member.isLead && !member.isExternal && (
-                        <Badge className="px-2 py-1 text-xs bg-zinc-100 text-zinc-700 rounded-full">
-                          Member
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {(member.isRegistered ?? !member.accessToken) ? (
-                        <Badge className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-                          Active
-                        </Badge>
-                      ) : (
-                        <Badge className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                          Pending
-                        </Badge>
-                      )}
-                    </TableCell>
-
-                    {canSeeAccessToken && (
-                      <TableCell className="text-right">
+                      </TableCell>
+                      <TableCell>{member.email || "-"}</TableCell>
+                      <TableCell>{member.role || "-"}</TableCell>
+                      <TableCell>
+                        {(member.isRegistered ?? !member.accessToken) ? (
+                          <Badge className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                            Pending
+                          </Badge>
+                        )}
+                      </TableCell>
+                      {canSeeAccessToken && (
+                        <TableCell>
                           {member.accessToken ? (
                             <Button
                               size="sm"
@@ -1087,10 +1104,9 @@ export default function ProjectDetailPage() {
                           )}
                         </TableCell>
                       )}
-
                       <TableCell className="text-right">
-                      {canEditProject && member.isExternal && (
-                        <AlertDialog>
+                        {canEditProject && member.isExternal && (
+                          <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <button className="text-red-500 hover:text-red-700">
                                 <Trash2 className="h-4 w-4" />
@@ -1127,8 +1143,8 @@ export default function ProjectDetailPage() {
                 </TableBody>
               </Table>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <Dialog open={openInvite} onOpenChange={setOpenInvite}>
@@ -1151,13 +1167,15 @@ export default function ProjectDetailPage() {
                 <SelectItem value="member">
                   Add External Member
                 </SelectItem>
-                <SelectItem value="team">
-                  Add Existing Team
-                </SelectItem>
+                {!isFreelancer && (
+                  <SelectItem value="team">
+                    Add Existing Team
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
 
-            {inviteType === "team" && (
+            {!isFreelancer && inviteType === "team" && (
               <div className="space-y-2">
                 <Label>Select Team</Label>
                 <Select

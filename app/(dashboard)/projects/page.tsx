@@ -349,23 +349,38 @@ export default function Page() {
 
           <Separator className="my-0 bg-border" />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
-            {projectsToShow.map((project) => (
-              <ProjectCard
-                key={project.id}
-                id={project.id}
-                slug={project.slug}
-                title={project.title}
-                templateTitle={project.templateTitle}
-                status={project.status}
-                createdAt={project.createdAt}
-                avatarSrc={project.avatarSrc}
-                members={project.members}
-                onEdit={isReadOnlyRole ? undefined : () => setEditingProject(project)}
-                onDelete={isReadOnlyRole ? undefined : () => setDeletingProject(project)}
+          {filteredProjects.length === 0 ? (
+            <div className="px-7 pb-0 pt-0">
+              <EmptyState
+                title="No Projects Found"
+                description="No projects match the selected template or status."
+                buttonText="Reset filters"
+                onClick={() => {
+                  setTemplateFilter(["all"])
+                  setStatusFilter("all")
+                }}
+                icon={<FolderOpenDot />}
               />
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
+              {projectsToShow.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  id={project.id}
+                  slug={project.slug}
+                  title={project.title}
+                  templateTitle={project.templateTitle}
+                  status={project.status}
+                  createdAt={project.createdAt}
+                  avatarSrc={project.avatarSrc}
+                  members={project.members}
+                  onEdit={isReadOnlyRole ? undefined : () => setEditingProject(project)}
+                  onDelete={isReadOnlyRole ? undefined : () => setDeletingProject(project)}
+                />
+              ))}
+            </div>
+          )}
 
           {totalPages > 1 && (
             <Pagination className="mt-8">

@@ -142,7 +142,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canAccessTeams = currentRole === "team_member" || teamMembership !== "none"
 
   const navItems =
-    currentRole === "project_member"
+    currentRole === "freelancer"
+      ? data.navMain.filter((item) => item.url !== "/teams")
+      : currentRole === "project_member"
       ? data.navMain.filter((item) => item.url === "/projects" || (canAccessTeams && item.url === "/teams"))
       : currentRole === "team_member"
         ? data.navMain.filter((item) => item.url === "/projects" || item.url === "/teams")

@@ -31,20 +31,32 @@ function getProjectTitle(project?: string | { title?: string }) {
 export function RecentActivity({
   activities = [],
   loading = false,
+  variant = "default",
 }: {
   activities?: Activity[]
   loading?: boolean
+  variant?: "default" | "bare" | "list"
 }) {
+  const isBare = variant === "bare" || variant === "list"
+  const isList = variant === "list"
   return (
-    <div className="recent-activity rounded-xl border border-border overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 bg-violet-50 dark:bg-violet-500/10">
-        <p className="text-sm font-medium">Recent Activity</p>
-        <div className="notify flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-white/5">
-          <Bell size={16} className="text-orange-600 dark:text-orange-400" />
+    <div className={isBare ? "recent-activity" : "recent-activity rounded-xl border border-border overflow-hidden"}>
+      {isBare ? null : (
+        <div className="flex items-center justify-between px-3 py-2 bg-violet-50 dark:bg-violet-500/10">
+          <p className="text-sm font-medium">Recent Activity</p>
+          <div className="notify flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-white/5">
+            <Bell size={16} className="text-orange-600 dark:text-orange-400" />
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="activity-list max-h-120 overflow-y-auto divide-y divide-zinc-100 px-3 dark:divide-white/10">
+      <div
+        className={
+          isBare
+            ? "activity-list divide-y divide-zinc-100 px-0 dark:divide-white/10"
+            : "activity-list max-h-120 overflow-y-auto divide-y divide-zinc-100 px-3 dark:divide-white/10"
+        }
+      >
         {loading ? (
           <div className="py-6 text-center text-sm text-muted-foreground">Loading...</div>
         ) : activities.length === 0 ? (
@@ -59,9 +71,9 @@ export function RecentActivity({
               activity.status === "generated" ||
               activity.status === "created"
             return (
-              <div key={activity.id} className="activity-item flex items-start justify-between py-4">
-                <div className="space-y-1 max-w-[80%]">
-                  <p className="text-sm flex items-center gap-1">
+              <div key={activity.id} className={isList ? "flex items-start justify-between py-3" : "activity-item flex items-start justify-between py-4"}>
+                <div className={isList ? "space-y-1" : "space-y-1 max-w-[80%]"}>
+                  <p className={isList ? "text-sm flex items-center gap-2" : "text-sm flex items-center gap-1"}>
                     {activity.title}
                     {isSuccess ? (
                       <BadgeCheck size={18} fill="#00c951" stroke="#fff" />

@@ -13,6 +13,7 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
 import { LoadingState } from "@/components/loadingState"
+import { EmptyState } from "@/components/emptyState"
 
 export default function Page() {
   const { profile } = useAuth()
@@ -24,6 +25,7 @@ export default function Page() {
   const [editingTeam, setEditingTeam] = useState<Team | null>(null)
   const [deletingTeam, setDeletingTeam] = useState<Team | null>(null)
   const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
+  const isFreelancer = profile?.role === "freelancer"
 
   const loadTeams = async () => {
     setLoadingTeams(true)
@@ -37,8 +39,9 @@ export default function Page() {
   }
 
   useEffect(() => {
+    if (isFreelancer) return
     void loadTeams()
-  }, [])
+  }, [isFreelancer])
 
   const handleCreateTeam = async (values: TeamFormValues) => {
     setSubmitting(true)
@@ -119,6 +122,15 @@ export default function Page() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (isFreelancer) {
+    return (
+      <EmptyState
+        title="Teams Unavailable"
+        description="Freelancer workspaces don't have access to teams."
+      />
+    )
   }
 
   if (loadingTeams) {

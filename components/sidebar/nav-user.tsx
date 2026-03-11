@@ -1,9 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Bell, ChevronsUpDown, CircleUserRound, CreditCard, LogOut } from "lucide-react"
 import { USER_ROLE_LABELS, isUserRole } from "@/lib/auth/roles"
 import { AccountSettingsModal } from "@/components/account/account-settings-modal"
+import { RecentActivity } from "@/components/dashboard/recentActivity"
+import { fetchWithAuth } from "@/lib/auth/client-fetch"
 
 import {
   Avatar,
@@ -35,6 +38,22 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+
+type Activity = {
+  id: string
+  title: string
+  project?: string | { title?: string }
+  status: string
+  actor?: "Admin" | "Client" | "Team Lead"
+  timestamp?: string
+  created_at?: string
+}
 
 export function NavUser({
   user,
@@ -54,8 +73,41 @@ export function NavUser({
   const { isMobile } = useSidebar()
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [showAccountDialog, setShowAccountDialog] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [loadingActivities, setLoadingActivities] = useState(false)
   const roleLabel = role === "admin" ? "Admin" : role && isUserRole(role) ? USER_ROLE_LABELS[role] : "User"
   const managedBy = managedByLabel || roleLabel
+
+  useEffect(() => {
+    if (!showNotifications) return
+    let ignore = false
+
+    const loadActivities = async () => {
+      setLoadingActivities(true)
+      try {
+        const res = await fetchWithAuth("/api/dashboard", { cache: "no-store" })
+        const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
+        if (!ignore) {
+          setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
+        }
+      } catch {
+        if (!ignore) {
+          setActivities([])
+        }
+      } finally {
+        if (!ignore) {
+          setLoadingActivities(false)
+        }
+      }
+    }
+
+    void loadActivities()
+
+    return () => {
+      ignore = true
+    }
+  }, [showNotifications])
 
   return (
     <>
@@ -118,11 +170,18 @@ export function NavUser({
                   <CircleUserRound />
                   Account
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <CreditCard />
-                  Billing
+                <DropdownMenuItem asChild>
+                  <Link href="/billing">
+                    <CreditCard />
+                    Billing
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    setShowNotifications(true)
+                  }}
+                >
                   <Bell />
                   Notifications
                 </DropdownMenuItem>
@@ -164,6 +223,16 @@ export function NavUser({
         </AlertDialogContent>
       </AlertDialog>
       <AccountSettingsModal open={showAccountDialog} onOpenChange={setShowAccountDialog} />
+      <Sheet open={showNotifications} onOpenChange={setShowNotifications}>
+        <SheetContent side="right" className="w-[360px] max-w-full">
+          <SheetHeader className="border-b border-zinc-100">
+            <SheetTitle>Notifications</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 h-[calc(100dvh-100px)] overflow-y-auto">
+            <RecentActivity activities={activities} loading={loadingActivities} variant="list" />
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   )
 }

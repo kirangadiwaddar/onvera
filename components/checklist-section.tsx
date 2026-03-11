@@ -172,6 +172,10 @@ export default function ChecklistSection({
     setLocalRows((prev) => [...prev, { name: "", url: "" }])
   }
 
+  const removeLocalRow = (index: number) => {
+    setLocalRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index))
+  }
+
   const submitDynamicRow = (row: { name: string; url: string }, rowIndex: number) => {
     if (!row.name.trim() || !row.url.trim()) return
 
@@ -349,48 +353,79 @@ export default function ChecklistSection({
               )}
 
               {isAgency && (canEdit || canModerate) && (
-                <div className="flex gap-2 justify-between items-center">
-                  <div className="space-x-2">
+                <div className="flex justify-end items-center gap-2">
+                  <TooltipProvider delayDuration={200}>
                     {canEdit && (
                       <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs"
-                          onClick={() => toggleEdit(item.id)}
-                        >
-                          {isEditing ? "Cancel Edit" : "Enable Edit"}
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-7 px-2"
+                              onClick={() => toggleEdit(item.id)}
+                              aria-label={isEditing ? "Cancel edit" : "Enable edit"}
+                            >
+                              {isEditing ? "Cancel Edit" : "Enable Edit"}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {isEditing ? "Cancel edit" : "Enable edit"}
+                          </TooltipContent>
+                        </Tooltip>
                         {isEditing && (
-                          <Button size="sm" className="text-xs" onClick={() => saveAgencyEdit(item.id)}>
-                            Save
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                className="text-xs h-7 px-2"
+                                variant="default"
+                                onClick={() => saveAgencyEdit(item.id)}
+                                aria-label="Save"
+                              >
+                                Save
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Save</TooltipContent>
+                          </Tooltip>
                         )}
                       </>
                     )}
-                  </div>
 
-                  {canModerate && (
-                    <div className="space-x-2">
-                      <Button
-                        size="sm"
-                        variant="destructiveLight"
-                        className="text-xs"
-                        onClick={() => setItemStatus(item.id, "rejected")}
-                      >
-                        Reject
-                      </Button>
-                      <Button
-                        variant="gradient"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => setItemStatus(item.id, "approved")}
-                        disabled={submission.status === "approved"}
-                      >
-                        Approve
-                      </Button>
-                    </div>
-                  )}
+                    {canModerate && (
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="destructiveLight"
+                              className="text-xs h-7 px-2"
+                              onClick={() => setItemStatus(item.id, "rejected")}
+                              aria-label="Reject"
+                            >
+                              Reject
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Reject</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="gradient"
+                              size="sm"
+                              className="text-xs h-7 px-2"
+                              onClick={() => setItemStatus(item.id, "approved")}
+                              disabled={submission.status === "approved"}
+                              aria-label="Approve"
+                            >
+                              Approve
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Approve</TooltipContent>
+                        </Tooltip>
+                      </>
+                    )}
+                  </TooltipProvider>
                 </div>
               )}
             </div>
@@ -455,50 +490,78 @@ export default function ChecklistSection({
                   )}
 
                   <div className="flex justify-end items-center gap-2">
-                    {isAgency && canEdit && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs"
-                        onClick={() => toggleEdit(dynamicId)}
-                      >
-                        {isEditing ? "Cancel Edit" : "Enable Edit"}
-                      </Button>
-                    )}
+                    <TooltipProvider delayDuration={200}>
+                      {isAgency && canEdit && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-7 px-2"
+                              onClick={() => toggleEdit(dynamicId)}
+                              aria-label={isEditing ? "Cancel edit" : "Enable edit"}
+                            >
+                              {isEditing ? "Cancel Edit" : "Enable Edit"}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {isEditing ? "Cancel edit" : "Enable edit"}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
 
-                    {isEditing && (
-                      <Button
-                        size="sm"
-                        className="text-xs"
-                        variant="default"
-                        onClick={() => saveDynamicRow(index)}
-                        disabled={!draft.name.trim() || !draft.url.trim()}
-                      >
-                        Save
-                      </Button>
-                    )}
+                      {isEditing && isAgency && canEdit && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              className="text-xs h-7 px-2"
+                              variant="default"
+                              onClick={() => saveDynamicRow(index)}
+                              disabled={!draft.name.trim() || !draft.url.trim()}
+                              aria-label="Save"
+                            >
+                              Save
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Save</TooltipContent>
+                        </Tooltip>
+                      )}
 
-                    {isAgency && canModerate && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="destructiveLight"
-                          className="text-xs"
-                          onClick={() => updateDynamicRow(index, { status: "rejected" })}
-                        >
-                          Reject
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="text-xs"
-                          variant="gradient"
-                          onClick={() => updateDynamicRow(index, { status: "approved" })}
-                          disabled={row.status === "approved"}
-                        >
-                          Approve
-                        </Button>
-                      </>
-                    )}
+                      {isAgency && canModerate && (
+                        <>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="destructiveLight"
+                                className="text-xs h-7 px-2"
+                                onClick={() => updateDynamicRow(index, { status: "rejected" })}
+                                aria-label="Reject"
+                              >
+                                Reject
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Reject</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                className="text-xs h-7 px-2"
+                                variant="gradient"
+                                onClick={() => updateDynamicRow(index, { status: "approved" })}
+                                disabled={row.status === "approved"}
+                                aria-label="Approve"
+                              >
+                                Approve
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Approve</TooltipContent>
+                          </Tooltip>
+                        </>
+                      )}
+                    </TooltipProvider>
                   </div>
                 </div>
               )
@@ -538,6 +601,13 @@ export default function ChecklistSection({
                         onClick={() => submitDynamicRow(row, index)}
                       >
                         {isAgency ? "Save Row" : "Submit Data"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructiveLight"
+                        onClick={() => removeLocalRow(index)}
+                      >
+                        Remove
                       </Button>
                     </div>
                   </div>

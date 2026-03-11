@@ -82,6 +82,7 @@ export default function TeamDetailPage() {
   const [confirmDemoteLead, setConfirmDemoteLead] = useState(false)
   const [unassigningProject, setUnassigningProject] = useState(false)
   const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
+  const isFreelancer = profile?.role === "freelancer"
 
   const loadTeam = useCallback(async () => {
     if (!slug) return
@@ -103,6 +104,10 @@ export default function TeamDetailPage() {
 
   useEffect(() => {
     if (!slug) return
+    if (isFreelancer) {
+      setLoading(false)
+      return
+    }
 
     void loadTeam()
       .catch(() => {
@@ -111,7 +116,7 @@ export default function TeamDetailPage() {
       .finally(() => {
         setLoading(false)
       })
-  }, [loadTeam, slug])
+  }, [loadTeam, slug, isFreelancer])
 
   const persistTeamMembers = async (nextLead: Team["lead"] | null, nextMembers: TeamMember[]) => {
     if (!team) return
@@ -280,6 +285,15 @@ export default function TeamDetailPage() {
     } finally {
       setUnassigningProject(false)
     }
+  }
+
+  if (isFreelancer) {
+    return (
+      <EmptyState
+        title="Teams Unavailable"
+        description="Freelancer workspaces don't have access to teams."
+      />
+    )
   }
 
   if (loading) {

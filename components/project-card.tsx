@@ -122,7 +122,7 @@ export function ProjectCard({
             className="mx-auto w-full p-0 gap-2 shadow-none bg-gradient-violet rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
         >
             <CardHeader className="p-5 pb-0">
-                <Avatar className="h-10 w-10">
+                <Avatar className="h-10 w-10 rounded-lg">
                     {avatarSrc && <AvatarImage src={avatarSrc} />}
                     <AvatarFallback className={`font-semibold ${getAvatarColor(title)}`}>
                         {title.substring(0, 2).toUpperCase()}
