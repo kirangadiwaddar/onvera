@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
+import { getDefaultPathForRole } from "@/lib/auth/roles"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +30,7 @@ import {
 import Logo from "@/components/ui/logo"
 
 export default function Home() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system")
   const [mounted, setMounted] = useState(false)
   const [pricingMode, setPricingMode] = useState<"agency" | "freelancer">("agency")
@@ -70,6 +71,8 @@ export default function Home() {
   )
 
   const activePlan = pricing[pricingMode]
+  const role = profile?.role || (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null)
+  const dashboardHref = getDefaultPathForRole(role)
 
   const container: Variants = {
     hidden: { opacity: 0, y: 24 },
@@ -154,7 +157,7 @@ export default function Home() {
                   All Projects
                 </Link> */}
                 <Link
-                  href="/dashboard"
+                  href={dashboardHref}
                   className="rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-500/30 dark:bg-white dark:text-[#0b0b13] dark:hover:shadow-white/20"
                 >
                   Dashboard
@@ -540,7 +543,7 @@ export default function Home() {
                   All Projects
                 </Link> */}
                 <Link
-                  href="/dashboard"
+                  href={dashboardHref}
                   className="rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-500/30 dark:bg-white dark:text-[#0b0b13] dark:hover:shadow-white/20"
                 >
                   Dashboard

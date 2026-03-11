@@ -86,6 +86,7 @@ export function ProjectCard({
     onShare,
     variant = "default",
 }: ProjectCardProps) {
+    const hasActions = Boolean(onEdit || onDelete || onShare)
 
     const statusStyles: Record<status, string> = {
         completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200",
@@ -134,7 +135,7 @@ export function ProjectCard({
                             {statusLabel[status]}
                         </Badge>
                     )}
-                    {variant === "default" && (
+                    {variant === "default" && hasActions && (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button
@@ -147,37 +148,43 @@ export function ProjectCard({
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="rounded-lg">
                                 <DropdownMenuGroup>
-                                    <DropdownMenuItem
-                                        onSelect={(event) => {
-                                            event.preventDefault()
-                                            onEdit?.()
-                                        }}
-                                        className="text-xs!"
-                                    >
-                                        <PencilIcon />
-                                        Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        onSelect={(event) => {
-                                            event.preventDefault()
-                                            onShare?.()
-                                        }}
-                                        className="text-xs!"
-                                    >
-                                        <Share2 />
-                                        Share
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        onSelect={(event) => {
-                                            event.preventDefault()
-                                            onDelete?.()
-                                        }}
-                                        variant="destructive"
-                                        className="text-xs!"
-                                    >
-                                        <TrashIcon />
-                                        Delete
-                                    </DropdownMenuItem>
+                                    {onEdit && (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => {
+                                                event.preventDefault()
+                                                onEdit()
+                                            }}
+                                            className="text-xs!"
+                                        >
+                                            <PencilIcon />
+                                            Edit
+                                        </DropdownMenuItem>
+                                    )}
+                                    {onShare && (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => {
+                                                event.preventDefault()
+                                                onShare()
+                                            }}
+                                            className="text-xs!"
+                                        >
+                                            <Share2 />
+                                            Share
+                                        </DropdownMenuItem>
+                                    )}
+                                    {onDelete && (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => {
+                                                event.preventDefault()
+                                                onDelete()
+                                            }}
+                                            variant="destructive"
+                                            className="text-xs!"
+                                        >
+                                            <TrashIcon />
+                                            Delete
+                                        </DropdownMenuItem>
+                                    )}
                                 </DropdownMenuGroup>
                             </DropdownMenuContent>
                         </DropdownMenu>

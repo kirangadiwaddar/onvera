@@ -37,10 +37,11 @@ export function LoginForm({
     try {
       setError(null)
       const supabase = createClient()
+      const nextParam = nextPath ?? ""
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextParam)}`,
         },
       })
       if (oauthError) {

@@ -18,16 +18,31 @@ export const metadata: Metadata = {
   description: "Onboard your clients with ease",
 };
 
+const themeInitScript = `
+(() => {
+  try {
+    const stored = window.localStorage.getItem("onvera-theme");
+    const theme = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const isDark = theme === "dark" || (theme === "system" && prefersDark);
+    document.documentElement.classList.toggle("dark", isDark);
+  } catch (_) {}
+})();
+`
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className={sora.className}>
         {/* <MockProvider> */}
-          <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>{children}</AuthProvider>
         {/* </MockProvider> */}
         <Toaster richColors closeButton position="top-center" />
       </body>
