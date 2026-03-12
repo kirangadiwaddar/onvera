@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { FolderOpenDot, ListFilter, Plus } from "lucide-react"
+import { FolderOpenDot, LayoutGrid, List, ListFilter, MoreVertical, PencilIcon, Plus, TrashIcon } from "lucide-react"
 
 import { ProjectCard } from "@/components/project-card"
 import { ProjectModal, type ProjectFormValues } from "@/components/projects/project-modal"
@@ -9,11 +9,13 @@ import { DeleteProjectAlert } from "@/components/projects/delete-project-alert"
 import { EmptyState } from "@/components/emptyState"
 import { LoadingState } from "@/components/loadingState"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -27,7 +29,18 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { Separator } from "@/components/ui/separator"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar"
+import { getAvatarColor } from "@/lib/get-avatar-colors"
 import type { status } from "@/lib/project-status"
+import { statusLabel, statusStyles } from "@/lib/project-status"
 import { useAuth } from "@/components/providers/auth-provider"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
@@ -68,6 +81,7 @@ export default function Page() {
   const [currentPage, setCurrentPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<"all" | status>("all")
   const [templateFilter, setTemplateFilter] = useState<string[]>(["all"])
+  const [projectsView, setProjectsView] = useState<"grid" | "table">("grid")
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<ProjectItem | null>(null)
@@ -130,7 +144,7 @@ export default function Page() {
     })
   }, [projects, statusFilter, templateFilter])
 
-  const ITEMS_PER_PAGE = 9
+  const ITEMS_PER_PAGE = projectsView === "table" ? 10 : 9
   const totalPages = Math.ceil(filteredProjects.length / ITEMS_PER_PAGE)
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
   const endIndex = startIndex + ITEMS_PER_PAGE
@@ -138,7 +152,7 @@ export default function Page() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [statusFilter, templateFilter])
+  }, [statusFilter, templateFilter, projectsView])
 
   const toggleOption = (value: string) => {
     if (value === "all") {
@@ -276,6 +290,28 @@ export default function Page() {
               Manage and track all your projects, monitor progress, and stay on top of deadlines in one place.
             </p>
             <div className="right-actions flex items-center gap-3 justify-end">
+              <div className="flex items-center gap-1 rounded-full border border-zinc-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/5">
+                <Button
+                  size="icon-sm"
+                  variant={projectsView === "grid" ? "secondary" : "ghost"}
+                  className="rounded-full"
+                  onClick={() => setProjectsView("grid")}
+                  aria-pressed={projectsView === "grid"}
+                  aria-label="Grid view"
+                >
+                  <LayoutGrid className="size-4" />
+                </Button>
+                <Button
+                  size="icon-sm"
+                  variant={projectsView === "table" ? "secondary" : "ghost"}
+                  className="rounded-full"
+                  onClick={() => setProjectsView("table")}
+                  aria-pressed={projectsView === "table"}
+                  aria-label="Table view"
+                >
+                  <List className="size-4" />
+                </Button>
+              </div>
               <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -363,23 +399,134 @@ export default function Page() {
               />
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
-              {projectsToShow.map((project) => (
-                <ProjectCard
-                  key={project.id}
-                  id={project.id}
-                  slug={project.slug}
-                  title={project.title}
-                  templateTitle={project.templateTitle}
-                  status={project.status}
-                  createdAt={project.createdAt}
-                  avatarSrc={project.avatarSrc}
-                  members={project.members}
-                  onEdit={isReadOnlyRole ? undefined : () => setEditingProject(project)}
-                  onDelete={isReadOnlyRole ? undefined : () => setDeletingProject(project)}
-                />
-              ))}
-            </div>
+            projectsView === "grid" ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
+                {projectsToShow.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    id={project.id}
+                    slug={project.slug}
+                    title={project.title}
+                    templateTitle={project.templateTitle}
+                    status={project.status}
+                    createdAt={project.createdAt}
+                    avatarSrc={project.avatarSrc}
+                    members={project.members}
+                    onEdit={isReadOnlyRole ? undefined : () => setEditingProject(project)}
+                    onDelete={isReadOnlyRole ? undefined : () => setDeletingProject(project)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="px-7 pb-0 pt-0">
+                <div className="rounded-2xl border border-zinc-200 dark:border-white/10 overflow-hidden">
+                  <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Project</TableHead>
+                        <TableHead>Template</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Members</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {projectsToShow.map((project) => (
+                        <TableRow key={project.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-9 w-9 rounded-lg">
+                                {project.avatarSrc && <AvatarImage src={project.avatarSrc} />}
+                                <AvatarFallback className={`font-semibold ${getAvatarColor(project.title)}`}>
+                                  {project.title.substring(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="text-sm font-medium">{project.title}</div>
+                                <div className="text-xs text-muted-foreground">{project.slug}</div>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {project.templateTitle || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {project.status ? (
+                              <Badge className={`${statusStyles[project.status]}`}>
+                                {statusLabel[project.status]}
+                              </Badge>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {project.members && project.members.length > 0 ? (
+                              <AvatarGroup className="justify-start">
+                                {project.members.slice(0, 3).map((member) => (
+                                  <Avatar key={member.id} size="sm">
+                                    {member.image && <AvatarImage src={member.image} />}
+                                    <AvatarFallback className={`${getAvatarColor(member.name)} font-semibold`}>
+                                      {member.name.substring(0, 1).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                ))}
+                                {project.members.length > 3 && (
+                                  <AvatarGroupCount className="bg-primary text-white">+{project.members.length - 3}</AvatarGroupCount>
+                                )}
+                              </AvatarGroup>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No members</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {project.createdAt
+                              ? new Date(project.createdAt).toLocaleDateString("en-GB", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {!isReadOnlyRole ? (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    size="icon-sm"
+                                    variant="ghost"
+                                    className="h-8 w-8"
+                                    aria-label="Project actions"
+                                  >
+                                    <MoreVertical className="size-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-36">
+                                  <DropdownMenuGroup>
+                                    <DropdownMenuItem onClick={() => setEditingProject(project)} className="text-xs">
+                                      <PencilIcon />
+                                      Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => setDeletingProject(project)}
+                                       variant="destructive"  className="text-xs!">
+                                            <TrashIcon />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuGroup>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )
           )}
 
           {totalPages > 1 && (

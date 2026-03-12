@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/components/providers/auth-provider"
 import { createClient } from "@/lib/supabase/client"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
+import { toast } from "sonner"
 
 type Props = {
   open: boolean
@@ -35,7 +36,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   const [savingPassword, setSavingPassword] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
 
   const displayInitial = useMemo(() => {
@@ -56,7 +56,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     setNewPassword("")
     setConfirmPassword("")
     setError(null)
-    setSuccess(null)
   }, [displayInitial.initialAvatar, displayInitial.initialName, open])
 
   const hasAvatar = avatarUrl.trim().length > 0
@@ -98,20 +97,23 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     const trimmedFullName = fullName.trim()
 
     if (!trimmedFullName) {
-      setError("Full name is required.")
+      const message = "Full name is required."
+      setError(message)
+      toast.error(message)
       return
     }
 
     setSavingProfile(true)
     setError(null)
-    setSuccess(null)
 
     try {
       await persistProfileData(trimmedFullName, avatarUrl.trim())
       await refreshProfile()
-      setSuccess("Profile details updated.")
+      toast.success("Profile details updated.")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update profile details.")
+      const message = err instanceof Error ? err.message : "Unable to update profile details."
+      setError(message)
+      toast.error(message)
     } finally {
       setSavingProfile(false)
     }
@@ -122,20 +124,23 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     const trimmedAvatarUrl = avatarUrl.trim()
 
     if (trimmedAvatarUrl.length > 2000) {
-      setError("Avatar URL is too long.")
+      const message = "Avatar URL is too long."
+      setError(message)
+      toast.error(message)
       return
     }
 
     setSavingAvatar(true)
     setError(null)
-    setSuccess(null)
 
     try {
       await persistProfileData(trimmedFullName, trimmedAvatarUrl)
       await refreshProfile()
-      setSuccess(trimmedAvatarUrl ? "Avatar updated." : "Avatar removed.")
+      toast.success(trimmedAvatarUrl ? "Avatar updated." : "Avatar removed.")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update avatar.")
+      const message = err instanceof Error ? err.message : "Unable to update avatar."
+      setError(message)
+      toast.error(message)
     } finally {
       setSavingAvatar(false)
     }
@@ -146,23 +151,28 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     const trimmedConfirmPassword = confirmPassword.trim()
 
     if (!trimmedPassword) {
-      setError("New password is required.")
+      const message = "New password is required."
+      setError(message)
+      toast.error(message)
       return
     }
 
     if (trimmedPassword.length < 8) {
-      setError("New password must be at least 8 characters.")
+      const message = "New password must be at least 8 characters."
+      setError(message)
+      toast.error(message)
       return
     }
 
     if (trimmedPassword !== trimmedConfirmPassword) {
-      setError("Password confirmation does not match.")
+      const message = "Password confirmation does not match."
+      setError(message)
+      toast.error(message)
       return
     }
 
     setSavingPassword(true)
     setError(null)
-    setSuccess(null)
 
     try {
       const supabase = createClient()
@@ -172,14 +182,17 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
       if (passwordError) {
         setError(passwordError.message)
+        toast.error(passwordError.message)
         return
       }
 
       setNewPassword("")
       setConfirmPassword("")
-      setSuccess("Password updated.")
+      toast.success("Password updated.")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update password.")
+      const message = err instanceof Error ? err.message : "Unable to update password."
+      setError(message)
+      toast.error(message)
     } finally {
       setSavingPassword(false)
     }
@@ -191,13 +204,14 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
   const handleUploadAvatarFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
-      setError("Please upload an image file.")
+      const message = "Please upload an image file."
+      setError(message)
+      toast.error(message)
       return
     }
 
     setUploadingAvatar(true)
     setError(null)
-    setSuccess(null)
 
     try {
       const formData = new FormData()
@@ -210,14 +224,18 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
       const payload = (await response.json().catch(() => null)) as { message?: string; url?: string } | null
       if (!response.ok || !payload?.url) {
-        setError(payload?.message || "Unable to upload avatar.")
+        const message = payload?.message || "Unable to upload avatar."
+        setError(message)
+        toast.error(message)
         return
       }
 
       setAvatarUrl(payload.url)
-      setSuccess("Avatar uploaded. Save in Avatar tab to apply.")
+      toast.success("Avatar uploaded. Save in Avatar tab to apply.")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to upload avatar.")
+      const message = err instanceof Error ? err.message : "Unable to upload avatar."
+      setError(message)
+      toast.error(message)
     } finally {
       setUploadingAvatar(false)
     }
@@ -236,13 +254,19 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full" variant="default">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="avatar">Avatar</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsList className="bg-violet-50 p-2 rounded-lg gap-2 h-auto! dark:bg-violet-500/20" variant="default">
+            <TabsTrigger className="rounded-sm data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="profile">
+              Profile
+            </TabsTrigger>
+            <TabsTrigger className="rounded-sm data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="avatar">
+              Avatar
+            </TabsTrigger>
+            <TabsTrigger className="rounded-sm data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="security">
+              Security
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="profile">
+          <TabsContent value="profile" className="py-5">
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="full-name">Full Name</FieldLabel>
@@ -260,14 +284,14 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
               </Field>
 
               <div className="flex justify-end">
-                <Button type="button" onClick={handleSaveProfile} disabled={savingProfile}>
+                <Button type="button" variant="gradient" onClick={handleSaveProfile} disabled={savingProfile}>
                   {savingProfile ? "Saving..." : "Save Profile"}
                 </Button>
               </div>
             </FieldGroup>
           </TabsContent>
 
-          <TabsContent value="avatar">
+          <TabsContent value="avatar" className="py-5">
             <FieldGroup>
               <Field>
                 <FieldLabel>Avatar</FieldLabel>
@@ -315,14 +339,14 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
               </Field>
 
               <div className="flex justify-end">
-                <Button type="button" onClick={handleSaveAvatar} disabled={savingAvatar}>
+                <Button type="button" variant="gradient" onClick={handleSaveAvatar} disabled={savingAvatar}>
                   {savingAvatar ? "Saving..." : "Save Avatar"}
                 </Button>
               </div>
             </FieldGroup>
           </TabsContent>
 
-          <TabsContent value="security">
+          <TabsContent value="security" className="py-5">
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="new-password">New Password</FieldLabel>
@@ -345,7 +369,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
               </Field>
 
               <div className="flex justify-end">
-                <Button type="button" onClick={handleSavePassword} disabled={savingPassword}>
+                <Button type="button" variant="gradient" onClick={handleSavePassword} disabled={savingPassword}>
                   {savingPassword ? "Updating..." : "Update Password"}
                 </Button>
               </div>
@@ -353,8 +377,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
           </TabsContent>
         </Tabs>
 
-        {error ? <p className="text-xs text-red-600">{error}</p> : null}
-        {success ? <p className="text-xs text-green-600">{success}</p> : null}
+        {/* {error ? <p className="text-xs text-red-600">{error}</p> : null} */}
       </DialogContent>
     </Dialog>
   )

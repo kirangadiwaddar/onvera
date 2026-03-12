@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import type { Team, TeamMember } from "@/types/team"
 import type { Project } from "@/types/project"
@@ -10,7 +10,7 @@ import { LoadingState } from "@/components/loadingState"
 import { EmptyState } from "@/components/emptyState"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getAvatarColor } from "@/lib/get-avatar-colors"
-import { CalendarDays, Copy, Crown, Plus, Trash2, UserRoundCheck } from "lucide-react"
+import { CalendarDays, Copy, Crown, LayoutGrid, List, Plus, Trash2, UserRoundCheck } from "lucide-react"
 import { ProjectCard } from "@/components/project-card"
 
 import {
@@ -23,6 +23,14 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import {
   Dialog,
   DialogContent,
@@ -52,6 +60,7 @@ import {
 } from "@/components/ui/select"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { statusLabel, statusStyles } from "@/lib/project-status"
 
 type TeamDetailResponse = {
   team: Team
@@ -81,6 +90,9 @@ export default function TeamDetailPage() {
   const [pendingProjectUnassign, setPendingProjectUnassign] = useState<Project | null>(null)
   const [confirmDemoteLead, setConfirmDemoteLead] = useState(false)
   const [unassigningProject, setUnassigningProject] = useState(false)
+  const [projectsView, setProjectsView] = useState<"grid" | "table">("grid")
+  const [projectsPage, setProjectsPage] = useState(1)
+  const [membersPage, setMembersPage] = useState(1)
   const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
   const isFreelancer = profile?.role === "freelancer"
 
@@ -117,6 +129,33 @@ export default function TeamDetailPage() {
         setLoading(false)
       })
   }, [loadTeam, slug, isFreelancer])
+
+  const projectsPerPage = projectsView === "table" ? 10 : 9
+  const totalProjectPages = Math.ceil(projects.length / projectsPerPage)
+  const projectsStartIndex = (projectsPage - 1) * projectsPerPage
+  const projectsEndIndex = projectsStartIndex + projectsPerPage
+  const projectsToShow = useMemo(
+    () => projects.slice(projectsStartIndex, projectsEndIndex),
+    [projects, projectsStartIndex, projectsEndIndex]
+  )
+
+  useEffect(() => {
+    setProjectsPage(1)
+  }, [projectsView])
+
+  const membersPerPage = 10
+  const teamMembers = team?.members ?? []
+  const totalMemberPages = Math.ceil(teamMembers.length / membersPerPage)
+  const membersStartIndex = (membersPage - 1) * membersPerPage
+  const membersEndIndex = membersStartIndex + membersPerPage
+  const membersToShow = useMemo(
+    () => teamMembers.slice(membersStartIndex, membersEndIndex),
+    [teamMembers, membersStartIndex, membersEndIndex]
+  )
+
+  useEffect(() => {
+    setMembersPage(1)
+  }, [team?.id, teamMembers.length])
 
   const persistTeamMembers = async (nextLead: Team["lead"] | null, nextMembers: TeamMember[]) => {
     if (!team) return
@@ -453,8 +492,8 @@ export default function TeamDetailPage() {
                 </TableRow>
               ) : null}
 
-              {(team.members ?? []).length > 0 ? (
-                (team.members ?? []).map((member) => (
+              {teamMembers.length > 0 ? (
+                membersToShow.map((member) => (
                   <TableRow key={member.id}>
                     <TableCell className="flex items-center gap-3 py-4">
                       <Tooltip>
@@ -528,6 +567,37 @@ export default function TeamDetailPage() {
             </TableBody>
           </Table>
         </div>
+
+        {totalMemberPages > 1 && (
+          <Pagination className="mt-4">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setMembersPage((prev) => Math.max(prev - 1, 1))}
+                />
+              </PaginationItem>
+
+              {[...Array(totalMemberPages)].map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    isActive={membersPage === i + 1}
+                    onClick={() => setMembersPage(i + 1)}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() =>
+                    setMembersPage((prev) => Math.min(prev + 1, totalMemberPages))
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
       </div>
 
       <Separator className="my-0 bg-border" />
@@ -535,45 +605,167 @@ export default function TeamDetailPage() {
       <div className="space-y-6 p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Projects Assigned ({projects.length})</h2>
-          {!isReadOnlyRole && (
-            <Button variant="gradient" onClick={() => setOpenAssignProject(true)}>
-              <Plus /> Assign Project
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-full border border-zinc-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/5">
+              <Button
+                size="icon-sm"
+                variant={projectsView === "grid" ? "secondary" : "ghost"}
+                className="rounded-full"
+                onClick={() => setProjectsView("grid")}
+                aria-pressed={projectsView === "grid"}
+                aria-label="Grid view"
+              >
+                <LayoutGrid className="size-4" />
+              </Button>
+              <Button
+                size="icon-sm"
+                variant={projectsView === "table" ? "secondary" : "ghost"}
+                className="rounded-full"
+                onClick={() => setProjectsView("table")}
+                aria-pressed={projectsView === "table"}
+                aria-label="Table view"
+              >
+                <List className="size-4" />
+              </Button>
+            </div>
+            {!isReadOnlyRole && (
+              <Button variant="gradient" onClick={() => setOpenAssignProject(true)}>
+                <Plus /> Assign Project
+              </Button>
+            )}
+          </div>
         </div>
 
         {projects.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-            {projects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                id={project.id}
-                slug={project.slug}
-                title={project.title}
-                templateTitle={project.templateTitle}
-                status={project.status}
-                createdAt={project.createdAt}
-                avatarSrc={project.avatarSrc}
-                members={project.members}
-                variant="compact"
-                footerClassName="pt-0"
-                footerAction={
-                  !isReadOnlyRole ? (
-                    <Button
-                      size="sm"
-                      variant="destructiveLight"
-                      className="text-xs dark:text-white"
-                      onClick={() => setPendingProjectUnassign(project)}
-                    >
-                      Unassign Team
-                    </Button>
-                  ) : null
-                }
-              />
-            ))}
-          </div>
+          projectsView === "grid" ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+              {projectsToShow.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  id={project.id}
+                  slug={project.slug}
+                  title={project.title}
+                  templateTitle={project.templateTitle}
+                  status={project.status}
+                  createdAt={project.createdAt}
+                  avatarSrc={project.avatarSrc}
+                  members={project.members}
+                  variant="compact"
+                  footerClassName="pt-0"
+                  footerAction={
+                    !isReadOnlyRole ? (
+                      <Button
+                        size="sm"
+                        variant="destructiveLight"
+                        className="text-xs dark:text-white"
+                        onClick={() => setPendingProjectUnassign(project)}
+                      >
+                        Unassign Team
+                      </Button>
+                    ) : null
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-zinc-200 dark:border-white/10 overflow-hidden">
+              <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Project</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {projectsToShow.map((project) => (
+                    <TableRow key={project.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9 rounded-lg">
+                            {project.avatarSrc && <AvatarImage src={project.avatarSrc} />}
+                            <AvatarFallback className={`font-semibold ${getAvatarColor(project.title)}`}>
+                              {project.title.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="text-sm font-medium">{project.title}</div>
+                            <div className="text-xs text-muted-foreground">{project.templateTitle || "-"}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {project.status ? (
+                          <Badge className={`${statusStyles[project.status]}`}>
+                            {statusLabel[project.status]}
+                          </Badge>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {project.createdAt
+                          ? new Date(project.createdAt).toLocaleDateString("en-GB", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {!isReadOnlyRole ? (
+                          <Button
+                            size="sm"
+                            variant="destructiveLight"
+                            className="text-xs dark:text-white"
+                            onClick={() => setPendingProjectUnassign(project)}
+                          >
+                            Unassign Team
+                          </Button>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )
         ) : (
           <p className="text-sm text-muted-foreground">No projects assigned to this team.</p>
+        )}
+
+        {totalProjectPages > 1 && (
+          <Pagination className="mt-4">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setProjectsPage((prev) => Math.max(prev - 1, 1))}
+                />
+              </PaginationItem>
+
+              {[...Array(totalProjectPages)].map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    isActive={projectsPage === i + 1}
+                    onClick={() => setProjectsPage(i + 1)}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() =>
+                    setProjectsPage((prev) => Math.min(prev + 1, totalProjectPages))
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         )}
       </div>
 

@@ -3,6 +3,60 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { attachRelations, getStoreData } from "@/lib/server/data-store"
 import { filterProjectsForIdentity } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import type { status } from "@/lib/project-status"
+function hasChecklistActivity(submissions?: Record<string, unknown>) {
+  if (!submissions || typeof submissions !== "object") return false
+
+  return Object.entries(submissions).some(([key, raw]) => {
+    if (key.startsWith("__section_complete:")) {
+      return raw === true
+    }
+    if (Array.isArray(raw)) {
+      return raw.some((row) => {
+        if (!row || typeof row !== "object") return false
+        const entry = row as { name?: unknown; url?: unknown; submittedAt?: unknown; status?: unknown }
+        return Boolean(
+          (typeof entry.name === "string" && entry.name.trim()) ||
+          (typeof entry.url === "string" && entry.url.trim()) ||
+          entry.submittedAt ||
+          entry.status
+        )
+      })
+    }
+    if (!raw || typeof raw !== "object") return false
+    const entry = raw as { value?: unknown; submittedAt?: unknown; status?: unknown }
+    if (typeof entry.value === "string" && entry.value.trim()) return true
+    if (entry.value !== undefined && entry.value !== null) return true
+    return Boolean(entry.submittedAt || entry.status)
+  })
+}
+
+function shouldMarkOngoing(
+  project: { status: status; submissions?: Record<string, unknown> },
+) {
+  if (project.status !== "waiting" && project.status !== "overdue") return false
+  return hasChecklistActivity(project.submissions)
+}
+
+function shouldMarkOverdue(
+  project: { status: status; submissions?: Record<string, unknown> },
+  tokenExpiresAt?: string | null,
+) {
+  if (project.status !== "waiting") return false
+  if (hasChecklistActivity(project.submissions)) return false
+  if (!tokenExpiresAt) return false
+  const expiresAt = new Date(tokenExpiresAt).getTime()
+  if (!Number.isFinite(expiresAt)) return false
+  return Date.now() > expiresAt
+}
+
+function hasIncompleteSections(submissions?: Record<string, unknown>) {
+  if (!submissions || typeof submissions !== "object") return false
+  return Object.entries(submissions).some(([key, raw]) => {
+    if (!key.startsWith("__section_complete:")) return false
+    return raw === false
+  })
+}
 
 function slugify(value: string) {
   return value
@@ -19,7 +73,71 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
   const visibleProjects = filterProjectsForIdentity(projects, teams, identity)
-  return NextResponse.json({ projects: visibleProjects.map((project) => attachRelations(project, teams, templates)) })
+  const admin = createAdminClient()
+  const tokenExpiryBySlug = new Map<string, string | null>()
+  if (admin && visibleProjects.length > 0) {
+    const slugs = visibleProjects.map((project) => project.slug)
+    const { data } = await admin
+      .from("onboarding_tokens")
+      .select("project_slug, expires_at, created_at")
+      .in("project_slug", slugs)
+      .order("created_at", { ascending: false })
+
+    if (Array.isArray(data)) {
+      data.forEach((row) => {
+        if (!tokenExpiryBySlug.has(row.project_slug)) {
+          tokenExpiryBySlug.set(row.project_slug, row.expires_at ?? null)
+        }
+      })
+    }
+  }
+
+  const overdueUpdates = visibleProjects.filter((project) =>
+    shouldMarkOverdue(project, tokenExpiryBySlug.get(project.slug)),
+  )
+  if (overdueUpdates.length > 0 && admin) {
+    await Promise.all(
+      overdueUpdates.map((project) =>
+        admin
+          .from("projects")
+          .update({ status: "overdue", updated_at: new Date().toISOString() })
+          .eq("slug", project.slug),
+      ),
+    )
+  }
+
+  const ongoingUpdates = visibleProjects.filter(
+    (project) =>
+      !shouldMarkOverdue(project, tokenExpiryBySlug.get(project.slug)) &&
+      shouldMarkOngoing(project),
+  )
+  if (ongoingUpdates.length > 0 && admin) {
+    await Promise.all(
+      ongoingUpdates.map((project) =>
+        admin
+          .from("projects")
+          .update({ status: "ongoing", updated_at: new Date().toISOString() })
+          .eq("slug", project.slug),
+      ),
+    )
+  }
+
+  const normalizedProjects = visibleProjects.map((project) => {
+    if (project.status === "completed" && hasIncompleteSections(project.submissions)) {
+      return { ...project, status: "ongoing" }
+    }
+    if (shouldMarkOverdue(project, tokenExpiryBySlug.get(project.slug))) {
+      return { ...project, status: "overdue" }
+    }
+    if (shouldMarkOngoing(project)) {
+      return { ...project, status: "ongoing" }
+    }
+    return project
+  })
+
+  return NextResponse.json({
+    projects: normalizedProjects.map((project) => attachRelations(project, teams, templates)),
+  })
 }
 
 export async function POST(request: Request) {

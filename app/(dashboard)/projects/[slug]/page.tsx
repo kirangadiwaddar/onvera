@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import JSZip from "jszip"
 import type { Project } from "@/types/project"
@@ -34,7 +34,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { BadgeCheck, Copy, Crown, Download, Files, Plus, Trash2, Users } from "lucide-react"
+import { BadgeCheck, Check, Copy, Crown, Download, Files, Plus, Trash2, Users } from "lucide-react"
 
 import {
   Dialog,
@@ -218,10 +218,12 @@ export default function ProjectDetailPage() {
   const [selectedTeamId, setSelectedTeamId] = useState("")
   const [teams, setTeams] = useState<Team[]>([])
   const [statusUpdating, setStatusUpdating] = useState(false)
-  const [submissionsSaving, setSubmissionsSaving] = useState(false)
+  const savingToastId = useRef<ReturnType<typeof toast.loading> | null>(null)
   const [downloadingAssets, setDownloadingAssets] = useState(false)
   const [inviteSubmitting, setInviteSubmitting] = useState(false)
   const [viewTeam, setViewTeam] = useState<Team | null>(null)
+  const [showCompletePrompt, setShowCompletePrompt] = useState(false)
+  const [dismissedCompletePrompt, setDismissedCompletePrompt] = useState(false)
 
 
   useEffect(() => {
@@ -269,6 +271,74 @@ export default function ProjectDetailPage() {
     }
   }, [availableTeams, inviteType, openInvite, selectedTeamId, isFreelancer])
 
+  const canEditProject = !restrictedRole
+  const submissions = project?.submissions ?? {}
+  const templateSections = project
+    ? templateStructure[project.templateId] || []
+    : []
+  const checklistSections = project ? [...templateSections, ...customSections] : []
+  const totalSections = checklistSections.length
+  const uploadedCount = checklistSections.filter((section) => {
+    if (section.dynamic) {
+      const rows = submissions?.[section.id]
+      if (!Array.isArray(rows) || rows.length === 0) return false
+      return rows.some((row) => {
+        if (!row || typeof row !== "object") return false
+        const entry = row as { name?: unknown; url?: unknown }
+        return typeof entry.name === "string"
+          && entry.name.trim()
+          && typeof entry.url === "string"
+          && entry.url.trim()
+      })
+    }
+
+    return section.items.every((item) => {
+      const entry = submissions?.[item.id]
+      if (!entry || typeof entry !== "object") return false
+      const value = (entry as { value?: unknown }).value
+      if (typeof value === "string") return value.trim().length > 0
+      return Boolean(value)
+    })
+  }).length
+  const checklistProgress =
+    totalSections === 0
+      ? 0
+      : Math.min(Math.round((uploadedCount / totalSections) * 100), 100)
+  const progressRadius = 22
+  const progressStroke = 4
+  const progressCircumference = 2 * Math.PI * progressRadius
+  const progressOffset = progressCircumference * (1 - checklistProgress / 100)
+
+  const completionKeyBySection = useMemo(
+    () =>
+      new Map(
+        checklistSections.map((section) => [
+          section.id,
+          `__section_complete:${section.id}`,
+        ]),
+      ),
+    [checklistSections],
+  )
+
+  const allSectionsCompleted = checklistSections.every((section) => {
+    const key = completionKeyBySection.get(section.id)
+    if (!key) return false
+    return submissions?.[key] === true
+  })
+
+  const shouldPromptForCompletion =
+    Boolean(project) &&
+    canEditProject &&
+    project?.status !== "completed" &&
+    checklistProgress === 100 &&
+    allSectionsCompleted
+
+  useEffect(() => {
+    if (shouldPromptForCompletion && !dismissedCompletePrompt) {
+      setShowCompletePrompt(true)
+    }
+  }, [dismissedCompletePrompt, shouldPromptForCompletion])
+
   if (loading) {
     return (
       <div className="p-6">
@@ -290,11 +360,12 @@ export default function ProjectDetailPage() {
         member.isLead && typeof member.email === "string" && member.email.toLowerCase() === currentEmail,
     ),
   )
-  const canEditProject = !restrictedRole
   const canManageChecklist = canEditProject || isLeadMember
   const canSeeAccessToken = isLeadMember || !restrictedRole
-  const assignedTeams = Array.isArray(project.teams) ? project.teams : []
-  const externalMembers = project.members?.filter((member) => member.isExternal) ?? []
+  const assignedTeams = Array.isArray(project.teams)
+    ? project.teams.filter(Boolean)
+    : []
+  const externalMembers = project.members?.filter((member) => member && member.isExternal) ?? []
   const inviteBaseUrl =
     typeof window !== "undefined" ? `${window.location.origin}/register` : ""
   const buildInviteUrl = (token?: string | null, role = "project_member") => {
@@ -302,41 +373,6 @@ export default function ProjectDetailPage() {
     const params = new URLSearchParams({ role })
     return `${inviteBaseUrl}?${params.toString()}#inviteToken=${encodeURIComponent(token)}`
   }
-
-  const templateSections =
-    templateStructure[project.templateId] || []
-  const checklistSections = [...templateSections, ...customSections]
-  const totalSections = checklistSections.length
-  const uploadedCount = checklistSections.filter((section) => {
-    if (section.dynamic) {
-      const rows = project.submissions?.[section.id]
-      if (!Array.isArray(rows) || rows.length === 0) return false
-      return rows.some((row) => {
-        if (!row || typeof row !== "object") return false
-        const entry = row as { name?: unknown; url?: unknown }
-        return typeof entry.name === "string"
-          && entry.name.trim()
-          && typeof entry.url === "string"
-          && entry.url.trim()
-      })
-    }
-
-    return section.items.every((item) => {
-      const entry = project.submissions?.[item.id]
-      if (!entry || typeof entry !== "object") return false
-      const value = (entry as { value?: unknown }).value
-      if (typeof value === "string") return value.trim().length > 0
-      return Boolean(value)
-    })
-  }).length
-  const checklistProgress =
-    totalSections === 0
-      ? 0
-      : Math.min(Math.round((uploadedCount / totalSections) * 100), 100)
-  const progressRadius = 22
-  const progressStroke = 4
-  const progressCircumference = 2 * Math.PI * progressRadius
-  const progressOffset = progressCircumference * (1 - checklistProgress / 100)
 
   const addCustomSection = () => {
     if (!newSectionTitle) return
@@ -526,7 +562,9 @@ export default function ProjectDetailPage() {
     if (!project) return
 
     setProject((prev) => (prev ? { ...prev, submissions: nextSubmissions } : prev))
-    setSubmissionsSaving(true)
+    if (!savingToastId.current) {
+      savingToastId.current = toast.loading("Saving checklist...")
+    }
     try {
       const response = await fetchWithAuth(`/api/projects/${project.slug}`, {
         method: "PUT",
@@ -547,11 +585,22 @@ export default function ProjectDetailPage() {
       if (data.project) {
         setProject(data.project)
       }
+      if (savingToastId.current) {
+        toast.success("Checklist saved", { id: savingToastId.current })
+      } else {
+        toast.success("Checklist saved")
+      }
     } catch (error) {
       console.error("Failed to save submissions:", error)
-      window.alert(error instanceof Error ? error.message : "Failed to save checklist updates")
+      const message =
+        error instanceof Error ? error.message : "Failed to save checklist updates"
+      if (savingToastId.current) {
+        toast.error(message, { id: savingToastId.current })
+      } else {
+        toast.error(message)
+      }
     } finally {
-      setSubmissionsSaving(false)
+      savingToastId.current = null
     }
   }
 
@@ -693,7 +742,37 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="flex flex-col py-4 md:py-6">
+    <>
+      <AlertDialog open={showCompletePrompt} onOpenChange={setShowCompletePrompt}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark project as completed?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The checklist is fully filled and all items are approved. Do you want to set this project to completed?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setDismissedCompletePrompt(true)
+                setShowCompletePrompt(false)
+              }}
+            >
+              Not now
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void handleStatusChange("completed")
+                setShowCompletePrompt(false)
+              }}
+            >
+              Yes, complete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div className="flex flex-col py-4 md:py-6">
       <div className="flex flex-col lg:flex-row items-center justify-between px-7 pb-2 gap-4 lg:gap-5">
         {/* <h1 className="text-3xl font-semibold">
           {project.title}
@@ -713,7 +792,7 @@ export default function ProjectDetailPage() {
               }
               disabled={statusUpdating}
             >
-              <SelectTrigger className={`text-xs py-2 px-3 border-none rounded-full h-auto! ${statusStyles[project.status]}`}>
+              <SelectTrigger className={`text-xs font-semibold py-2 px-3 border-none rounded-full h-auto! ${statusStyles[project.status]}`}>
                 <SelectValue placeholder="Change status" />
               </SelectTrigger>
               <SelectContent>
@@ -735,9 +814,6 @@ export default function ProjectDetailPage() {
           {canManageChecklist ? (
             <ClientAccessModal projectSlug={project.slug} canManage={canManageChecklist} />
           ) : null}
-          {submissionsSaving && (
-            <span className="text-xs text-muted-foreground">Saving checklist...</span>
-          )}
         </div>
       </div>
       <Separator className="mt-4 bg-border" />
@@ -777,13 +853,17 @@ export default function ProjectDetailPage() {
                   strokeDashoffset={progressOffset}
                 />
               </svg>
-              <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-zinc-700 dark:text-zinc-200">
-                {checklistProgress}%
+              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-zinc-700 dark:text-zinc-200">
+                {checklistProgress === 100 ? (
+                  <Check strokeWidth={3} className="size-6 text-emerald-500" />
+                ) : (
+                  `${checklistProgress}%`
+                )}
               </div>
             </div>
           </div>
 
-          <Accordion type="multiple" className="border border-zinc-200 divide-y rounded-lg overflow-hidden dark:border-white/10 dark:divide-white/10">
+          <Accordion type="multiple" className="border border-zinc-200 divide-y rounded-lg overflow-hidden dark:border-white/10 dark:divide-white/10 hover:no-underline!">
             {checklistSections.map(
               (section) => {
                 const isCustom = section.id.startsWith("custom-")
@@ -794,7 +874,7 @@ export default function ProjectDetailPage() {
                     {isCustom && canManageChecklist && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <button className="absolute right-10 cursor-pointer z-10 top-3.5 text-xs text-red-600 hover:underline mr-10">
+                          <button className="absolute top-0.5 left-3 cursor-pointer z-10 text-[10px] text-destructive hover:underline mr-10">
                             Remove
                           </button>
                         </AlertDialogTrigger>
@@ -813,12 +893,12 @@ export default function ProjectDetailPage() {
                             <AlertDialogCancel>
                               Cancel
                             </AlertDialogCancel>
-                            <AlertDialogAction
+                            <Button
                               onClick={() => removeAndPersistCustomSection(section.id)}
-                              className="bg-red-600 hover:bg-red-700"
+                              variant="destructive"
                             >
                               Delete
-                            </AlertDialogAction>
+                            </Button>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
@@ -982,11 +1062,11 @@ export default function ProjectDetailPage() {
               icon={<Users />}
               title="No members added"
               description={isFreelancer ? "Invite external collaborators to this project." : "Create a team or invite external members to this project."}
-              buttonText={canEditProject ? (isFreelancer ? "Add Member" : "Add Team/Members") : undefined}
-              onClick={() => {
-                setInviteType(isFreelancer ? "member" : "member")
-                setOpenInvite(true)
-              }}
+              // buttonText={canEditProject ? (isFreelancer ? "Add Member" : "Add Team/Members") : undefined}
+              // onClick={() => {
+              //   setInviteType(isFreelancer ? "member" : "member")
+              //   setOpenInvite(true)
+              // }}
             />
           ) : (
             <div className="rounded-xl border overflow-hidden">
@@ -1004,6 +1084,7 @@ export default function ProjectDetailPage() {
                 </TableHeader>
                 <TableBody>
                   {!isFreelancer && assignedTeams.map((team) => {
+                    if (!team) return null
                     const members = [
                       ...(team.lead ? [{ ...team.lead, isLead: true }] : []),
                       ...(team.members ?? []),
@@ -1127,12 +1208,12 @@ export default function ProjectDetailPage() {
                                 <AlertDialogCancel>
                                   Cancel
                                 </AlertDialogCancel>
-                                <AlertDialogAction
+                                <Button
                                   onClick={() => void removeExternalMember(member.id)}
-                                  className="bg-red-600 hover:bg-red-700"
+                                  variant="destructive"
                                 >
                                   Delete
-                                </AlertDialogAction>
+                                </Button>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
@@ -1253,13 +1334,13 @@ export default function ProjectDetailPage() {
       </Dialog>
 
       <Dialog open={!!viewTeam} onOpenChange={(open) => { if (!open) setViewTeam(null) }}>
-        <DialogContent className="space-y-4">
-          <DialogHeader>
+        <DialogContent className="space-y-4 sm:max-w-5xl">
+          <DialogHeader className="mb-0">
             <DialogTitle>{viewTeam?.name || "Team Members"}</DialogTitle>
           </DialogHeader>
           {viewTeam ? (
-            <div className="rounded-xl border overflow-hidden">
-              <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
+            <div className="overflow-hidden -mx-5">
+              <Table className="[&_th]:px-5 [&_th]:py-4 [&_td]:px-5 [&_td]:py-4 text-sm">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
@@ -1274,7 +1355,9 @@ export default function ProjectDetailPage() {
                   {[
                     ...(viewTeam.lead ? [{ ...viewTeam.lead, isLead: true }] : []),
                     ...(viewTeam.members ?? []),
-                  ].map((member) => (
+                  ]
+                    .filter(Boolean)
+                    .map((member) => (
                     <TableRow key={`${member.id}-${member.email ?? "member"}`}>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -1341,6 +1424,7 @@ export default function ProjectDetailPage() {
         </DialogContent>
       </Dialog>
 
-    </div>
+      </div>
+    </>
   )
 }

@@ -42,7 +42,7 @@ export default function ClientAccessModal({ projectSlug, canManage = true }: Pro
   const [tokenData, setTokenData] = useState<TokenPayload | null>(null)
 
   const [password, setPassword] = useState("")
-  const [expiresInDays, setExpiresInDays] = useState("14")
+  const [expiresInDays, setExpiresInDays] = useState("5")
   const [maxUses, setMaxUses] = useState("1000")
   const [clientEmail, setClientEmail] = useState("")
   const [errorMessage, setErrorMessage] = useState("")
@@ -88,7 +88,7 @@ export default function ClientAccessModal({ projectSlug, canManage = true }: Pro
         body: JSON.stringify({
           projectSlug,
           password: password.trim(),
-          expiresInDays: Math.max(1, Number(expiresInDays) || 14),
+          expiresInDays: Math.max(1, Number(expiresInDays) || 5),
           maxUses: Math.max(1, Number(maxUses) || 1000),
         }),
       })

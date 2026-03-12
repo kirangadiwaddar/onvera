@@ -19,6 +19,9 @@ export function NavProjects() {
   const [projects, setProjects] = useState<Project[]>([])
 
   useEffect(() => {
+    let isActive = true
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
     const fetchProjects = async () => {
       try {
         const res = await fetchWithAuth("/api/projects", {
@@ -36,15 +39,41 @@ export function NavProjects() {
 
         const ongoingProjects = allProjects
           .filter((project) => project.status === "ongoing")
-          .slice(0, 5)
+          .sort((a, b) => {
+            const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime()
+            const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime()
+            return bTime - aTime
+          })
+          .slice(0, 7)
 
-        setProjects(ongoingProjects)
+        if (isActive) {
+          setProjects(ongoingProjects)
+        }
       } catch (err) {
         console.error("Sidebar project fetch failed:", err)
       }
     }
 
     fetchProjects()
+    intervalId = setInterval(fetchProjects, 10000)
+
+    const handleFocus = () => {
+      void fetchProjects()
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void fetchProjects()
+      }
+    }
+    window.addEventListener("focus", handleFocus)
+    document.addEventListener("visibilitychange", handleVisibility)
+
+    return () => {
+      isActive = false
+      if (intervalId) clearInterval(intervalId)
+      window.removeEventListener("focus", handleFocus)
+      document.removeEventListener("visibilitychange", handleVisibility)
+    }
   }, [])
 
   return (

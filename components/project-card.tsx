@@ -160,7 +160,7 @@ export function ProjectCard({
                                             Edit
                                         </DropdownMenuItem>
                                     )}
-                                    {onShare && (
+                                    {/* {onShare && (
                                         <DropdownMenuItem
                                             onSelect={(event) => {
                                                 event.preventDefault()
@@ -171,7 +171,7 @@ export function ProjectCard({
                                             <Share2 />
                                             Share
                                         </DropdownMenuItem>
-                                    )}
+                                    )} */}
                                     {onDelete && (
                                         <DropdownMenuItem
                                             onSelect={(event) => {

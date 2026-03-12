@@ -201,34 +201,42 @@ export default function ChecklistSection({
       <AccordionPrimitive.Header className="relative flex items-center gap-3 px-3 py-3 mb-0 hover:bg-zinc-50 has-[[data-state=open]]:bg-violet-50 dark:hover:bg-white/5 dark:has-[[data-state=open]]:bg-violet-500/10">
         <AccordionPrimitive.Trigger
           data-slot="accordion-trigger"
-          className="group/trigger focus-visible:border-ring focus-visible:ring-ring/50 flex flex-1 items-center justify-between gap-4 rounded-md text-left text-sm font-medium transition-all outline-none hover:underline focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 data-[state=open]:text-violet-700 hover:no-underline dark:data-[state=open]:text-violet-200"
+          className="group/trigger focus-visible:border-ring focus-visible:ring-ring/50 flex flex-1 items-center justify-between gap-4 rounded-md text-left text-sm font-medium transition-all outline-none hover:no-underline focus-visible:ring-[3px] cursor-pointer disabled:pointer-events-none disabled:opacity-50 data-[state=open]:text-violet-700 dark:data-[state=open]:text-violet-200"
         >
           <span>{section.title}</span>
-          <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/trigger:rotate-180" />
-        </AccordionPrimitive.Trigger>
-        <div className="absolute right-10 top-1/2 flex -translate-y-1/2 items-center gap-2">
+          <div className="flex items-center justify-end flex-row-reverse gap-2">
+              <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/trigger:rotate-180" />
+          <div className="flex items-center gap-2">
           {isCompleted ? (
             <Badge className="px-2 py-0.5 text-[11px] bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-200 dark:border-emerald-500/20">
               Completed
             </Badge>
           ) : null}
-          {canShowCompletionControl ? (
+          {canShowCompletionControl && (allStaticApproved && allDynamicApproved) ? (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={`h-7 w-7 ${isCompleted ? "text-destructive hover:text-destructive/80" : "text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-300"}`}
-                    onClick={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      toggleSectionComplete()
-                    }}
-                    aria-label={isCompleted ? "Mark as incomplete" : "Mark as complete"}
-                  >
-                    {isCompleted ? <XCircle className="size-4" /> : <CheckCircle2 className="size-4" />}
+                  <Button asChild variant="ghost" size="icon">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className={`h-7 w-7 ${isCompleted ? "text-destructive hover:text-destructive/80" : "text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-300"}`}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        toggleSectionComplete()
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          toggleSectionComplete()
+                        }
+                      }}
+                      aria-label={isCompleted ? "Mark as incomplete" : "Mark as complete"}
+                    >
+                      {isCompleted ? <XCircle className="size-4" /> : <CheckCircle2 className="size-4" />}
+                    </span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -238,6 +246,8 @@ export default function ChecklistSection({
             </TooltipProvider>
           ) : null}
         </div>
+          </div>          
+        </AccordionPrimitive.Trigger>
       </AccordionPrimitive.Header>
 
       <AccordionContent className="border-b border-zinc-100 pb-0 last:border-b-0">

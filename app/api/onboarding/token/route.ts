@@ -169,7 +169,7 @@ export async function POST(request: Request) {
     | null
 
   const projectSlug = body?.projectSlug?.trim()
-  const expiresInDays = body?.expiresInDays ?? 14
+  const expiresInDays = body?.expiresInDays ?? 5
   const maxUses = body?.maxUses ?? 1000
   const password = body?.password?.trim() || ""
 

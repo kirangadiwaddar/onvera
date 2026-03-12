@@ -9,6 +9,60 @@ import {
 } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 
+function hasChecklistActivity(submissions?: Record<string, unknown>) {
+  if (!submissions || typeof submissions !== "object") return false
+
+  return Object.entries(submissions).some(([key, raw]) => {
+    if (key.startsWith("__section_complete:")) {
+      return raw === true
+    }
+    if (Array.isArray(raw)) {
+      return raw.some((row) => {
+        if (!row || typeof row !== "object") return false
+        const entry = row as { name?: unknown; url?: unknown; submittedAt?: unknown; status?: unknown }
+        return Boolean(
+          (typeof entry.name === "string" && entry.name.trim()) ||
+          (typeof entry.url === "string" && entry.url.trim()) ||
+          entry.submittedAt ||
+          entry.status
+        )
+      })
+    }
+    if (!raw || typeof raw !== "object") return false
+    const entry = raw as { value?: unknown; submittedAt?: unknown; status?: unknown }
+    if (typeof entry.value === "string" && entry.value.trim()) return true
+    if (entry.value !== undefined && entry.value !== null) return true
+    return Boolean(entry.submittedAt || entry.status)
+  })
+}
+
+function hasIncompleteSections(submissions?: Record<string, unknown>) {
+  if (!submissions || typeof submissions !== "object") return false
+  return Object.entries(submissions).some(([key, raw]) => {
+    if (!key.startsWith("__section_complete:")) return false
+    return raw === false
+  })
+}
+
+function shouldMarkOngoing(
+  project: { status: status; submissions?: Record<string, unknown> },
+) {
+  if (project.status !== "waiting" && project.status !== "overdue") return false
+  return hasChecklistActivity(project.submissions)
+}
+
+function shouldMarkOverdue(
+  project: { status: status; submissions?: Record<string, unknown> },
+  tokenExpiresAt?: string | null,
+) {
+  if (project.status !== "waiting") return false
+  if (hasChecklistActivity(project.submissions)) return false
+  if (!tokenExpiresAt) return false
+  const expiresAt = new Date(tokenExpiresAt).getTime()
+  if (!Number.isFinite(expiresAt)) return false
+  return Date.now() > expiresAt
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ slug: string }> },
@@ -26,7 +80,46 @@ export async function GET(
     return NextResponse.json({ message: "Project not found" }, { status: 404 })
   }
 
-  return NextResponse.json({ project: attachRelations(project, teams, templates) })
+  let nextProject = project
+  const admin = createAdminClient()
+  let tokenExpiresAt: string | null = null
+  if (admin) {
+    const { data } = await admin
+      .from("onboarding_tokens")
+      .select("expires_at")
+      .eq("project_slug", slug)
+      .order("created_at", { ascending: false })
+      .limit(1)
+    tokenExpiresAt = data?.[0]?.expires_at ?? null
+  }
+
+  if (hasIncompleteSections(project.submissions) && admin && project.status === "completed") {
+    const { error } = await admin
+      .from("projects")
+      .update({ status: "ongoing", updated_at: new Date().toISOString() })
+      .eq("slug", slug)
+    if (!error) {
+      nextProject = { ...project, status: "ongoing" }
+    }
+  } else if (shouldMarkOverdue(project, tokenExpiresAt) && admin) {
+    const { error } = await admin
+      .from("projects")
+      .update({ status: "overdue", updated_at: new Date().toISOString() })
+      .eq("slug", slug)
+    if (!error) {
+      nextProject = { ...project, status: "overdue" }
+    }
+  } else if (shouldMarkOngoing(project) && admin) {
+    const { error } = await admin
+      .from("projects")
+      .update({ status: "ongoing", updated_at: new Date().toISOString() })
+      .eq("slug", slug)
+    if (!error) {
+      nextProject = { ...project, status: "ongoing" }
+    }
+  }
+
+  return NextResponse.json({ project: attachRelations(nextProject, teams, templates) })
 }
 
 export async function PUT(
@@ -122,6 +215,15 @@ export async function PUT(
 
   if (body.submissions && typeof body.submissions === "object" && !Array.isArray(body.submissions)) {
     updatePayload.submissions = body.submissions
+    if (!body.status) {
+      if (hasIncompleteSections(body.submissions)) {
+        updatePayload.status = "ongoing"
+      } else if (currentProject.status === "waiting" || currentProject.status === "overdue") {
+        if (hasChecklistActivity(body.submissions)) {
+          updatePayload.status = "ongoing"
+        }
+      }
+    }
   }
 
   const updatableKeys = Object.keys(updatePayload).filter((key) => key !== "updated_at")

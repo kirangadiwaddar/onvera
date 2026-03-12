@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { Home, FolderOpenDot, LayoutPanelTop, CirclePile } from "lucide-react"
+import { Home, FolderOpenDot, LayoutPanelTop, CirclePile, LayoutGrid } from "lucide-react"
 
 // import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/sidebar/nav-main"
@@ -28,9 +28,9 @@ import { createClient } from "@/lib/supabase/client"
 const data = {
   navMain: [
     {
-      title: "Dashboard",
+      title: "Home",
       url: "/dashboard",
-      icon: Home,
+      icon: LayoutGrid,
     },
     {
       title: "Projects",
