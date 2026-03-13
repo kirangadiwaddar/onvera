@@ -792,7 +792,7 @@ export default function ProjectDetailPage() {
               }
               disabled={statusUpdating}
             >
-              <SelectTrigger className={`text-xs font-semibold py-2 px-3 border-none rounded-full h-auto! ${statusStyles[project.status]}`}>
+              <SelectTrigger className={`text-xs font-medium py-2 px-3 border-none rounded-full h-auto! ${statusStyles[project.status]}`}>
                 <SelectValue placeholder="Change status" />
               </SelectTrigger>
               <SelectContent>
@@ -874,7 +874,7 @@ export default function ProjectDetailPage() {
                     {isCustom && canManageChecklist && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <button className="absolute top-0.5 left-3 cursor-pointer z-10 text-[10px] text-destructive hover:underline mr-10">
+                          <button className="absolute top-1 left-3 cursor-pointer z-10 text-[10px] text-destructive hover:underline mr-10">
                             Remove
                           </button>
                         </AlertDialogTrigger>
@@ -911,6 +911,7 @@ export default function ProjectDetailPage() {
                       canModerate={canManageChecklist}
                       submissions={project.submissions}
                       onSubmissionsChange={(next) => void persistSubmissions(next)}
+                      className={isCustom ? "custom-checklist-section" : undefined}
                     />
                   </div>
                 )
@@ -1070,7 +1071,7 @@ export default function ProjectDetailPage() {
             />
           ) : (
             <div className="rounded-xl border overflow-hidden">
-              <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
+              <Table className="[&_th]:px-5 [&_th]:py-5 [&_td]:px-5 [&_td]:py-4 text-sm">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Member/Team Name</TableHead>

@@ -93,6 +93,7 @@ export default function TeamDetailPage() {
   const [projectsView, setProjectsView] = useState<"grid" | "table">("grid")
   const [projectsPage, setProjectsPage] = useState(1)
   const [membersPage, setMembersPage] = useState(1)
+  const [is2xl, setIs2xl] = useState(false)
   const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
   const isFreelancer = profile?.role === "freelancer"
 
@@ -130,7 +131,16 @@ export default function TeamDetailPage() {
       })
   }, [loadTeam, slug, isFreelancer])
 
-  const projectsPerPage = projectsView === "table" ? 10 : 9
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const media = window.matchMedia("(min-width: 1536px)")
+    const update = () => setIs2xl(media.matches)
+    update()
+    media.addEventListener("change", update)
+    return () => media.removeEventListener("change", update)
+  }, [])
+
+  const projectsPerPage = projectsView === "table" ? 10 : is2xl ? 8 : 6
   const totalProjectPages = Math.ceil(projects.length / projectsPerPage)
   const projectsStartIndex = (projectsPage - 1) * projectsPerPage
   const projectsEndIndex = projectsStartIndex + projectsPerPage
@@ -141,7 +151,7 @@ export default function TeamDetailPage() {
 
   useEffect(() => {
     setProjectsPage(1)
-  }, [projectsView])
+  }, [projectsView, is2xl])
 
   const membersPerPage = 10
   const teamMembers = team?.members ?? []

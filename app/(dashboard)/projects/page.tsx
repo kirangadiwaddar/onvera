@@ -82,6 +82,7 @@ export default function Page() {
   const [statusFilter, setStatusFilter] = useState<"all" | status>("all")
   const [templateFilter, setTemplateFilter] = useState<string[]>(["all"])
   const [projectsView, setProjectsView] = useState<"grid" | "table">("grid")
+  const [is2xl, setIs2xl] = useState(false)
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<ProjectItem | null>(null)
@@ -134,6 +135,15 @@ export default function Page() {
     void loadInitial()
   }, [])
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const media = window.matchMedia("(min-width: 1536px)")
+    const update = () => setIs2xl(media.matches)
+    update()
+    media.addEventListener("change", update)
+    return () => media.removeEventListener("change", update)
+  }, [])
+
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
       const statusMatch = statusFilter === "all" || project.status === statusFilter
@@ -144,7 +154,7 @@ export default function Page() {
     })
   }, [projects, statusFilter, templateFilter])
 
-  const ITEMS_PER_PAGE = projectsView === "table" ? 10 : 9
+  const ITEMS_PER_PAGE = projectsView === "table" ? 10 : is2xl ? 12 : 9
   const totalPages = Math.ceil(filteredProjects.length / ITEMS_PER_PAGE)
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
   const endIndex = startIndex + ITEMS_PER_PAGE
@@ -152,7 +162,7 @@ export default function Page() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [statusFilter, templateFilter, projectsView])
+  }, [statusFilter, templateFilter, projectsView, is2xl])
 
   const toggleOption = (value: string) => {
     if (value === "all") {

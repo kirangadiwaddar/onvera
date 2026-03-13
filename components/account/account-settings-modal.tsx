@@ -14,10 +14,14 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/components/providers/auth-provider"
 import { createClient } from "@/lib/supabase/client"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
+import { Separator } from "../ui/separator"
+import { CircleX, UserPen, UserRoundPen, X } from "lucide-react"
+import { Spinner } from "../ui/spinner"
 
 type Props = {
   open: boolean
@@ -58,7 +62,9 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     setError(null)
   }, [displayInitial.initialAvatar, displayInitial.initialName, open])
 
-  const hasAvatar = avatarUrl.trim().length > 0
+  const trimmedAvatarUrl = avatarUrl.trim()
+  const hasAvatar = trimmedAvatarUrl.length > 0
+  const avatarSrc = hasAvatar ? trimmedAvatarUrl : undefined
 
   const persistProfileData = async (name: string, avatar: string) => {
     if (!user?.id) {
@@ -212,6 +218,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
     setUploadingAvatar(true)
     setError(null)
+    const toastId = toast.loading("Uploading avatar...")
 
     try {
       const formData = new FormData()
@@ -226,16 +233,16 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       if (!response.ok || !payload?.url) {
         const message = payload?.message || "Unable to upload avatar."
         setError(message)
-        toast.error(message)
+        toast.error(message, { id: toastId })
         return
       }
 
       setAvatarUrl(payload.url)
-      toast.success("Avatar uploaded. Save in Avatar tab to apply.")
+      toast.success("Avatar uploaded. Save to apply.", { id: toastId })
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to upload avatar."
       setError(message)
-      toast.error(message)
+      toast.error(message, { id: toastId })
     } finally {
       setUploadingAvatar(false)
     }
@@ -250,16 +257,13 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Account Settings</DialogTitle>
-          <DialogDescription>Manage your profile, avatar, and security settings.</DialogDescription>
+          <DialogDescription>Manage your profile and security settings.</DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-violet-50 p-2 rounded-lg gap-2 h-auto! dark:bg-violet-500/20" variant="default">
             <TabsTrigger className="rounded-sm data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="profile">
               Profile
-            </TabsTrigger>
-            <TabsTrigger className="rounded-sm data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="avatar">
-              Avatar
             </TabsTrigger>
             <TabsTrigger className="rounded-sm data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="security">
               Security
@@ -268,80 +272,104 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
           <TabsContent value="profile" className="py-5">
             <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="full-name">Full Name</FieldLabel>
-                <Input
-                  id="full-name"
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  placeholder="Your full name"
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="email">Email</FieldLabel>
-                <Input id="email" type="email" value={user?.email || ""} readOnly disabled />
-              </Field>
-
-              <div className="flex justify-end">
-                <Button type="button" variant="gradient" onClick={handleSaveProfile} disabled={savingProfile}>
-                  {savingProfile ? "Saving..." : "Save Profile"}
-                </Button>
-              </div>
-            </FieldGroup>
-          </TabsContent>
-
-          <TabsContent value="avatar" className="py-5">
-            <FieldGroup>
-              <Field>
-                <FieldLabel>Avatar</FieldLabel>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <Avatar className="h-12 w-12 rounded-full">
-                    <AvatarImage src={avatarUrl} alt={fullName || "User"} />
-                    <AvatarFallback className="rounded-full font-bold text-black bg-blue-100 dark:bg-blue-500/20 dark:text-blue-100">
-                      {(fullName || user?.email || "U").charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <input
-                    ref={avatarInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0]
-                      if (file) {
-                        void handleUploadAvatarFile(file)
-                      }
-                      event.currentTarget.value = ""
-                    }}
+              <div className="flex items-center gap-5">
+                <Field>
+                  <FieldLabel htmlFor="full-name">Full Name</FieldLabel>
+                  <Input
+                    id="full-name"
+                    value={fullName}
+                    onChange={(event) => setFullName(event.target.value)}
+                    placeholder="Your full name"
                   />
+                </Field>
 
-                  <Button type="button" variant="outline" size="sm" onClick={handleChooseAvatarFile} disabled={uploadingAvatar}>
-                    {uploadingAvatar ? "Uploading..." : hasAvatar ? "Change Image" : "Upload Image"}
-                  </Button>
-                  {hasAvatar ? (
-                    <Button type="button" variant="outline" size="sm" onClick={handleRemoveAvatar}>
-                      Remove Image
-                    </Button>
-                  ) : null}
-                </div>
-              </Field>
+                <Field>
+                  <FieldLabel htmlFor="email">Email</FieldLabel>
+                  <Input id="email" type="email" value={user?.email || ""} readOnly disabled />
+                </Field>
+              </div>
 
-              <Field>
-                <FieldLabel htmlFor="avatar-url">Avatar URL</FieldLabel>
-                <Input
-                  id="avatar-url"
-                  value={avatarUrl}
-                  onChange={(event) => setAvatarUrl(event.target.value)}
-                  placeholder="https://example.com/avatar.png"
-                />
-              </Field>
+              <Separator />
+
+              <div className="flex items-end gap-5">
+
+                <Field className="w-auto">
+                  <FieldLabel>Avatar</FieldLabel>
+                  <div className="flex items-center gap-2 border-r pr-5">
+                  <Avatar className="h-18 w-18 rounded-2xl">
+                    <AvatarImage src={avatarSrc} alt={fullName || "User"} />
+                      <AvatarFallback className="rounded-2xl font-medium text-2xl text-black bg-blue-100 dark:bg-blue-500/20 dark:text-blue-100">
+                        {(fullName || user?.email || "U").charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        if (file) {
+                          void handleUploadAvatarFile(file)
+                        }
+                        event.currentTarget.value = ""
+                      }}
+                    />
+                    <TooltipProvider delayDuration={200}>
+                      <div className="space-y-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="gradient"
+                              size="icon"
+                              className="rounded-full w-8 h-8"
+                              onClick={handleChooseAvatarFile}
+                              disabled={uploadingAvatar}
+                            >
+                              {uploadingAvatar ? <Spinner /> : hasAvatar ? <UserPen /> : <UserRoundPen />}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            {uploadingAvatar ? <Spinner /> : hasAvatar ? "Change avatar" : "Upload avatar"}
+                          </TooltipContent>
+                        </Tooltip>
+                        {hasAvatar ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button type="button" variant="destructiveLight" size="icon" className="rounded-full w-8 h-8 border border-destructive" onClick={handleRemoveAvatar}>
+                                <X />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">Remove avatar</TooltipContent>
+                          </Tooltip>
+                        ) : null}
+                      </div>
+                    </TooltipProvider>
+                  </div>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="avatar-url">Avatar URL</FieldLabel>
+                  <Input
+                    id="avatar-url"
+                    value={avatarUrl}
+                    onChange={(event) => setAvatarUrl(event.target.value)}
+                    placeholder="https://example.com/avatar.png"
+                  />
+                </Field>
+              </div>
 
               <div className="flex justify-end">
-                <Button type="button" variant="gradient" onClick={handleSaveAvatar} disabled={savingAvatar}>
-                  {savingAvatar ? "Saving..." : "Save Avatar"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={handleSaveAvatar} disabled={savingAvatar}>
+                    {savingAvatar ? "Saving..." : "Save Avatar"}
+                  </Button>
+                  <Button type="button" variant="gradient" onClick={handleSaveProfile} disabled={savingProfile}>
+                    {savingProfile ? "Saving..." : "Save Profile"}
+                  </Button>
+                </div>
               </div>
             </FieldGroup>
           </TabsContent>

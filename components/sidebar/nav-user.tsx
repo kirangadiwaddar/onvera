@@ -174,12 +174,12 @@ export function NavUser({
                   <CircleUserRound />
                   Account
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+                {/* <DropdownMenuItem asChild>
                   <Link href="/billing">
                     <CreditCard />
                     Billing
                   </Link>
-                </DropdownMenuItem>
+                </DropdownMenuItem> */}
                 <DropdownMenuItem
                   onSelect={(event) => {
                     event.preventDefault()
@@ -228,7 +228,7 @@ export function NavUser({
       </AlertDialog>
       <AccountSettingsModal open={showAccountDialog} onOpenChange={setShowAccountDialog} />
       <Sheet open={showNotifications} onOpenChange={setShowNotifications}>
-        <SheetContent side="right" className="w-[360px] max-w-full">
+        <SheetContent side="right" className="w-90 max-w-full">
           <SheetHeader className="border-b border-zinc-100">
             <SheetTitle>Notifications</SheetTitle>
           </SheetHeader>

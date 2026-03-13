@@ -43,6 +43,7 @@ type Props = {
   submissions?: Submissions
   onSubmissionsChange?: (next: Submissions) => void
   showCompletionControl?: boolean
+  className?: string
 }
 
 function getStatusBadgeClass(status?: string) {
@@ -64,6 +65,7 @@ export default function ChecklistSection({
   submissions = {},
   onSubmissionsChange,
   showCompletionControl = true,
+  className,
 }: Props) {
   const [editMode, setEditMode] = useState<Record<string, boolean>>({})
   const [draftValues, setDraftValues] = useState<Record<string, string>>({})
@@ -197,7 +199,10 @@ export default function ChecklistSection({
   }
 
   return (
-    <AccordionItem value={section.id} className="rounded-none group">
+    <AccordionItem
+      value={section.id}
+      className={`rounded-none group${className ? ` ${className}` : ""}`}
+    >
       <AccordionPrimitive.Header className="relative flex items-center gap-3 px-3 py-3 mb-0 hover:bg-zinc-50 has-[[data-state=open]]:bg-violet-50 dark:hover:bg-white/5 dark:has-[[data-state=open]]:bg-violet-500/10">
         <AccordionPrimitive.Trigger
           data-slot="accordion-trigger"

@@ -78,15 +78,15 @@ export function NavProjects() {
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <Separator className="mb-5"/>
+      {/* <Separator className="mb-5"/> */}
       {projects.length === 0 ? (
-        <SidebarGroupLabel className="text-destructive">
-          <span className="w-3 h-3 rounded-full bg-destructive/80 mr-2"></span>
+        <SidebarGroupLabel className="text-destructive text-xs">
+          <span className="w-2.5 h-2.5 rounded-full bg-destructive/80 mr-2"></span>
           No Ongoing Projects
         </SidebarGroupLabel>
       ) : (
-        <SidebarGroupLabel className="text-violet-600">
-          <span className="w-3 h-3 rounded-full bg-violet-600 mr-2"></span>
+        <SidebarGroupLabel className="text-violet-600 text-xs">
+          <span className="w-2.5 h-2.5 rounded-full bg-violet-600 mr-2"></span>
           Ongoing Projects
         </SidebarGroupLabel>
       )}

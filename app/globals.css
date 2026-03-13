@@ -154,43 +154,31 @@
       radial-gradient(circle at 50% 60%, rgba(168, 85, 247, 0.18) 0%, rgba(59, 130, 246, 0.08) 45%, transparent 75%);
   }
 
-/* Sonner toast styling */
-/* [data-sonner-toaster] [data-sonner-toast] {
-  position: relative;
-  box-shadow: none;
-  border: 1px solid var(--toast-border, color-mix(in oklch, currentColor 35%, transparent));
-  padding-right: 3rem;
-  background: oklch(0.98 0.01 260);
-  color: oklch(0.22 0.02 260);
+  .custom-checklist-section h3>button>span {
+    @apply relative top-1.5
+  }
+
 }
 
-[data-rich-colors="true"][data-sonner-toast][data-type="success"] {
-  --toast-border: color-mix(in oklch, oklch(0.84 0.18 145) 55%, transparent);
+@keyframes shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
 }
 
-[data-rich-colors="true"][data-sonner-toast][data-type="error"] {
-  --toast-border: color-mix(in oklch, oklch(0.62 0.22 28) 55%, transparent);
-}
-
-[data-rich-colors="true"][data-sonner-toast][data-type="warning"] {
-  --toast-border: color-mix(in oklch, oklch(0.82 0.18 85) 55%, transparent);
-}
-
-[data-rich-colors="true"][data-sonner-toast][data-type="info"] {
-  --toast-border: color-mix(in oklch, oklch(0.72 0.16 210) 55%, transparent);
-}
-
-[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
-  left: auto;
-  right: 0.75rem !important;
-  top: 50%;
-  transform: translateY(-50%);
-  box-shadow: none;
-  margin: 0;
-  opacity: 1;
-  background: oklch(0.97 0.01 260);
-  border-color: var(--toast-border, color-mix(in oklch, currentColor 35%, transparent));
-  color: inherit;
-} */
-
+@keyframes beam {
+  0% {
+    transform: translateY(-30%);
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(130%);
+    opacity: 0;
+  }
 }

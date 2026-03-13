@@ -295,6 +295,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
+import { LoadingState } from "@/components/loadingState"
 
 type Project = {
   id: number
@@ -424,7 +425,11 @@ export function MonthlyProjectsChart() {
   }
 
   if (loading) {
-    return <div className="p-6 text-sm">Loading chart...</div>
+    return (
+      <div className="p-6">
+        <LoadingState title="Loading chart..." />
+      </div>
+    )
   }
 
   return (

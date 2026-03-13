@@ -22,6 +22,7 @@ export function SiteHeader() {
   const router = useRouter()
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system")
   const [mounted, setMounted] = useState(false)
+  const [dateLabel, setDateLabel] = useState("")
 
   const segments = pathname.split("/").filter(Boolean)
 
@@ -54,12 +55,6 @@ export function SiteHeader() {
         .join(" ")
       : "Home";
   }
-
-  const today = new Date()
-
-  const day = today.getDate()
-  const month = today.toLocaleString("en-US", { month: "short" })
-  const year = today.getFullYear()
 
   useEffect(() => {
     setMounted(true)
@@ -97,6 +92,15 @@ export function SiteHeader() {
     return () => cleanup?.()
   }, [theme, mounted])
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const now = new Date()
+    const day = now.getDate()
+    const month = now.toLocaleString("en-US", { month: "short" })
+    const year = now.getFullYear()
+    setDateLabel(`${day} ${month}, ${year}`)
+  }, [])
+
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b border-border bg-white text-zinc-900 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) dark:bg-[#0b0b13] dark:text-white">
@@ -127,7 +131,9 @@ export function SiteHeader() {
         <h1 className="text-base font-medium">{getTitle()}</h1>
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center gap-2">
-            <p className="text-[12px] uppercase text-zinc-600 dark:text-white/70">{`${day} ${month}, ${year}`}</p>
+            <p className="text-[12px] uppercase text-zinc-600 dark:text-white/70">
+              {dateLabel}
+            </p>
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-white/5 dark:text-violet-200">
               <CalendarDays size={16} />
             </span>

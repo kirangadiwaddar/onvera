@@ -49,7 +49,7 @@ const attentionTable = ({ projects }: Props) => {
           </div>
         </div>) :
         <div className="mt-5 w-full overflow-auto">
-          <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-4 text-sm">
+          <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-4 [&_tr]:border-zinc-100 text-sm">
             <TableHeader>
               <TableRow>
                 <TableHead>Project</TableHead>

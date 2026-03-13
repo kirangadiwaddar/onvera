@@ -141,7 +141,7 @@ export function ProjectCard({
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="-mt-1 -mr-1"
+                                    className="-mt-2 -mr-1"
                                 >
                                     <MoreVertical className="size-5" />
                                 </Button>
