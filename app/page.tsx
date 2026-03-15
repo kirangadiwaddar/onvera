@@ -1,47 +1,120 @@
 "use client"
 
+import { motion } from "framer-motion"
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
-import { motion, type Variants } from "framer-motion"
 import {
   ArrowRight,
   BadgeCheck,
-  BriefcaseBusiness,
-  CalendarCheck,
   CheckCircle2,
-  Crown,
-  Fingerprint,
   FolderKanban,
-  Monitor,
+  Lock,
+  MessageSquareMore,
   Moon,
+  ShieldCheck,
   Sparkles,
   Sun,
-  Zap,
+  Users,
+  Workflow,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { useAuth } from "@/components/providers/auth-provider"
-import { getDefaultPathForRole } from "@/lib/auth/roles"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import Logo from "@/components/ui/logo"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
-export default function Home() {
-  const { user, profile } = useAuth()
-  const [theme, setTheme] = useState<"light" | "dark" | "system">("system")
-  const [pricingMode, setPricingMode] = useState<"agency" | "freelancer">("agency")
-  const pricing = useMemo(
-    () => ({
-      agency: {
+const stats = [
+  { value: "4,200+", label: "Projects shipped" },
+  { value: "2.4 days", label: "Avg. onboarding time" },
+  { value: "65+", label: "Templates ready" },
+  { value: "4.9/5", label: "Client satisfaction" },
+]
+
+const features = [
+  {
+    icon: Workflow,
+    title: "Template-first workflows",
+    desc: "Reusable onboarding flows with smart defaults, approvals, and client-safe checklists.",
+  },
+  {
+    icon: Users,
+    title: "Real-time collaboration",
+    desc: "Invite team members and clients with role-based access that keeps every handoff clean.",
+  },
+  {
+    icon: FolderKanban,
+    title: "Progress visibility",
+    desc: "Track milestones, submissions, feedback, and status in a single premium workspace.",
+  },
+  {
+    icon: Lock,
+    title: "Secure access links",
+    desc: "Share project views and approvals without exposing the entire workspace.",
+  },
+]
+
+const clientPoints = [
+  "Guided onboarding with instant access links",
+  "Dynamic project checklists synced across teams",
+  "Invite collaborators and tag responsibilities",
+  "Deliverables tracked with clean feedback cycles",
+]
+
+const roles = [
+  ["Admin", "Full workspace access", "Manage templates, teams, billing, and projects"],
+  ["Freelancer", "Solo workspace", "Run projects, invite external members, track approvals"],
+  ["Team Lead", "Assigned teams", "Review submissions, approve deliverables, lead updates"],
+  ["Team Member", "Assigned projects", "Update tasks, upload assets, collaborate on checklists"],
+  ["Project Member", "Project-specific", "View progress, submit assets, respond to feedback"],
+]
+
+const faqs = [
+  {
+    q: "Is Onvera for both agencies and solo freelancers?",
+    a: "Yes. The experience works for agency workspaces and freelancer-led projects with tailored structure for both.",
+  },
+  {
+    q: "Do clients need full accounts?",
+    a: "No. Clients can access project progress, approvals, and uploads through secure links and controlled permissions.",
+  },
+  {
+    q: "Can I brand the onboarding experience?",
+    a: "Yes. The product is built around making the onboarding journey feel premium, polished, and aligned with your studio brand.",
+  },
+]
+
+function SectionBadge({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-violet-100/80 via-fuchsia-100/80 to-indigo-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(99,102,241,0.08)]">
+      <Sparkles className="h-3.5 w-3.5" />
+      {children}
+    </div>
+  )
+}
+
+function Grain() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 opacity-[0.06]"
+      style={{
+        backgroundImage:
+          "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"140\" height=\"140\" viewBox=\"0 0 140 140\"><filter id=\"n\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.8\" numOctaves=\"3\" stitchTiles=\"stitch\"/></filter><rect width=\"140\" height=\"140\" filter=\"url(%23n)\" opacity=\"1\"/></svg>')",
+      }}
+    />
+  )
+}
+
+export default function OnveraLandingV2Page() {
+  const [theme, setTheme] = useState<"light" | "dark">("light")
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly")
+  const pricingPlans = useMemo(
+    () => [
+      {
         label: "Agency",
-        price: "$39",
-        subtitle: "per workspace / month",
+        monthly: "$39",
+        annual: "$31",
+        note: billingCycle === "annual" ? "per workspace / month (billed annually)" : "per workspace / month",
+        badge: "Best for multi-client teams",
         cta: "Start Agency Workspace",
-        highlight: "Best for multi-client teams",
-        features: [
+        bullets: [
           "Unlimited projects",
           "Team roles & permissions",
           "Client portals & approvals",
@@ -49,698 +122,567 @@ export default function Home() {
           "Advanced analytics",
           "Priority support",
         ],
+        accent: "from-violet-100/90 via-fuchsia-100/90 to-indigo-100/90",
       },
-      freelancer: {
+      {
         label: "Freelancer",
-        price: "$19",
-        subtitle: "per workspace / month",
+        monthly: "$19",
+        annual: "$15",
+        note: billingCycle === "annual" ? "per workspace / month (billed annually)" : "per workspace / month",
+        badge: "Built for solo studios",
         cta: "Start Freelancer Workspace",
-        highlight: "Ideal for solo operators",
-        features: [
+        bullets: [
           "Unlimited projects",
-          "Client onboarding flows",
-          "Project checklists",
-          "Custom templates",
-          "Invite collaborators",
-          "Email support",
+          "Solo workspace management",
+          "Client portals & approvals",
+          "Branded onboarding",
+          "Project timelines",
+          "Standard support",
         ],
+        accent: "from-emerald-100/90 via-teal-100/90 to-sky-100/90",
       },
-    }),
-    [],
+    ],
+    [billingCycle],
   )
 
-  const activePlan = pricing[pricingMode]
-  const role = profile?.role || (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null)
-  const dashboardHref = getDefaultPathForRole(role)
-
-  const container: Variants = {
-    hidden: { opacity: 0, y: 24 },
-    show: {
-      opacity: 1,
-      y: 0,
-      transition: { staggerChildren: 0.12, duration: 0.6, ease: [0.16, 1, 0.3, 1] },
-    },
-  }
-
-  const item: Variants = {
-    hidden: { opacity: 0, y: 16 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
-  }
-
   useEffect(() => {
     if (typeof window === "undefined") return
-    const saved = window.localStorage.getItem("onvera-theme")
-    if (saved === "light" || saved === "dark" || saved === "system") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setTheme(saved)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    const root = document.documentElement
+    const stored = window.localStorage.getItem("onvera-theme")
     const media = window.matchMedia("(prefers-color-scheme: dark)")
 
-    const apply = (isDark: boolean) => {
-      root.classList.toggle("dark", isDark)
+    const apply = (next: "light" | "dark") => {
+      setTheme(next)
+      document.documentElement.classList.toggle("dark", next === "dark")
     }
 
-    let cleanup: (() => void) | undefined
-
-    if (theme === "dark") {
-      apply(true)
-    } else if (theme === "light") {
-      apply(false)
-    } else {
-      apply(media.matches)
-      const handleChange = (event: MediaQueryListEvent) => apply(event.matches)
-      media.addEventListener("change", handleChange)
-      cleanup = () => media.removeEventListener("change", handleChange)
+    if (stored === "dark" || stored === "light") {
+      apply(stored)
+      return
     }
 
-    window.localStorage.setItem("onvera-theme", theme)
+    apply(media.matches ? "dark" : "light")
 
-    return () => cleanup?.()
-  }, [theme])
+    const handleChange = (event: MediaQueryListEvent) => {
+      apply(event.matches ? "dark" : "light")
+    }
+    media.addEventListener("change", handleChange)
+    return () => media.removeEventListener("change", handleChange)
+  }, [])
 
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark"
+    setTheme(next)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("onvera-theme", next)
+      document.documentElement.classList.toggle("dark", next === "dark")
+    }
+  }
   return (
-    <div className="min-h-screen bg-white text-zinc-900 dark:bg-[#0b0b13] dark:text-white">
+    <main className="min-h-screen bg-white dark:bg-[#030303] text-zinc-900 dark:text-white">
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-violet-200/70 blur-[140px] dark:bg-violet-600/30" />
-          <div className="absolute right-[-120px] top-32 h-[360px] w-[360px] rounded-full bg-fuchsia-200/70 blur-[120px] dark:bg-fuchsia-500/25" />
-          <div className="absolute left-[-140px] bottom-[-120px] h-[320px] w-[320px] rounded-full bg-indigo-200/70 blur-[120px] dark:bg-indigo-500/20" />
-        </div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.22),transparent_32%),radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.18),transparent_22%),radial-gradient(circle_at_50%_100%,rgba(16,185,129,0.12),transparent_28%)]" />
+        <Grain />
 
-        <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6 2xl:px-10">
-          <Link href="/" className="flex items-center gap-3 text-base font-semibold tracking-wide">
-            <span className="flex h-9 w-9 items-center gap-2">
-              {/* <BriefcaseBusiness className="h-5 w-5" /> */}
-              <Logo />
-            </span>
-            Onvera
-          </Link>
-          <nav className="hidden items-center gap-6 text-sm text-zinc-600 md:flex dark:text-white/70">
-            <a href="#features" className="transition hover:text-zinc-900 dark:hover:text-white">Features</a>
-            <a href="#workflow" className="transition hover:text-zinc-900 dark:hover:text-white">Workflow</a>
-            <a href="#pricing" className="transition hover:text-zinc-900 dark:hover:text-white">Pricing</a>
-            <a href="#faq" className="transition hover:text-zinc-900 dark:hover:text-white">FAQ</a>
-          </nav>
-          <div className="flex items-center gap-3">
-            {user ? (
-              <>
-                {/* <Link
-                  href="/projects"
-                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm text-zinc-700 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-white/20 dark:text-white/80 dark:hover:border-white/40 dark:hover:text-white"
-                >
-                  All Projects
-                </Link> */}
-                <Link
-                  href={dashboardHref}
-                  className="rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-500/30 dark:bg-white dark:text-[#0b0b13] dark:hover:shadow-white/20"
-                >
-                  Dashboard
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm text-zinc-700 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-white/20 dark:text-white/80 dark:hover:border-white/40 dark:hover:text-white"
-                >
-                  Log in
-                </Link>
-                <Link
-                  href="/register"
-                  className="rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-500/30 dark:bg-white dark:text-[#0b0b13] dark:hover:shadow-white/20"
-                >
-                  Start free
-                </Link>
-              </>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className={cn(
-                    "rounded-full border border-zinc-200/80 bg-white/80 p-2 text-zinc-500 shadow-sm transition hover:text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:text-white/60 dark:hover:text-white",
-                  )}
-                  aria-label="Theme switcher"
-                >
-                  {theme === "light" ? (
-                    <Sun className="h-4 w-4" />
-                  ) : theme === "dark" ? (
-                    <Moon className="h-4 w-4" />
-                  ) : (
-                    <Monitor className="h-4 w-4" />
-                  )}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-36">
-                <DropdownMenuItem onSelect={() => setTheme("light")}>
-                  <Sun /> Light
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setTheme("dark")}>
-                  <Moon /> Dark
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setTheme("system")}>
-                  <Monitor /> System
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+        <header className="sticky top-0 z-50 border-b border-black/10 dark:border-white/10 bg-white/80 dark:bg-black/35 backdrop-blur-xl">
+          <div className="mx-auto flex w-full items-center justify-between px-20 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center text-black shadow-[0_0_40px_rgba(255,255,255,0.12)]">
+                <Logo width={40} height={40} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold tracking-wide">Onvera</p>
+                <p className="text-xs text-zinc-600 dark:text-white/70">Client onboarding OS</p>
+              </div>
+            </div>
+
+            <nav className="hidden items-center gap-8 text-sm text-zinc-600 dark:text-white/70 md:flex">
+              <a href="#features" className="transition hover:text-zinc-900 dark:text-white">Features</a>
+              <a href="#experience" className="transition hover:text-zinc-900 dark:text-white">Experience</a>
+              <a href="#pricing" className="transition hover:text-zinc-900 dark:text-white">Pricing</a>
+              <a href="#faq" className="transition hover:text-zinc-900 dark:text-white">FAQ</a>
+            </nav>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 dark:border-white/10 bg-white/80 dark:bg-white/5 text-zinc-700 dark:text-white/80 transition hover:bg-black/5 dark:hover:bg-white/10"
+                aria-label="Toggle theme"
+              >
+                {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+              </button>
+              {/* <a
+                href="/login"
+                className="hidden rounded-full border border-black/10 dark:border-white/10 px-4 py-2 text-sm text-zinc-600 dark:text-white/70 transition hover:border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 sm:inline-flex"
+              >
+                Log in
+              </a>
+              <a
+                href="/register"
+                className="inline-flex items-center gap-2 rounded-full bg-violet-500 px-4 py-2 text-sm font-medium text-white transition hover:scale-[1.02]"
+              >
+                Start now
+                <ArrowRight className="h-4 w-4" />
+              </a> */}
+              <a href="#" className="inline-flex items-center gap-2 rounded-full bg-violet-500 px-4 py-2 text-sm font-medium text-white transition hover:scale-[1.02]">Get Early Access  <ArrowRight className="h-4 w-4" /></a>
+            </div>
           </div>
         </header>
 
-        <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-20 px-6 pb-20 pt-12 2xl:gap-28 2xl:px-10 2xl:pt-16">
-            <motion.section
-              className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]"
-            variants={container}
-            initial="hidden"
-            animate="show"
-          >
-            <motion.div className="space-y-6" variants={item}>
-              <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/60 bg-violet-500/10 px-4 py-2 text-xs text-violet-700 dark:border-violet-400/40 dark:text-violet-100">
-                <Sparkles className="h-4 w-4" />
-                First 20 customers are free forever
-              </div>
-              <h1 className="text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl lg:text-5xl 2xl:text-5xl dark:text-white">
-                A modern client onboarding OS for agencies & freelancers.
-              </h1>
-              <p className="max-w-xl text-base leading-relaxed text-zinc-600 sm:text-base 2xl:text-base dark:text-white/70">
-                Onvera turns chaotic handoffs into a premium experience. Build branded
-                onboarding, coordinate teams, and keep every project moving with elegant
-                checklists, templates, and approvals.
-              </p>
-              <div className="flex flex-wrap items-center gap-4 2xl:gap-6">
-                <Link
-                  href="/register"
-                  className="group inline-flex items-center gap-2 rounded-full bg-violet-600 px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-violet-500"
-                >
-                  Launch your workspace
-                  <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
-                </Link>
-                <Link
-                  href="/dashboard"
-                  className="inline-flex items-center gap-2 rounded-full border border-zinc-200 px-6 py-3 text-sm text-zinc-700 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-white/20 dark:text-white/80 dark:hover:border-white/40 dark:hover:text-white"
-                >
-                  View dashboard
-                  <BadgeCheck className="h-4 w-4" />
-                </Link>
-              </div>
-              <div className="flex flex-wrap items-center gap-6 text-xs text-zinc-500 dark:text-white/60">
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-violet-500 dark:text-violet-300" /> Setup in minutes
-                </span>
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-violet-500 dark:text-violet-300" /> Cancel anytime
-                </span>
-              </div>
-            </motion.div>
+        <section className="relative mx-auto grid w-full items-center gap-16 px-20 pb-20 pt-16 lg:grid-cols-[1.05fr_.95fr] lg:pb-28 lg:pt-24">
+          <div>
+            <SectionBadge>Premium onboarding workspace</SectionBadge>
 
-            <motion.div
-              className="rounded-3xl border border-black/10 bg-white/70 p-6 shadow-2xl shadow-violet-500/15 backdrop-blur dark:border-white/10 dark:bg-white/5 dark:shadow-violet-500/20"
-              variants={item}
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="mt-6 max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl"
             >
-              <div className="flex items-center justify-between border-b border-black/10 pb-4 dark:border-white/10">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-white/50">Workspace</p>
-                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">Studio Aurora</h3>
-                </div>
-                <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs text-emerald-700 dark:bg-emerald-400/20 dark:text-emerald-200">
-                  Active
-                </span>
-              </div>
-              <div className="mt-6 space-y-5">
-                {[
-                  {
-                    icon: FolderKanban,
-                    title: "Project Intake",
-                    subtitle: "Auto-collect briefs, assets, and scope.",
-                  },
-                  {
-                    icon: CalendarCheck,
-                    title: "Timeline Lock-in",
-                    subtitle: "Approve milestones with 1-click review.",
-                  },
-                  {
-                    icon: Fingerprint,
-                    title: "Access Control",
-                    subtitle: "Share secure updates with clients.",
-                  },
-                ].map((step, index) => {
-                  const Icon = step.icon
-                  return (
-                    <motion.div
-                      key={step.title}
-                      className="flex items-start gap-4 rounded-2xl border border-black/5 bg-white/80 p-4 transition hover:-translate-y-1 hover:border-black/10 dark:border-white/5 dark:bg-white/5 dark:hover:border-white/20"
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.15 }}
-                    >
-                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-600 dark:bg-violet-500/20 dark:text-violet-200">
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      <div>
-                        <p className="text-sm font-semibold text-zinc-900 dark:text-white">{step.title}</p>
-                        <p className="text-xs text-zinc-600 dark:text-white/60">{step.subtitle}</p>
-                      </div>
-                    </motion.div>
-                  )
-                })}
-              </div>
-            </motion.div>
-          </motion.section>
+              A modern client onboarding OS for agencies and freelancers.
+            </motion.h1>
 
-          <section className="grid gap-8 rounded-3xl border border-black/10 bg-white/70 px-6 py-8 text-zinc-600 md:grid-cols-4 2xl:px-10 2xl:py-10 dark:border-white/10 dark:bg-white/5 dark:text-white/70">
-            {[
-              { label: "Projects shipped", value: "4,200+" },
-              { label: "Avg. onboarding time", value: "2.4 days" },
-              { label: "Templates ready", value: "65+" },
-              { label: "Client satisfaction", value: "4.9/5" },
-            ].map((stat) => (
-              <div key={stat.label} className="space-y-2">
-                <p className="text-2xl font-semibold text-zinc-900 dark:text-white">{stat.value}</p>
-                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-white/50">{stat.label}</p>
-              </div>
-            ))}
-          </section>
+            <p className="mt-6 max-w-2xl text-base text-zinc-600 dark:text-white/70">
+              Onvera turns chaotic handoffs into a premium experience. Build branded onboarding,
+              coordinate teams, and keep every project moving with elegant checklists, approvals,
+              and visibility your clients actually enjoy.
+            </p>
 
-          <section className="rounded-3xl border border-black/10 bg-white/70 px-6 py-10 2xl:px-10 2xl:py-14 dark:border-white/10 dark:bg-white/5">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/60 bg-violet-500/10 px-3 py-1 text-xs text-violet-700 dark:border-violet-400/40 dark:text-violet-100">
-                  <Monitor className="h-4 w-4" />
-                  Product tour
-                </div>
-                <h2 className="text-3xl font-semibold text-zinc-900 2xl:text-4xl dark:text-white">
-                  Full client onboarding, shown end-to-end.
-                </h2>
-                <p className="max-w-2xl text-sm text-zinc-600 dark:text-white/70">
-                  See onboarding intake, approvals, and project tracking in a single, polished workspace.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {[
-                  "Client onboarding",
-                  "Project approvals",
-                  "Project tracking",
-                ].map((label) => (
-                  <span
-                    key={label}
-                    className="rounded-full border border-black/10 bg-white/80 px-3 py-1 text-xs text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-white/70"
-                  >
-                    {label}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div className="mt-8 overflow-hidden rounded-3xl border border-black/10 bg-black/95 shadow-2xl shadow-violet-500/15 dark:border-white/10">
-              <video
-                className="h-full w-full"
-                controls
-                playsInline
-                poster="/video-poster.png"
+            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+              <Link href="/register">
+              <Button
+              variant="gradient"
+              size="lg"
+                className="rounded-full transition hover:scale-[1.02]"
               >
-                <source src="/product-demo.mp4" type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
+                Launch your workspace
+                <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+              <Link href="/register">
+              <Button
+              variant="ghost"
+              size="lg"
+                className="rounded-full transition hover:scale-[1.02] font-semibold text-violet-600"
+              >
+                View Dashboard
+                </Button>
+              </Link>
             </div>
-            <div className="mt-4 text-xs text-zinc-500 dark:text-white/60">
-              Drop your MP4 in `public/product-demo.mp4` and a poster in `public/video-poster.png`.
-            </div>
-            <div className="mt-8 rounded-3xl border border-black/10 bg-gradient-to-br from-violet-100 via-white to-white p-6 dark:border-white/10 dark:from-[#1a1f2f] dark:via-[#0f131d] dark:to-[#0f131d]">
-              <div className="flex items-center justify-between">
-                <div className="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-white/50">
-                  Dashboard preview
-                </div>
-                <span className="rounded-full bg-violet-500/15 px-3 py-1 text-xs text-violet-700 dark:bg-violet-500/20 dark:text-violet-100">
-                  Live status
-                </span>
-              </div>
-              <div className="mt-6 grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-                <div className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
-                  <div className="flex items-center justify-between">
-                    <div className="h-3 w-28 rounded-full bg-black/10 dark:bg-white/10" />
-                    <div className="h-3 w-12 rounded-full bg-black/10 dark:bg-white/10" />
+
+            <div className="mt-16 flex flex-wrap gap-3 text-sm text-zinc-600 dark:text-white/70">
+              <span className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-sky-100/80 to-violet-100/80 px-3 py-1.5 text-black font-normal shadow-[0_4px_12px_rgba(59,130,246,0.08)]">Setup in minutes</span>
+              <span className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-indigo-100/80 to-fuchsia-100/80 px-3 py-1.5 text-black font-normal shadow-[0_4px_12px_rgba(124,58,237,0.08)]">Cancel anytime</span>
+              <span className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-emerald-100/80 to-teal-100/80 px-3 py-1.5 text-black font-normal shadow-[0_4px_12px_rgba(16,185,129,0.08)]">Premium client UX</span>
+            </div>            
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.75, delay: 0.1 }}
+            className="relative"
+          >
+            <div className="absolute -left-12 top-10 hidden h-28 w-28 rounded-full bg-violet-500/20 blur-3xl lg:block" />
+            <div className="absolute -right-8 bottom-10 hidden h-28 w-28 rounded-full bg-sky-500/20 blur-3xl lg:block" />
+
+            <div className="relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 p-3 shadow-[0_0_80px_rgba(99,102,241,0.12)] backdrop-blur-2xl">
+              <div className="rounded-[1.5rem] border border-black/10 dark:border-white/10 bg-white dark:bg-[#0a0a0a] p-4">
+                <div className="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-4">
+                  <div>
+                    <p className="text-sm text-zinc-600 dark:text-white/70">Workspace</p>
+                    <h3 className="text-xl font-semibold">Studio Aurora</h3>
                   </div>
-                  <div className="mt-4 grid grid-cols-3 gap-3">
-                    {Array.from({ length: 3 }).map((_, idx) => (
-                      <div key={idx} className="h-16 rounded-xl bg-white/80 shadow-sm dark:bg-white/5" />
+                  <span className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-emerald-100/80 to-teal-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(16,185,129,0.08)]">
+                    Active
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  {[
+                    ["Project Intake", "Auto-collect briefs, assets, and scope."],
+                    ["Timeline Lock-in", "Approve milestones with 1-click review."],
+                    ["Access Control", "Share secure updates with clients."],
+                    ["Team Sync", "Keep feedback and ownership crystal clear."],
+                  ].map(([title, desc], index) => (
+                    <div key={title} className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="text-sm font-medium text-zinc-600 dark:text-white/70">{title}</span>
+                        <span className="text-xs text-zinc-600 dark:text-white/70">0{index + 1}</span>
+                      </div>
+                      <p className="text-sm leading-6 text-zinc-600 dark:text-white/70">{desc}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 rounded-3xl border border-black/10 dark:border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-zinc-600 dark:text-white/70">Live status</p>
+                      <h4 className="mt-1 text-lg font-semibold">Approvals, uploads, timelines</h4>
+                    </div>
+                    <BadgeCheck className="h-5 w-5 text-zinc-600 dark:text-white/70" />
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {[82, 61, 94].map((v, i) => (
+                      <div key={i}>
+                        <div className="mb-2 flex items-center justify-between text-xs text-zinc-600 dark:text-white/70">
+                          <span>{["Client uploads", "Approval timelines", "Team status"][i]}</span>
+                          <span>{v}%</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-black/5 dark:bg-white/5">
+                          <div className="h-2 rounded-full bg-white" style={{ width: `${v}%` }} />
+                        </div>
+                      </div>
                     ))}
                   </div>
-                  <div className="mt-4 h-32 rounded-2xl bg-white/80 shadow-sm dark:bg-white/5" />
                 </div>
-                <div className="grid gap-3">
-                  {[
-                    "Approval timelines",
-                    "Client uploads",
-                    "Team status",
-                  ].map((item) => (
-                    <div
-                      key={item}
-                      className="rounded-2xl border border-black/10 bg-white/80 p-4 text-xs text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-white/70"
-                    >
-                      <p className="text-sm font-semibold text-zinc-900 dark:text-white">{item}</p>
-                      <p className="mt-2">Always visible, always in sync.</p>
+              </div>
+            </div>
+          </motion.div>
+        </section>
+      </div>
+
+      <section id="stats" className="mx-auto w-full px-20 py-8 lg:py-16">
+        <motion.div>
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {stats.map((item, index) => {
+              const Icon = [FolderKanban, Workflow, ShieldCheck, BadgeCheck][index]
+              return (
+                <div
+                  key={item.label}
+                  className="rounded-[26px] border border-black/10 dark:border-white/10 bg-white/80 dark:bg-white/5 p-5 shadow-[0_18px_36px_rgba(15,23,42,0.08)]"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-3xl font-semibold text-zinc-900 dark:text-white">{item.value}</div>
+                      <div className="mt-1 text-sm text-zinc-600 dark:text-white/70">{item.label}</div>
                     </div>
-                  ))}
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-black/10 dark:border-white/10 bg-gradient-to-br from-violet-100/80 via-fuchsia-100/80 to-indigo-100/80 text-black">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="mt-5 h-px bg-black/5 dark:bg-white/10" />
+                  <p className="mt-3 text-xs text-zinc-500 dark:text-white/50">
+                    Updated live as your workspace grows.
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </motion.div>
+      </section>
+
+      <section id="demo" className="mx-auto w-full px-20 py-8  lg:py-16">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
+          <div className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl">
+            <SectionBadge>Product tour</SectionBadge>
+            <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-3xl">
+              Full client onboarding, shown end-to-end.
+            </h2>
+            <p className="mt-4 max-w-2xl text-zinc-600 dark:text-white/70">
+              Show intake, approvals, project tracking, and team coordination in a single polished workspace.
+            </p>
+
+            <div className="mt-6 overflow-hidden rounded-[1.75rem] border border-black/10 dark:border-white/10 bg-white dark:bg-[#0a0a0a] p-3">
+              <div className="aspect-[16/10] rounded-[1.25rem] border border-black/10 dark:border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.18),transparent_28%),linear-gradient(180deg,#101010,#050505)] p-5">
+                <div className="grid h-full gap-4 lg:grid-cols-[.85fr_1.15fr]">
+                  <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4">
+                    <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-white/70">
+                      <ShieldCheck className="h-4 w-4" /> Dashboard preview
+                    </div>
+                    <div className="mt-5 space-y-3">
+                      {[
+                        "Client onboarding",
+                        "Project approvals",
+                        "Project tracking",
+                        "Role-based visibility",
+                      ].map((item) => (
+                        <div key={item} className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 px-3 py-2.5 text-sm text-zinc-600 dark:text-white/70">
+                          <CheckCircle2 className="h-4 w-4 text-zinc-600 dark:text-white/70" />
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid gap-4">
+                    <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-sm text-zinc-600 dark:text-white/70">Milestone timeline</div>
+                      <div className="mt-4 grid grid-cols-4 gap-2">
+                        {["Brief", "Assets", "Review", "Launch"].map((step, i) => (
+                          <div key={step} className="rounded-2xl border border-black/10 dark:border-white/10 p-3 text-center text-xs">
+                            <div className={`mx-auto mb-2 h-2 w-2 rounded-full ${i < 3 ? "bg-white" : "bg-black/5 dark:bg-white/5"}`} />
+                            <div className="text-zinc-600 dark:text-white/70">{step}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4">
+                        <div className="text-sm text-zinc-600 dark:text-white/70">Client uploads</div>
+                        <div className="mt-3 text-2xl font-semibold">24</div>
+                        <p className="mt-1 text-sm text-zinc-600 dark:text-white/70">Always visible, always in sync.</p>
+                      </div>
+                      <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4">
+                        <div className="text-sm text-zinc-600 dark:text-white/70">Team status</div>
+                        <div className="mt-3 text-2xl font-semibold">6 / 7</div>
+                        <p className="mt-1 text-sm text-zinc-600 dark:text-white/70">Aligned across approvals.</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="mt-4 text-xs text-zinc-500 dark:text-white/60">
-                Replace the mock with a real screenshot in `public/dashboard-screenshot.png`.
-              </div>
             </div>
-          </section>
+          </div>
 
-          <section id="features" className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] 2xl:gap-12">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/60 bg-violet-500/10 px-3 py-1 text-xs text-violet-700 dark:border-violet-400/40 dark:text-violet-100">
-                <Zap className="h-4 w-4" />
-                Features
-              </div>
-              <h2 className="text-3xl font-semibold text-zinc-900 2xl:text-4xl dark:text-white">
-                Everything you need to run a premium client experience.
-              </h2>
-              <p className="text-sm text-zinc-600 dark:text-white/70">
-                Build consistent onboarding, keep internal teams aligned, and show clients exactly
-                where things stand with beautiful, status-rich dashboards.
-              </p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 2xl:gap-6">
-              {[
-                {
-                  title: "Template-first workflows",
-                  description: "Reusable onboarding flows with smart defaults.",
-                },
-                {
-                  title: "Real-time collaboration",
-                  description: "Invite team members or clients with instant roles.",
-                },
-                {
-                  title: "Progress visibility",
-                  description: "Status badges, timelines, and milestone check-ins.",
-                },
-                {
-                  title: "Secure access links",
-                  description: "Controlled access for external members.",
-                },
-              ].map((feature) => (
-                <motion.div
-                  key={feature.title}
-                  whileHover={{ y: -6 }}
-                  transition={{ type: "spring", stiffness: 240, damping: 18 }}
-                  className="rounded-2xl border border-black/10 bg-white/80 p-5 dark:border-white/10 dark:bg-white/5"
-                >
-                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-white">{feature.title}</h3>
-                  <p className="mt-2 text-xs text-zinc-600 dark:text-white/60">{feature.description}</p>
-                </motion.div>
+          <div className="grid gap-6">
+            {features.map((feature) => {
+              const Icon = feature.icon
+              return (
+                <div key={feature.title} className="flex items-start gap-5 rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-black/10 dark:border-white/10 bg-white/[0.06]">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold">{feature.title}</h3>
+                  <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-white/70">{feature.desc}</p>
+                  </div>                  
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section id="features" className="mx-auto w-full px-20 py-8 lg:py-16">
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-8 lg:col-span-2">
+            <SectionBadge>Client experience</SectionBadge>
+            <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
+              A polished workflow clients actually enjoy.
+            </h2>
+            <p className="mt-4 max-w-2xl text-zinc-600 dark:text-white/70">
+              Share status, collect assets, and keep approvals moving without endless email threads.
+            </p>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              {clientPoints.map((point) => (
+                <div key={point} className="flex items-start gap-3 rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.03] p-4">
+                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-white text-black">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <p className="text-sm leading-7 text-zinc-600 dark:text-white/70">{point}</p>
+                </div>
               ))}
             </div>
-          </section>
+          </div>
 
-          <section id="workflow" className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] 2xl:gap-14">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/60 bg-violet-500/10 px-3 py-1 text-xs text-violet-700 dark:border-violet-400/40 dark:text-violet-100">
-                <Crown className="h-4 w-4" />
-                Client experience
+          <div className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-8">
+            <SectionBadge>Premium feel</SectionBadge>
+            <h3 className="mt-5 text-2xl font-semibold">Built to make your process look expensive.</h3>
+            <p className="mt-4 text-sm leading-7 text-zinc-600 dark:text-white/70">
+              Combine modern visuals, premium layout structure, and clean motion to make every onboarding step feel intentional.
+            </p>
+            <div className="mt-8 rounded-3xl border border-black/10 dark:border-white/10 bg-white/90 dark:bg-black/30 p-4">
+              <div className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 p-3">
+                <MessageSquareMore className="h-5 w-5 text-zinc-600 dark:text-white/70" />
+                <div>
+                  <div className="text-sm font-medium">Client review ready</div>
+                  <div className="text-xs text-zinc-600 dark:text-white/70">Approval requested 2 mins ago</div>
+                </div>
               </div>
-              <h2 className="text-3xl font-semibold text-zinc-900 2xl:text-4xl dark:text-white">
-                A polished workflow clients actually enjoy.
-              </h2>
-              <p className="text-sm text-zinc-600 dark:text-white/70">
-                Share status, collect assets, and keep approvals moving without endless email threads.
-              </p>
+              <div className="mt-4 flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 p-3">
+                <ShieldCheck className="h-5 w-5 text-zinc-600 dark:text-white/70" />
+                <div>
+                  <div className="text-sm font-medium">Secure access shared</div>
+                  <div className="text-xs text-zinc-600 dark:text-white/70">Project portal active</div>
+                </div>
+              </div>
             </div>
-            <div className="grid gap-4">
-              {[
-                "Guided onboarding with instant access tokens",
-                "Dynamic project checklists synced across teams",
-                "Invite collaborators and tag responsibilities",
-                "Deliverables tracked with feedback cycles",
-              ].map((point) => (
-                <motion.div
-                  key={point}
-                  className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-white/5"
-                  whileHover={{ scale: 1.01 }}
-                >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15 text-violet-600 dark:bg-violet-500/20 dark:text-violet-200">
-                    <CheckCircle2 className="h-5 w-5" />
-                  </span>
-                  <p className="text-sm text-zinc-700 dark:text-white/80">{point}</p>
-                </motion.div>
-              ))}
-            </div>
-          </section>
+          </div>
+        </div>
+      </section>
 
-          <section className="rounded-3xl border border-black/10 bg-white/70 px-6 py-10 2xl:px-10 2xl:py-14 dark:border-white/10 dark:bg-white/5">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <section id="experience" className="mx-auto w-full px-20 py-8  lg:py-16">
+        <div className="overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04]">
+          <div className="border-b border-black/10 dark:border-white/10 px-[30px] py-6 lg:px-[30px]">
+            <SectionBadge>Roles & access</SectionBadge>
+            <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
+              A clear access map for every role.
+            </h2>
+            <p className="mt-4 max-w-2xl text-zinc-600 dark:text-white/70">
+              Keep responsibilities obvious with a structured permissions table for agencies, freelancers, leads, teams, and project members.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-white/[0.03] text-zinc-600 dark:text-white/70">
+                <tr>
+                  <th className="px-6 py-4 font-medium">Role</th>
+                  <th className="px-6 py-4 font-medium">Access scope</th>
+                  <th className="px-6 py-4 font-medium">Typical actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roles.map(([role, scope, action]) => (
+                  <tr key={role} className="border-t border-black/10 dark:border-white/10">
+                    <td className="px-6 py-4 font-medium text-zinc-900 dark:text-white">{role}</td>
+                    <td className="px-6 py-4 text-zinc-600 dark:text-white/70">{scope}</td>
+                    <td className="px-6 py-4 text-zinc-600 dark:text-white/70">{action}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="pricing" className="mx-auto w-full px-20 py-8 lg:py-16">
+        <div className="flex gap-6">
+          <div className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-8 lg:w-100 shrink-0">
+            <SectionBadge>Pricing</SectionBadge>
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-white/50">Roles & Access</p>
-                <h2 className="mt-2 text-3xl font-semibold text-zinc-900 2xl:text-4xl dark:text-white">
-                  A clear access map for every role.
+                <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                  Flexible plans for agency and freelancer teams.
                 </h2>
-                <p className="mt-2 text-sm text-zinc-600 dark:text-white/70">
-                  Keep responsibilities obvious with a structured permissions table.
+                <p className="mt-4 text-zinc-600 dark:text-white/70">
+                  Choose the workflow that matches how you deliver projects, from solo studios to full teams.
                 </p>
               </div>
-            </div>
-            <div className="mt-6 overflow-hidden rounded-2xl border border-black/10 bg-white/80 dark:border-white/10 dark:bg-white/5">
-              <div className="grid grid-cols-[1fr_1.2fr_1.8fr] gap-0 bg-zinc-100/70 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-zinc-500 dark:bg-white/5 dark:text-white/50">
-                <span>Role</span>
-                <span>Access scope</span>
-                <span>Typical actions</span>
-              </div>
-              {[
-                {
-                  role: "Admin",
-                  scope: "Full workspace access",
-                  actions: "Manage templates, teams, billing, and projects.",
-                },
-                {
-                  role: "Freelancer",
-                  scope: "Solo workspace",
-                  actions: "Run projects, invite external members, track approvals.",
-                },
-                {
-                  role: "Team Lead",
-                  scope: "Assigned teams",
-                  actions: "Review submissions, approve deliverables, lead updates.",
-                },
-                {
-                  role: "Team Member",
-                  scope: "Assigned projects",
-                  actions: "Update tasks, upload assets, collaborate on checklists.",
-                },
-                {
-                  role: "Project Member",
-                  scope: "Project-specific",
-                  actions: "View progress, submit assets, respond to feedback.",
-                },
-              ].map((row) => (
-                <div
-                  key={row.role}
-                  className="grid grid-cols-[1fr_1.2fr_1.8fr] gap-0 border-t border-black/5 px-4 py-4 text-xs text-zinc-600 dark:border-white/10 dark:text-white/70"
+              <div className="flex items-center gap-2 rounded-full border border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/5 p-1">
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle("monthly")}
+                  className={`rounded-full px-4 py-1.5 text-xs transition ${
+                    billingCycle === "monthly"
+                      ? "bg-black text-white"
+                      : "text-zinc-600 dark:text-white/70"
+                  }`}
                 >
-                  <span className="flex items-center">
-                    <span className="rounded-full bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-500/20 dark:text-violet-100">
-                      {row.role}
-                    </span>
-                  </span>
-                  <span className="font-medium text-zinc-900 dark:text-white">{row.scope}</span>
-                  <span>{row.actions}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section id="pricing" className="rounded-3xl border border-black/10 bg-white/70 px-6 py-10 2xl:px-10 2xl:py-14 dark:border-white/10 dark:bg-white/5">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-white/50">Pricing</p>
-                <h2 className="text-3xl font-semibold text-zinc-900 2xl:text-4xl dark:text-white">
-                  Flexible plans for every team size.
-                </h2>
-                <p className="text-sm text-zinc-600 dark:text-white/70">First 20 customers get lifetime access for free.</p>
-              </div>
-              <div className="inline-flex rounded-full border border-black/10 bg-white/70 p-1 dark:border-white/10 dark:bg-white/5">
-                {(["agency", "freelancer"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setPricingMode(mode)}
-                    className={cn(
-                      "rounded-full px-4 py-2 text-xs font-semibold transition",
-                      pricingMode === mode
-                        ? "bg-violet-600 text-white shadow-lg shadow-violet-500/30"
-                        : "text-zinc-500 hover:text-zinc-900 dark:text-white/60 dark:hover:text-white",
-                    )}
-                  >
-                    {mode === "agency" ? "Agency" : "Freelancer"}
-                  </button>
-                ))}
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle("annual")}
+                  className={`rounded-full px-4 py-1.5 text-xs transition ${
+                    billingCycle === "annual"
+                      ? "bg-black text-white"
+                      : "text-zinc-600 dark:text-white/70"
+                  }`}
+                >
+                  Annual
+                </button>
               </div>
             </div>
+          </div>
 
-            <motion.div
-              key={pricingMode}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]"
-            >
-              <div className="rounded-3xl border border-violet-300/50 bg-gradient-to-br from-violet-500/15 via-transparent to-transparent p-6 dark:border-violet-400/30">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-violet-600 dark:text-violet-200">{activePlan.label}</p>
-                    <h3 className="mt-2 text-4xl font-semibold text-zinc-900 dark:text-white">{activePlan.price}</h3>
-                    <p className="text-xs text-zinc-600 dark:text-white/60">{activePlan.subtitle}</p>
-                  </div>
-                  <span className="rounded-full bg-violet-500/15 px-3 py-1 text-xs text-violet-700 dark:bg-violet-500/20 dark:text-violet-100">
-                    {activePlan.highlight}
-                  </span>
-                </div>
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  {activePlan.features.map((feature) => (
-                    <div key={feature} className="flex items-center gap-2 text-xs text-zinc-700 dark:text-white/80">
-                      <CheckCircle2 className="h-4 w-4 text-violet-500 dark:text-violet-300" />
-                      {feature}
+          <div className="grid gap-6 lg:grid-cols-2">
+            {pricingPlans.map((plan) => (
+              <div
+                key={plan.label}
+                className="group relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white shadow-[0_20px_40px_rgba(15,23,42,0.08)] dark:bg-[#0a0a0a]"
+              >
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(124,58,237,0.18),transparent_70%)] opacity-70" />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(59,130,246,0.14),transparent_70%)] opacity-50" />
+                <div className="relative rounded-[1.5rem] p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="inline-flex rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-violet-100/80 to-fuchsia-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(124,58,237,0.08)]">
+                        {plan.label}
+                      </div>
+                      <h3 className="mt-4 text-2xl font-semibold text-zinc-900 dark:text-white">
+                        {billingCycle === "annual" ? plan.annual : plan.monthly}
+                      </h3>
+                      <p className="mt-1 text-sm text-zinc-600 dark:text-white/70">{plan.note}</p>
                     </div>
-                  ))}
-                </div>
-                <Link
-                  href="/register"
-                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-violet-500 hover:shadow-lg dark:bg-white dark:text-[#0b0b13]"
-                >
-                  {activePlan.cta}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-              <div className="grid gap-4">
-                {[
-                  {
-                    title: "Team onboarding",
-                    description: "Configure roles, permissions, and access.",
-                  },
-                  {
-                    title: "Client experience",
-                    description: "Share a premium, branded workspace.",
-                  },
-                  {
-                    title: "Automated invites",
-                    description: "Send secure project links in seconds.",
-                  },
-                ].map((item) => (
-                  <div key={item.title} className="rounded-2xl border border-black/10 bg-white/80 p-5 dark:border-white/10 dark:bg-white/5">
-                    <p className="text-sm font-semibold text-zinc-900 dark:text-white">{item.title}</p>
-                    <p className="mt-2 text-xs text-zinc-600 dark:text-white/60">{item.description}</p>
+                    <div className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-violet-100/80 to-indigo-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(99,102,241,0.08)]">
+                      {plan.badge}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </motion.div>
-          </section>
 
-          <section id="faq" className="grid gap-6 rounded-3xl border border-black/10 bg-white/70 px-6 py-10 2xl:px-10 2xl:py-14 dark:border-white/10 dark:bg-white/5">
-            <h2 className="text-3xl font-semibold text-zinc-900 2xl:text-4xl dark:text-white">Frequently asked questions</h2>
-            {[
-              {
-                q: "Is Onvera for both agencies and solo freelancers?",
-                a: "Yes. Switch between agency and freelancer pricing, and customize roles accordingly.",
-              },
-              {
-                q: "What happens after the first 20 customers?",
-                a: "Standard pricing applies to new signups, but the first 20 keep lifetime free access.",
-              },
-              {
-                q: "Do clients need an account?",
-                a: "Invite clients with secure links. They can view progress without full accounts.",
-              },
-            ].map((faq) => (
-              <div key={faq.q} className="rounded-2xl border border-black/10 bg-white/80 p-5 dark:border-white/10 dark:bg-white/5">
-                <p className="text-sm font-semibold text-zinc-900 dark:text-white">{faq.q}</p>
-                <p className="mt-2 text-xs text-zinc-600 dark:text-white/60">{faq.a}</p>
+                  <div className="mt-6 grid gap-3">
+                    {plan.bullets.map((item) => (
+                      <div key={item} className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 px-4 py-3 text-sm text-zinc-600 dark:text-white/70">
+                        <CheckCircle2 className="h-4 w-4 text-zinc-600 dark:text-white/70" />
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+
+                  <a
+                    href="/register"
+                    className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:scale-[1.02]"
+                  >
+                    {plan.cta}
+                    <ArrowRight className="h-4 w-4" />
+                  </a>
+                </div>
               </div>
             ))}
-          </section>
-          <motion.footer
-            className="grid gap-8 rounded-3xl border border-black/10 bg-white/70 px-6 py-6 text-zinc-600 2xl:px-10 2xl:py-14 dark:border-white/10 dark:bg-white/5 dark:text-white/70"
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 text-base font-semibold text-zinc-900 dark:text-white">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-500/15 text-violet-600 dark:bg-violet-500/20 dark:text-violet-200">
-                    <BriefcaseBusiness className="h-5 w-5" />
-                  </span>
-                  Onvera
-                </div>
-                <p className="max-w-lg text-sm text-zinc-600 dark:text-white/60">
-                  Premium client onboarding for agencies and freelancers who want everything
-                  to feel cohesive, fast, and beautifully branded.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                
-                {user ? (
-              <>
-                {/* <Link
-                  href="/projects"
-                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm text-zinc-700 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-white/20 dark:text-white/80 dark:hover:border-white/40 dark:hover:text-white"
-                >
-                  All Projects
-                </Link> */}
-                <Link
-                  href={dashboardHref}
-                  className="rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-500/30 dark:bg-white dark:text-[#0b0b13] dark:hover:shadow-white/20"
-                >
-                  Dashboard
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm text-zinc-700 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-white/20 dark:text-white/80 dark:hover:border-white/40 dark:hover:text-white"
-                >
-                  Log in
-                </Link>
-                <Link
-                  href="/register"
-                  className="rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-500/30 dark:bg-white dark:text-[#0b0b13] dark:hover:shadow-white/20"
-                >
-                  Start free
-                </Link>
-              </>
-            )}
-              </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" className="mx-auto w-full px-20 py-8 lg:py-16">
+        <div className="text-center">
+          <SectionBadge>Frequently asked questions</SectionBadge>
+          <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
+            Clear answers for modern service businesses.
+          </h2>
+        </div>
+
+        <div className="mt-10 space-y-4">
+          {faqs.map((faq) => (
+            <div key={faq.q} className="rounded-[1.75rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6">
+              <h3 className="text-lg font-semibold">{faq.q}</h3>
+              <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-white/70">{faq.a}</p>
             </div>
-            <div className="grid gap-6 border-t border-black/10 pt-6 text-xs text-zinc-500 md:grid-cols-3 dark:border-white/10 dark:text-white/60">
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-zinc-900 dark:text-white">Product</p>
-                <p>Templates</p>
-                <p>Project workflows</p>
-                <p>Client approvals</p>
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-zinc-900 dark:text-white">Company</p>
-                <p>About</p>
-                <p>Careers</p>
-                <p>Contact</p>
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-zinc-900 dark:text-white">Resources</p>
-                <p>Help center</p>
-                <p>Community</p>
-                <p>Status</p>
-              </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto w-full px-20 pb-10 pt-6 lg:pb-16">
+        <div className="relative overflow-hidden rounded-[2.5rem] border border-black/10 dark:border-white/10 bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.18),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-8 text-center sm:p-12">
+          <Grain />
+          <div className="relative z-10 mx-auto max-w-3xl">
+            <SectionBadge>Start now</SectionBadge>
+            <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-5xl">
+              Turn onboarding into your competitive advantage.
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-zinc-600 dark:text-white/70 sm:text-lg">
+              Give every client a premium first impression with structured onboarding, clean approvals, and a workspace that feels built for modern agencies.
+            </p>
+            <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <a
+                href="/register"
+                className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-black"
+              >
+                Start now
+                <ArrowRight className="h-4 w-4" />
+              </a>
+              <a
+                href="#demo"
+                className="inline-flex items-center gap-2 rounded-full border border-black/10 dark:border-white/10 px-6 py-3 text-sm font-medium text-zinc-600 dark:text-white/70"
+              >
+                See the product tour
+              </a>
             </div>
-            <div className="flex flex-col gap-2 border-t border-black/10 pt-6 text-xs text-zinc-500 md:flex-row md:items-center md:justify-between dark:border-white/10 dark:text-white/50">
-              <span>© 2026 Onvera. All rights reserved.</span>
-              <span>First 20 customers are free forever.</span>
-            </div>
-          </motion.footer>
-        </main>
-      </div>
-    </div>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-black/10 dark:border-white/10 bg-white/90 dark:bg-black/40">
+        <div className="mx-auto flex w-full flex-col gap-4 px-20 py-8 text-sm text-zinc-600 dark:text-white/70 md:flex-row md:items-center md:justify-between">
+          <span>© {new Date().getFullYear()} Onvera. All rights reserved.</span>
+          <div className="flex flex-wrap gap-4">
+            <a href="#" className="transition hover:text-zinc-900 dark:text-white">Privacy</a>
+            <a href="#" className="transition hover:text-zinc-900 dark:text-white">Terms</a>
+            <a href="#" className="transition hover:text-zinc-900 dark:text-white">Careers</a>
+            <a href="#" className="transition hover:text-zinc-900 dark:text-white">Contact</a>
+          </div>
+        </div>
+      </footer>
+    </main>
   )
 }
