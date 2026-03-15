@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Bell, ChevronsUpDown, CircleUserRound, CreditCard, LogOut } from "lucide-react"
 import { USER_ROLE_LABELS, isUserRole } from "@/lib/auth/roles"
 import { AccountSettingsModal } from "@/components/account/account-settings-modal"
 import { RecentActivity } from "@/components/dashboard/recentActivity"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
+import { createClient } from "@/lib/supabase/client"
 
 import {
   Avatar,
@@ -44,6 +45,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
 
 type Activity = {
   id: string
@@ -76,8 +78,36 @@ export function NavUser({
   const [showNotifications, setShowNotifications] = useState(false)
   const [activities, setActivities] = useState<Activity[]>([])
   const [loadingActivities, setLoadingActivities] = useState(false)
+  const [seenAt, setSeenAt] = useState<string | null>(null)
+  const [hiddenIds, setHiddenIds] = useState<string[]>([])
   const roleLabel = role === "admin" ? "Admin" : role && isUserRole(role) ? USER_ROLE_LABELS[role] : "User"
   const managedBy = managedByLabel || roleLabel
+  const storageBase = user.email ? `notifications:${user.email}` : "notifications:anonymous"
+  const hiddenKey = `${storageBase}:hidden`
+  const seenKey = `${storageBase}:seen_at`
+
+  const supabase = useMemo(() => {
+    try {
+      return createClient()
+    } catch {
+      return null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const storedHidden = window.localStorage.getItem(hiddenKey)
+    const storedSeenAt = window.localStorage.getItem(seenKey)
+    if (storedHidden) {
+      try {
+        const parsed = JSON.parse(storedHidden) as string[]
+        if (Array.isArray(parsed)) setHiddenIds(parsed)
+      } catch {
+        setHiddenIds([])
+      }
+    }
+    if (storedSeenAt) setSeenAt(storedSeenAt)
+  }, [hiddenKey, seenKey])
 
   useEffect(() => {
     if (!showNotifications) return
@@ -86,7 +116,7 @@ export function NavUser({
     const loadActivities = async () => {
       setLoadingActivities(true)
       try {
-        const res = await fetchWithAuth("/api/dashboard", { cache: "no-store" })
+        const res = await fetchWithAuth("/api/dashboard?limit=50", { cache: "no-store" })
         const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
         if (!ignore) {
           setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
@@ -108,6 +138,58 @@ export function NavUser({
       ignore = true
     }
   }, [showNotifications])
+
+  useEffect(() => {
+    if (!showNotifications || !supabase) return
+    const channel = supabase
+      .channel(`notifications-${storageBase}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "projects" },
+        () => {
+          void (async () => {
+            const res = await fetchWithAuth("/api/dashboard?limit=50", { cache: "no-store" })
+            const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
+            setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
+          })()
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "onboarding_tokens" },
+        () => {
+          void (async () => {
+            const res = await fetchWithAuth("/api/dashboard?limit=50", { cache: "no-store" })
+            const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
+            setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
+          })()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [showNotifications, storageBase, supabase])
+
+  const visibleActivities = activities.filter((activity) => !hiddenIds.includes(activity.id))
+
+  const handleMarkAllSeen = () => {
+    const now = new Date().toISOString()
+    setSeenAt(now)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(seenKey, now)
+    }
+  }
+
+  const handleClearAll = () => {
+    const nextHidden = Array.from(new Set([...hiddenIds, ...activities.map((activity) => activity.id)]))
+    setHiddenIds(nextHidden)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(hiddenKey, JSON.stringify(nextHidden))
+      window.dispatchEvent(new Event("notifications:updated"))
+    }
+  }
 
   return (
     <>
@@ -206,7 +288,7 @@ export function NavUser({
       </SidebarMenu>
 
       <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
-        <AlertDialogContent size="sm">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Log out?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -230,10 +312,25 @@ export function NavUser({
       <Sheet open={showNotifications} onOpenChange={setShowNotifications}>
         <SheetContent side="right" className="w-90 max-w-full">
           <SheetHeader className="border-b border-zinc-100">
-            <SheetTitle>Notifications</SheetTitle>
+            <div className="flex items-center justify-between">
+              <SheetTitle>Notifications</SheetTitle>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleMarkAllSeen}>
+                  Mark all seen
+                </Button>
+                <Button variant="destructiveLight" size="sm" onClick={handleClearAll}>
+                  Clear
+                </Button>
+              </div>
+            </div>
           </SheetHeader>
           <div className="px-4 h-[calc(100dvh-100px)] overflow-y-auto">
-            <RecentActivity activities={activities} loading={loadingActivities} variant="list" />
+            <RecentActivity
+              activities={visibleActivities}
+              loading={loadingActivities}
+              variant="list"
+              seenAfter={seenAt}
+            />
           </div>
         </SheetContent>
       </Sheet>

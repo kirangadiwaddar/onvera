@@ -8,6 +8,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { CalendarDays, ArrowLeft, Monitor, Moon, Sun } from "lucide-react"
 
 import { projects } from "@/src/mocks/data/projects.json"
+import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { Button } from "./ui/button"
 import {
   DropdownMenu,
@@ -23,6 +24,7 @@ export function SiteHeader() {
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system")
   const [mounted, setMounted] = useState(false)
   const [dateLabel, setDateLabel] = useState("")
+  const [dynamicTitle, setDynamicTitle] = useState<string | null>(null)
 
   const segments = pathname.split("/").filter(Boolean)
 
@@ -32,28 +34,29 @@ export function SiteHeader() {
   // parent path (e.g., "/projects")
   const parentPath = "/" + segments[0]
 
+  const formatSlugTitle = (raw: string) => {
+    const decoded = decodeURIComponent(raw)
+    return decoded
+      .split("/")
+      .map((segment) =>
+        segment
+          .split("-")
+          .map((word) => (word.length <= 3 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1)))
+          .join(" ")
+      )
+      .join("/")
+  }
+
   const getTitle = () => {
     if (pathname === "/") return "Home";
 
     const segments = pathname.split("/").filter(Boolean)
 
-    // Example: /projects/portfolio-site
-    if (segments[0] === "projects" && segments[1]) {
-      const project = projects.find(
-        (p) => p.slug === segments[1]
-      );
-
-      if (project) return project.title;
-    }
+    if (dynamicTitle) return dynamicTitle
 
     // fallback formatting
     const last = segments[segments.length - 1];
-    return last
-      ? last
-        .split("-")
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ")
-      : "Home";
+    return last ? formatSlugTitle(last) : "Home";
   }
 
   useEffect(() => {
@@ -100,6 +103,25 @@ export function SiteHeader() {
     const year = now.getFullYear()
     setDateLabel(`${day} ${month}, ${year}`)
   }, [])
+
+  useEffect(() => {
+    setDynamicTitle(null)
+    const segments = pathname.split("/").filter(Boolean)
+    const isTemplateDetail = segments[0] === "templates" && Boolean(segments[1])
+    if (!isTemplateDetail) return
+
+    const templateId = segments[1]
+    fetchWithAuth("/api/templates", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        const templates = Array.isArray(data?.templates) ? data.templates : []
+        const found = templates.find((template: { id?: string; title?: string }) => template.id === templateId)
+        if (found?.title) {
+          setDynamicTitle(found.title)
+        }
+      })
+      .catch(() => null)
+  }, [pathname])
 
 
   return (

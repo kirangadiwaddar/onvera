@@ -78,7 +78,10 @@ export default function ChecklistSection({
   }, [section.id, submissions])
 
   const completionKey = `__section_complete:${section.id}`
-  const isCompleted = Boolean(submissions[completionKey])
+  const completionValue = submissions[completionKey]
+  const isCompleted = completionValue === true
+  const isUpdated = completionValue === "updated"
+  const isMarked = isCompleted || isUpdated
   const allStaticApproved = section.items.every((item) => {
     const submission = submissions[item.id] as SubmissionValue | undefined
     return submission?.status === "approved"
@@ -89,16 +92,46 @@ export default function ChecklistSection({
   const canShowCompletionControl =
     showCompletionControl && (canEdit || canModerate || (allStaticApproved && allDynamicApproved))
 
+  const hasStaticContent = section.items.some((item) => {
+    const submission = submissions[item.id] as SubmissionValue | undefined
+    const value = submission?.value
+    return typeof value === "string" ? value.trim().length > 0 : Boolean(value)
+  })
+  const hasDynamicContent = dynamicRows.length > 0
+  const hasContent = hasStaticContent || hasDynamicContent
+
   const patchSubmissions = (mutate: (prev: Submissions) => Submissions) => {
     const next = mutate(submissions)
     onSubmissionsChange?.(next)
   }
 
+
   const toggleSectionComplete = () => {
     patchSubmissions((prev) => ({
       ...prev,
-      [completionKey]: !isCompleted,
+      [completionKey]: prev[completionKey] === true ? false : true,
     }))
+  }
+
+  const hasSectionContent = (data: Submissions) => {
+    const staticHasValue = section.items.some((item) => {
+      const submission = data[item.id] as SubmissionValue | undefined
+      const value = submission?.value
+      return typeof value === "string" ? value.trim().length > 0 : Boolean(value)
+    })
+    if (staticHasValue) return true
+    const dynamic = data[section.id]
+    return Array.isArray(dynamic) && dynamic.length > 0
+  }
+
+  const markSectionUpdated = (prev: Submissions, next: Submissions) => {
+    if (prev[completionKey] === true && hasSectionContent(prev)) {
+      return {
+        ...next,
+        [completionKey]: "updated",
+      }
+    }
+    return next
   }
 
   const toggleEdit = (id: string) => {
@@ -111,27 +144,33 @@ export default function ChecklistSection({
     defaultStatus: "submitted" | "approved" = "submitted",
     extras?: Partial<SubmissionValue>,
   ) => {
-    patchSubmissions((prev) => ({
-      ...prev,
-      [itemId]: {
-        value,
-        status: defaultStatus,
-        submittedAt: new Date().toISOString(),
-        ...extras,
-      },
-    }))
+    patchSubmissions((prev) => {
+      const next: Submissions = {
+        ...prev,
+        [itemId]: {
+          value,
+          status: defaultStatus,
+          submittedAt: new Date().toISOString(),
+          ...extras,
+        },
+      }
+      return markSectionUpdated(prev, next)
+    })
   }
 
   const setItemStatus = (itemId: string, status: "approved" | "rejected" | "submitted") => {
     const current = (submissions[itemId] as SubmissionValue | undefined) || {}
-    patchSubmissions((prev) => ({
-      ...prev,
-      [itemId]: {
-        ...current,
-        status,
-        submittedAt: current.submittedAt || new Date().toISOString(),
-      },
-    }))
+    patchSubmissions((prev) => {
+      const next: Submissions = {
+        ...prev,
+        [itemId]: {
+          ...current,
+          status,
+          submittedAt: current.submittedAt || new Date().toISOString(),
+        },
+      }
+      return markSectionUpdated(prev, next)
+    })
   }
 
   const saveAgencyEdit = (itemId: string) => {
@@ -149,10 +188,11 @@ export default function ChecklistSection({
         ...(rows[index] || {}),
         ...patch,
       }
-      return {
+      const next: Submissions = {
         ...prev,
         [section.id]: rows,
       }
+      return markSectionUpdated(prev, next)
     })
   }
 
@@ -178,6 +218,18 @@ export default function ChecklistSection({
     setLocalRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index))
   }
 
+  const removeDynamicRow = (index: number) => {
+    patchSubmissions((prev) => {
+      const rows = Array.isArray(prev[section.id]) ? [...(prev[section.id] as DynamicRow[])] : []
+      rows.splice(index, 1)
+      const next: Submissions = {
+        ...prev,
+        [section.id]: rows,
+      }
+      return markSectionUpdated(prev, next)
+    })
+  }
+
   const submitDynamicRow = (row: { name: string; url: string }, rowIndex: number) => {
     if (!row.name.trim() || !row.url.trim()) return
 
@@ -189,10 +241,11 @@ export default function ChecklistSection({
         status: "submitted",
         submittedAt: new Date().toISOString(),
       })
-      return {
+      const next: Submissions = {
         ...prev,
         [section.id]: rows,
       }
+      return markSectionUpdated(prev, next)
     })
 
     setLocalRows((prev) => prev.filter((_, index) => index !== rowIndex))
@@ -212,9 +265,13 @@ export default function ChecklistSection({
           <div className="flex items-center justify-end flex-row-reverse gap-2">
               <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/trigger:rotate-180" />
           <div className="flex items-center gap-2">
-          {isCompleted ? (
+          {isCompleted && hasContent ? (
             <Badge className="px-2 py-0.5 text-[11px] bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-200 dark:border-emerald-500/20">
               Completed
+            </Badge>
+          ) : isUpdated && hasContent ? (
+            <Badge className="px-2 py-0.5 text-[11px] bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-200 dark:border-amber-500/20">
+              Updated
             </Badge>
           ) : null}
           {canShowCompletionControl && (allStaticApproved && allDynamicApproved) ? (
@@ -506,6 +563,22 @@ export default function ChecklistSection({
 
                   <div className="flex justify-end items-center gap-2">
                     <TooltipProvider delayDuration={200}>
+                      {(canEdit || !isAgency) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="destructiveLight"
+                              className="text-xs h-7 px-2"
+                              onClick={() => removeDynamicRow(index)}
+                              aria-label="Remove"
+                            >
+                              Remove
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Remove</TooltipContent>
+                        </Tooltip>
+                      )}
                       {isAgency && canEdit && (
                         <Tooltip>
                           <TooltipTrigger asChild>

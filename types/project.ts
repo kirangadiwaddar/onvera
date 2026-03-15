@@ -1,4 +1,5 @@
 import type { status } from "@/lib/project-status"
+import type { Section } from "@/lib/types"
 
 export type Project = {
   id: number
@@ -7,6 +8,7 @@ export type Project = {
   status: status
   templateId: string
   templateTitle?: string
+  templateStructure?: Section[]
   createdAt: string
   avatarSrc?: string
   teamIds: number[]

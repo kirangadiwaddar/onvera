@@ -1,15 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import type { Project } from "@/types/project"
-import { fetchWithAuth } from "@/lib/auth/client-fetch"
-import { templateStructure } from "@/lib/template-structure"
 import type { Section } from "@/lib/types"
 import ChecklistSection from "@/components/checklist-section"
 import { Accordion } from "@/components/ui/accordion"
-import { Progress } from "@/components/ui/progress"
 import Logo from "@/components/ui/logo"
+import { Progress } from "@/components/ui/progress"
 
 import {
   Avatar,
@@ -22,7 +20,7 @@ import { getAvatarColor } from "@/lib/get-avatar-colors"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
-import { BadgeCheck, Download, Files, Monitor, Moon, Sun } from "lucide-react"
+import { BadgeCheck, Check, Download, Files, Monitor, Moon, Sun } from "lucide-react"
 import { EmptyState } from "@/components/emptyState"
 import { Separator } from "@/components/ui/separator"
 import { LoadingState } from "@/components/loadingState"
@@ -33,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
 const CUSTOM_SECTIONS_KEY = "__custom_sections"
 
@@ -304,29 +303,63 @@ export default function ClientOnboardingPage() {
     }
   }
 
-  useEffect(() => {
+  const loadProject = useCallback(async (silent = false) => {
     if (!slug || tokenValidating || tokenError || missingRequiredToken || !accessGranted) return
+    if (!silent) setLoading(true)
 
-    fetchWithAuth(`/api/projects/${slug}`, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        setProject(data.project)
-        setSubmissionsDraft(data.project?.submissions || {})
-        setLoading(false)
-      })
-  }, [accessGranted, missingRequiredToken, slug, tokenError, tokenValidating])
+    const params = new URLSearchParams({ slug })
+    if (token) params.set("token", token)
+
+    const res = await fetch(`/api/onboarding/project?${params.toString()}`, { cache: "no-store" })
+    const data = await res.json().catch(() => null) as { project?: Project } | null
+    if (data?.project) {
+      setProject(data.project)
+      setSubmissionsDraft(data.project.submissions || {})
+    }
+    if (!silent) setLoading(false)
+  }, [accessGranted, missingRequiredToken, slug, token, tokenError, tokenValidating])
+
+  useEffect(() => {
+    void loadProject()
+  }, [loadProject])
+
+  const supabase = useMemo(() => {
+    try {
+      return createClient()
+    } catch {
+      return null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!slug || !supabase || tokenValidating || tokenError || missingRequiredToken || !accessGranted) return
+    const channel = supabase
+      .channel(`onboarding-project-${slug}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "projects", filter: `slug=eq.${slug}` },
+        () => void loadProject(true),
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [accessGranted, loadProject, missingRequiredToken, slug, supabase, tokenError, tokenValidating])
 
   const saveProgress = async () => {
     if (!project) return
 
     setSavingSubmissions(true)
     try {
-      const response = await fetchWithAuth(`/api/projects/${project.slug}`, {
+      const response = await fetch("/api/onboarding/project", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          slug: project.slug,
+          token,
           submissions: submissionsDraft,
         }),
       })
@@ -414,7 +447,7 @@ export default function ClientOnboardingPage() {
   }
 
   const sections = [
-    ...(templateStructure[project.templateId] || []),
+    ...(project.templateStructure || []),
     ...getCustomSectionsFromSubmissions(submissionsDraft),
   ]
 
@@ -450,6 +483,10 @@ export default function ClientOnboardingPage() {
   const progress = totalSections === 0
     ? 0
     : Math.min(Math.round((uploadedCount / totalSections) * 100), 100)
+  const progressRadius = 22
+  const progressStroke = 4
+  const progressCircumference = 2 * Math.PI * progressRadius
+  const progressOffset = progressCircumference * (1 - progress / 100)
 
   const members = project.members || []
 
@@ -457,10 +494,16 @@ export default function ClientOnboardingPage() {
   const remainingCount =
     members.length > 3 ? members.length - 3 : 0
 
-    const getProgressColor = (value: number) => {
-  if (value < 40) return "!bg-red-500"
-  if (value < 80) return "!bg-yellow-500"
-  return "!bg-green-600"
+    const getProgressStrokeColor = (value: number) => {
+  if (value < 40) return "text-red-500"
+  if (value < 80) return "text-amber-500"
+  return "text-emerald-500"
+}
+
+    const getProgressBarColor = (value: number) => {
+  if (value < 40) return "!bg-gradient-to-r from-red-400 to-red-500"
+  if (value < 80) return "!bg-gradient-to-r from-amber-400 to-orange-500"
+  return "!bg-gradient-to-r from-emerald-400 to-green-500"
 }
 
   return (
@@ -558,13 +601,44 @@ export default function ClientOnboardingPage() {
             </p>
           </div>
 
-          {/* Progress */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Progress</span>
-              <span>{progress}%</span>
+          {/* Checklist Summary */}
+          <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Project Onboarding Checklist</p>
+              <p className="text-xs text-muted-foreground mt-1">{uploadedCount}/{totalSections} sections uploaded</p>
             </div>
-            <Progress value={progress}  className={`[&>div]:${getProgressColor(progress)}`} />
+            <div className="relative h-14 w-14">
+              <svg viewBox="0 0 52 52" className="-rotate-90 h-14 w-14">
+                <circle
+                  cx="26"
+                  cy="26"
+                  r={progressRadius}
+                  stroke="currentColor"
+                  strokeWidth={progressStroke}
+                  fill="none"
+                  className="text-zinc-200"
+                />
+                <circle
+                  cx="26"
+                  cy="26"
+                  r={progressRadius}
+                  stroke="currentColor"
+                  strokeWidth={progressStroke}
+                  strokeLinecap="round"
+                  fill="none"
+                  className={getProgressStrokeColor(progress)}
+                  strokeDasharray={progressCircumference}
+                  strokeDashoffset={progressOffset}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-zinc-700">
+                {progress === 100 ? (
+                  <Check strokeWidth={3} className="size-6 text-emerald-500" />
+                ) : (
+                  `${progress}%`
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Sections */}
@@ -598,7 +672,7 @@ export default function ClientOnboardingPage() {
            
           {/* Uploaded Files */}
           {getUploadedEntries(submissionsDraft, [
-            ...(templateStructure[project.templateId] || []),
+            ...(project.templateStructure || []),
             ...getCustomSectionsFromSubmissions(submissionsDraft),
           ]).length === 0 ? (
             <EmptyState icon={<Files />} title="No Files Uploaded" description="Client onboarding is pending" />
@@ -611,7 +685,7 @@ export default function ClientOnboardingPage() {
 
               <div className="flex items-center gap-3 flex-wrap">
                 {getUploadedEntries(submissionsDraft, [
-                  ...(templateStructure[project.templateId] || []),
+                  ...(project.templateStructure || []),
                   ...getCustomSectionsFromSubmissions(submissionsDraft),
                 ]).map((entry) => {
                   const href = entry.preview || entry.url
@@ -659,7 +733,11 @@ export default function ClientOnboardingPage() {
               <span className="font-medium">Project Progress</span>
               <span className="text-muted-foreground">{projectProgress}%</span>
             </div>
-            <Progress value={projectProgress} className={`mt-2 [&>div]:${getProgressColor(projectProgress)}`} />
+            <Progress
+              value={projectProgress}
+              className="mt-2"
+              indicatorClassName={getProgressBarColor(projectProgress)}
+            />
           </div>
 
           <Separator />

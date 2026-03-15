@@ -28,7 +28,7 @@ export function DeleteTeamAlert({
 }: DeleteTeamAlertProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent size="sm">
+      <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Team?</AlertDialogTitle>
           <AlertDialogDescription>

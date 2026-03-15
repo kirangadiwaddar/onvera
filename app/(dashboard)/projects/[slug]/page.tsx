@@ -1,10 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import JSZip from "jszip"
 import type { Project } from "@/types/project"
-import { templateStructure } from "@/lib/template-structure"
 import type { Section } from "@/lib/types"
 import type { Team } from "@/types/team"
 import { Accordion } from "@/components/ui/accordion"
@@ -67,6 +66,7 @@ import { LoadingState } from "@/components/loadingState"
 import ClientAccessModal from "@/components/projects/client-access-modal"
 import { useAuth } from "@/components/providers/auth-provider"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
+import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 
 const CUSTOM_SECTIONS_KEY = "__custom_sections"
@@ -196,6 +196,43 @@ function hasFileExtension(value: string) {
   return /\.[a-z0-9]{2,8}$/i.test(value)
 }
 
+function getLatestClientSubmissionAt(submissions?: Record<string, unknown>) {
+  if (!submissions || typeof submissions !== "object") return null
+  let latest: number | null = null
+
+  const consider = (timestamp?: string) => {
+    if (!timestamp) return
+    const time = new Date(timestamp).getTime()
+    if (!Number.isFinite(time)) return
+    latest = latest === null ? time : Math.max(latest, time)
+  }
+
+  Object.entries(submissions).forEach(([key, raw]) => {
+    if (key.startsWith("__section_complete:")) return
+    if (Array.isArray(raw)) {
+      raw.forEach((row) => {
+        if (!row || typeof row !== "object") return
+        const entry = row as { submittedAt?: unknown; status?: unknown }
+        const status = typeof entry.status === "string" ? entry.status : "submitted"
+        if (status !== "submitted") return
+        if (typeof entry.submittedAt === "string") {
+          consider(entry.submittedAt)
+        }
+      })
+      return
+    }
+    if (!raw || typeof raw !== "object") return
+    const entry = raw as { submittedAt?: unknown; status?: unknown }
+    const status = typeof entry.status === "string" ? entry.status : "submitted"
+    if (status !== "submitted") return
+    if (typeof entry.submittedAt === "string") {
+      consider(entry.submittedAt)
+    }
+  })
+
+  return latest ? new Date(latest).toISOString() : null
+}
+
 
 
 export default function ProjectDetailPage() {
@@ -203,6 +240,10 @@ export default function ProjectDetailPage() {
   const { slug } = useParams()
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
+  const lastClientSubmissionAtRef = useRef<string | null>(null)
+  const hasLoadedRef = useRef(false)
+  const lastSeenStorageKeyRef = useRef<string | null>(null)
+  const latestClientSubmissionAtRef = useRef<string | null>(null)
 
   const [customSections, setCustomSections] = useState<Section[]>([])
   const [showSectionForm, setShowSectionForm] = useState(false)
@@ -226,17 +267,88 @@ export default function ProjectDetailPage() {
   const [dismissedCompletePrompt, setDismissedCompletePrompt] = useState(false)
 
 
+  const loadProject = useCallback(
+    async (silent = false) => {
+      if (!slug) return
+      try {
+        if (!silent) setLoading(true)
+        const res = await fetchWithAuth(`/api/projects/${slug}`, { cache: "no-store" })
+        const data = await res.json().catch(() => null) as { project?: Project } | null
+        if (!res.ok || !data?.project) {
+          throw new Error("Failed to load project")
+        }
+
+        const latestClientSubmissionAt = getLatestClientSubmissionAt(data.project.submissions)
+        latestClientSubmissionAtRef.current = latestClientSubmissionAt
+        const storageKey = lastSeenStorageKeyRef.current
+        const storedLastSeen =
+          typeof window !== "undefined" && storageKey
+            ? window.localStorage.getItem(storageKey)
+            : null
+        const previousClientSubmissionAt = lastClientSubmissionAtRef.current ?? storedLastSeen
+
+        if (!previousClientSubmissionAt && latestClientSubmissionAt) {
+          if (typeof window !== "undefined" && storageKey) {
+            window.localStorage.setItem(storageKey, latestClientSubmissionAt)
+          }
+          lastClientSubmissionAtRef.current = latestClientSubmissionAt
+        } else if (
+          latestClientSubmissionAt &&
+          previousClientSubmissionAt &&
+          new Date(latestClientSubmissionAt).getTime() > new Date(previousClientSubmissionAt).getTime()
+        ) {
+          if (hasLoadedRef.current) {
+            toast("Client updated this project", {
+              description: "New checklist submissions were added.",
+            })
+          }
+          lastClientSubmissionAtRef.current = latestClientSubmissionAt
+        } else if (latestClientSubmissionAt) {
+          lastClientSubmissionAtRef.current = latestClientSubmissionAt
+        }
+
+        setProject(data.project)
+        setCustomSections(getCustomSectionsFromSubmissions(data.project.submissions))
+        setLoading(false)
+        hasLoadedRef.current = true
+      } catch {
+        if (!silent) setLoading(false)
+      }
+    },
+    [slug],
+  )
+
+  const supabase = useMemo(() => {
+    try {
+      return createClient()
+    } catch {
+      return null
+    }
+  }, [])
+
   useEffect(() => {
     if (!slug) return
+    lastSeenStorageKeyRef.current = `project_client_submission_seen:${slug}`
+    void loadProject()
+  }, [loadProject, slug])
 
-    fetchWithAuth(`/api/projects/${slug}`, { cache: "no-store" })
-      .then(res => res.json())
-      .then(data => {
-        setProject(data.project)
-        setCustomSections(getCustomSectionsFromSubmissions(data.project?.submissions))
-        setLoading(false)
-      })
-  }, [slug])
+
+  useEffect(() => {
+    if (!slug || !supabase) return
+    const channel = supabase
+      .channel(`project-${slug}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "projects", filter: `slug=eq.${slug}` },
+        () => void loadProject(true),
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [loadProject, slug, supabase])
+
 
   useEffect(() => {
     const fetchTeams = async () => {
@@ -273,9 +385,7 @@ export default function ProjectDetailPage() {
 
   const canEditProject = !restrictedRole
   const submissions = project?.submissions ?? {}
-  const templateSections = project
-    ? templateStructure[project.templateId] || []
-    : []
+  const templateSections = project?.templateStructure || []
   const checklistSections = project ? [...templateSections, ...customSections] : []
   const totalSections = checklistSections.length
   const uploadedCount = checklistSections.filter((section) => {
@@ -653,7 +763,7 @@ export default function ProjectDetailPage() {
     setDownloadingAssets(true)
     try {
       const sections = [
-        ...(templateStructure[project.templateId] || []),
+        ...templateSections,
         ...customSections,
       ]
       const folderByItemId: Record<string, string> = {}
@@ -1052,7 +1162,7 @@ export default function ProjectDetailPage() {
                   setOpenInvite(true)
                 }}
               >
-                <Users className="mr-2 h-4 w-4" />
+                <Plus className="h-4 w-4" />
                 {isFreelancer ? "Add Member" : "Add Team/Members"}
               </Button>
             )}

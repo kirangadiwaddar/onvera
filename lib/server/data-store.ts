@@ -1,6 +1,8 @@
 import projectsData from "@/src/mocks/data/projects.json"
 import teamsData from "@/src/mocks/data/teams.json"
 import templatesData from "@/src/mocks/data/templates.json"
+import { templateStructure } from "@/lib/template-structure"
+import type { Section } from "@/lib/types"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { status } from "@/lib/project-status"
 
@@ -76,6 +78,9 @@ type Template = {
   description: string
   icon: string
   badge: string
+  structure?: Section[]
+  templateKey?: string
+  isDefault?: boolean
 }
 
 export type StoreData = {
@@ -98,7 +103,12 @@ function fromMock(): StoreData {
       ...team,
       members: team.members ?? [],
     })),
-    templates: templatesData.templates as Template[],
+    templates: (templatesData.templates as Template[]).map((template) => ({
+      ...template,
+      structure: templateStructure[template.id] ?? [],
+      templateKey: template.id,
+      isDefault: true,
+    })),
   }
 }
 
@@ -148,11 +158,22 @@ export async function getStoreData(): Promise<StoreData> {
     }
   }
 
+  const fetchTemplates = async () => {
+    const result = await admin.from("templates").select("*").order("title", { ascending: true })
+    if (result.error?.message?.toLowerCase().includes("structure")) {
+      return admin
+        .from("templates")
+        .select("id,title,description,icon,badge,created_at,template_key,is_default")
+        .order("title", { ascending: true })
+    }
+    return result
+  }
+
   const [{ data: projects, error: projectsError }, { data: teams, error: teamsError }, { data: templates, error: templatesError }] =
     await Promise.all([
       admin.from("projects").select("*").order("created_at", { ascending: false }),
       admin.from("teams").select("*").order("id", { ascending: true }),
-      admin.from("templates").select("*").order("title", { ascending: true }),
+      fetchTemplates(),
     ])
 
   if (projectsError || teamsError || templatesError || !projects || !teams || !templates) {
@@ -244,10 +265,21 @@ export async function getStoreData(): Promise<StoreData> {
     })),
   }))
 
+  const normalizedTemplates = (templates as Template[]).map((template) => {
+    const hasStructureArray =
+      Array.isArray(template.structure) && (template.structure as Section[]).length > 0
+    return {
+      ...template,
+      structure: hasStructureArray
+        ? (template.structure as Section[])
+        : templateStructure[template.id] ?? [],
+    }
+  })
+
   return {
     projects: sanitizedProjects,
     teams: sanitizedTeams,
-    templates: templates as Template[],
+    templates: normalizedTemplates,
   }
 }
 
@@ -276,6 +308,10 @@ export function attachRelations(project: Project, teams: Team[], templates: Temp
   return {
     ...project,
     templateTitle: template?.title ?? "Unknown",
+    templateStructure:
+      template?.structure && template.structure.length > 0
+        ? template.structure
+        : templateStructure[project.templateId] ?? [],
     teams: assignedTeams,
     members: uniqueMembers,
   }

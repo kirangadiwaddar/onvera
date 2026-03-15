@@ -952,7 +952,7 @@ export default function TeamDetailPage() {
           if (!open) setPendingProjectUnassign(null)
         }}
       >
-        <AlertDialogContent size="sm">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Unassign Team?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -979,7 +979,7 @@ export default function TeamDetailPage() {
       </AlertDialog>
 
       <AlertDialog open={confirmDemoteLead} onOpenChange={setConfirmDemoteLead}>
-        <AlertDialogContent size="sm">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Make Lead a Member?</AlertDialogTitle>
             <AlertDialogDescription>

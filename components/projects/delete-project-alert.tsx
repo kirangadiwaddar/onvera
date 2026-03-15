@@ -28,7 +28,7 @@ export function DeleteProjectAlert({
 }: DeleteProjectAlertProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent size="sm">
+      <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Project?</AlertDialogTitle>
           <AlertDialogDescription>

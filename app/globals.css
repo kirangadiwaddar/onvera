@@ -158,6 +158,43 @@
     @apply relative top-1.5
   }
 
+  .avatar-orb {
+    background-image:
+      linear-gradient(320deg, #ffffff 0%, var(--avatar-via) 52%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='80' height='80' filter='url(%23n)' opacity='0.3'/%3E%3C/svg%3E");
+    background-size: cover;
+    background-blend-mode: normal, soft-light;
+    color: #ffffff !important;
+  }
+
+  .avatar-orb-blue {
+    --avatar-via: #3b82f6; /* blue-500 */
+  }
+
+  .avatar-orb-violet {
+    --avatar-via: #7c3aed; /* violet-600 */
+  }
+
+  .avatar-orb-pink {
+    --avatar-via: #db2777; /* pink-600 */
+  }
+
+  .avatar-orb-amber {
+    --avatar-via: #f59e0b; /* amber-500 */
+  }
+
+  .avatar-orb-emerald {
+    --avatar-via: #10b981; /* emerald-500 */
+  }
+
+  .avatar-orb-cyan {
+    --avatar-via: #06b6d4; /* cyan-500 */
+  }
+
+  .avatar-orb-rose {
+    --avatar-via: #e11d48; /* rose-600 */
+  }
+
 }
 
 @keyframes shimmer {

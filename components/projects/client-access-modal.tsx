@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Copy, ExternalLink, Mail, RefreshCcw } from "lucide-react"
+import { Copy, ExternalLink, Handshake, Mail, RefreshCcw } from "lucide-react"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
 
@@ -189,6 +189,7 @@ export default function ClientAccessModal({ projectSlug, canManage = true }: Pro
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="gradient" size="sm">
+          <Handshake />
           Client Access
         </Button>
       </DialogTrigger>

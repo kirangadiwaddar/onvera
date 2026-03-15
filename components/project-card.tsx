@@ -124,7 +124,7 @@ export function ProjectCard({
             <CardHeader className="p-5 pb-0">
                 <Avatar className="h-10 w-10 rounded-lg">
                     {avatarSrc && <AvatarImage src={avatarSrc} />}
-                    <AvatarFallback className={`font-semibold ${getAvatarColor(title)}`}>
+                    <AvatarFallback className={`font-semibold rounded-lg ${getAvatarColor(title)}`}>
                         {title.substring(0, 2).toUpperCase()}
                     </AvatarFallback>
                 </Avatar>

@@ -24,23 +24,22 @@ const attentionTable = ({ projects }: Props) => {
 
   return (
     <div className="col-span-2 h-full w-full overflow-hidden rounded-2xl border border-destructive/20 dark:border-destructive/30">
-      <div className="flex items-center justify-between bg-destructive/5 p-5 py-4 dark:bg-destructive/10">
+      <div className="flex items-center justify-between bg-destructive/5 p-5 py-2 dark:bg-destructive/10">
         <div className="text-destructive space-y-2">
           <p className="text-sm flex items-center gap-2">
             <OctagonAlert size={16} />
             Attention Required 
           </p>
-          {/* <p className="text-xs">({projects.length}) Projects Need Action</p> */}
         </div>
 
         <Link href="/projects">
-          <Button variant="ghost" size="sm" className="hover:no-underline hover:bg-white dark:hover:bg-white/5">
+          <Button variant="ghost" size="sm" className="text-xs hover:no-underline hover:bg-white dark:hover:bg-white/5">
             View All Projects <ArrowUp size={16} />
           </Button>
         </Link>
       </div>
 
-      <Separator className="bg-border" />
+      {/* <Separator className="bg-border" /> */}
 
       {projects.length === 0 ? (
         <div className="flex items-center justify-center h-1/2">
@@ -48,8 +47,8 @@ const attentionTable = ({ projects }: Props) => {
             No projects need attention &nbsp;&nbsp; 🎉
           </div>
         </div>) :
-        <div className="mt-5 w-full overflow-auto">
-          <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-4 [&_tr]:border-zinc-100 text-sm">
+        <div className="mt-1 w-full overflow-auto">
+          <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-4 [&_tr]:border-zinc-100 dark:[&_tr]:border-white/10 text-sm">
             <TableHeader>
               <TableRow>
                 <TableHead>Project</TableHead>

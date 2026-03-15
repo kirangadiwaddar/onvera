@@ -37,6 +37,9 @@ function formatLabel(value: string) {
 }
 
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const limitRaw = Number(searchParams.get("limit") ?? "50")
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 50
   const { projects, teams, templates } = await getStoreData()
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
@@ -171,7 +174,7 @@ export async function GET(request: Request) {
 
   const recentActivities = activities
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 12)
+    .slice(0, limit)
 
   return NextResponse.json({
     stats: {

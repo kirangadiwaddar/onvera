@@ -29,6 +29,7 @@ create table if not exists public.templates (
   description text not null,
   icon text not null,
   badge text not null,
+  structure jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
 

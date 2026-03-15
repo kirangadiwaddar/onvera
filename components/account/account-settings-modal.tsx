@@ -15,6 +15,16 @@ import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useAuth } from "@/components/providers/auth-provider"
 import { createClient } from "@/lib/supabase/client"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
@@ -39,8 +49,16 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   const [savingAvatar, setSavingAvatar] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState("")
   const [error, setError] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
+  const currentRole =
+    profile?.role ||
+    (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null) ||
+    null
+  const canDeleteAccount = currentRole === "agency" || currentRole === "freelancer"
 
   const displayInitial = useMemo(() => {
     const initialName =
@@ -59,6 +77,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     setAvatarUrl(displayInitial.initialAvatar)
     setNewPassword("")
     setConfirmPassword("")
+    setDeleteConfirmText("")
     setError(null)
   }, [displayInitial.initialAvatar, displayInitial.initialName, open])
 
@@ -201,6 +220,33 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       toast.error(message)
     } finally {
       setSavingPassword(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (!user?.id) return
+    setDeletingAccount(true)
+    setError(null)
+    try {
+      const response = await fetchWithAuth("/api/account/delete", {
+        method: "POST",
+      })
+      const payload = await response.json().catch(() => null) as { message?: string } | null
+      if (!response.ok) {
+        throw new Error(payload?.message || "Failed to delete account")
+      }
+      toast.success("Account deleted")
+      const supabase = createClient()
+      await supabase.auth.signOut({ scope: "global" })
+      onOpenChange(false)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to delete account"
+      setError(message)
+      toast.error(message)
+    } finally {
+      setDeletingAccount(false)
+      setShowDeleteDialog(false)
+      setDeleteConfirmText("")
     }
   }
 
@@ -401,11 +447,62 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                   {savingPassword ? "Updating..." : "Update Password"}
                 </Button>
               </div>
+
+              {canDeleteAccount ? (
+                <>
+                  <Separator />
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                    <p className="font-medium">Delete account</p>
+                    <p className="mt-1 text-xs text-red-600/80 dark:text-red-200/80">
+                      This will permanently delete your account and all associated data.
+                    </p>
+                    <div className="mt-3">
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => setShowDeleteDialog(true)}
+                        disabled={deletingAccount}
+                      >
+                        Delete account
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : null}
             </FieldGroup>
           </TabsContent>
         </Tabs>
 
-        {/* {error ? <p className="text-xs text-red-600">{error}</p> : null} */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will delete your account and all associated data. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2 px-5">
+              <p className="text-xs text-muted-foreground">
+                Type <span className="font-semibold text-foreground">DELETE</span> to confirm.
+              </p>
+              <Input
+                value={deleteConfirmText}
+                onChange={(event) => setDeleteConfirmText(event.target.value)}
+                placeholder="DELETE"
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deletingAccount}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => void handleDeleteAccount()}
+                disabled={deletingAccount || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
+              >
+                {deletingAccount ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   )
