@@ -1,37 +1,109 @@
-import { BadgeCheck, BadgeX, Bell, CalendarCheck } from 'lucide-react'
-import React from 'react'
+import { BadgeCheck, BadgeX, Bell } from "lucide-react"
 
-export function RecentActivity() {
-    return (
-        <div className='recent-activity border border-zinc-200 rounded-xl overflow-hidden'>
-            <div className="flex items-center justify-between  px-3 py-2 bg-violet-50">
-                <p className='text-sm font-medium'>Recent Activity</p>
-                <div className="notify w-8 h-8 border border-zinc-200 bg-white rounded-full flex items-center justify-center">
-                    <Bell size={16} className='text-orange-600' />
-                </div>
-            </div>            
-            <div className="activity-list px-3 divide-y divide-zinc-100 ">
-                <div className="activity-item flex items-start justify-between py-3">
-                    <div className='space-y-1'>
-                        <p className='text-sm flex items-center gap-1'>Client uploaded logo <BadgeCheck size={20} fill="#00c951" stroke="#fff" /></p>
-                        <p className='text-xs text-muted-foreground'>Cyber-Duck UX Optimization</p>
-                    </div>
-                    <span className='text-xs flex items-center gap-1 mt-1 text-muted-foreground'>2 hrs ago</span>
-                </div>
-                <div className="activity-item flex items-start justify-between py-3">
-                    <div className="space-y-1">
-                        <p className='text-sm flex items-center gap-1'>Hosting access provided <BadgeCheck size={20} fill="#00c951" stroke="#fff" /></p>
-                        <p className='text-xs text-muted-foreground'>CRM Dashboard Integration</p></div>
-                    <span className='text-xs flex items-center gap-1 mt-1 text-muted-foreground'>6 hrs ago</span>
-                </div>
-                <div className="activity-item flex items-start justify-between py-3">
-                    <div className="space-y-1">
-                        <p className='text-sm flex items-center gap-1'>File upload failed <BadgeX size={20} fill="#fb2c36" stroke="#fff" /></p>
-                        <p className='text-xs text-muted-foreground'>SEO & Digital Growth — WebFx</p></div>
-                    <span className='text-xs flex items-center gap-1 mt-1 text-muted-foreground'>9 hrs ago</span>
-                </div>
-            </div>
-        </div>
-    )
+type Activity = {
+  id: string
+  title: string
+  project?: string | { title?: string }
+  status: string
+  actor?: "Admin" | "Client" | "Team Lead"
+  timestamp?: string
+  created_at?: string
 }
 
+function formatTime(value?: string) {
+  if (!value) return "just now"
+  const diff = Date.now() - new Date(value).getTime()
+  const mins = Math.floor(diff / (1000 * 60))
+  if (mins < 1) return "just now"
+  if (mins < 60) return `${mins} min ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} hr ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day ago`
+}
+
+function getProjectTitle(project?: string | { title?: string }) {
+  if (!project) return "Unknown Project"
+  if (typeof project === "string") return project
+  return project.title || "Unknown Project"
+}
+
+export function RecentActivity({
+  activities = [],
+  loading = false,
+  variant = "default",
+  seenAfter,
+}: {
+  activities?: Activity[]
+  loading?: boolean
+  variant?: "default" | "bare" | "list"
+  seenAfter?: string | null
+}) {
+  const isBare = variant === "bare" || variant === "list"
+  const isList = variant === "list"
+  const seenAfterTime = seenAfter ? new Date(seenAfter).getTime() : null
+  return (
+    <div className={isBare ? "recent-activity" : "recent-activity rounded-xl border border-border overflow-hidden"}>
+      {isBare ? null : (
+        <div className="flex items-center justify-between px-3 py-2 bg-violet-50 dark:bg-violet-500/10">
+          <p className="text-sm font-medium">Recent Activity</p>
+          <div className="notify flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-white/5">
+            <Bell size={16} className="text-orange-600 dark:text-orange-400" />
+          </div>
+        </div>
+      )}
+
+      <div
+        className={
+          isBare
+            ? "activity-list divide-y divide-zinc-100 px-0 dark:divide-white/10"
+            : "activity-list max-h-118 overflow-y-auto divide-y divide-zinc-100 px-3 dark:divide-white/10"
+        }
+      >
+        {loading ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">Loading...</div>
+        ) : activities.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">No activity yet</div>
+        ) : (
+          activities.map((activity) => {
+            const isFailure =
+              activity.status === "rejected" ||
+              activity.status === "failed" ||
+              activity.status === "error"
+            const timestamp = activity.created_at || activity.timestamp
+            const isNew =
+              seenAfterTime !== null &&
+              timestamp &&
+              new Date(timestamp).getTime() > seenAfterTime
+            return (
+              <div key={activity.id} className={isList ? "flex items-start justify-between py-3" : "activity-item flex items-start justify-between py-4"}>
+                <div className={isList ? "space-y-1" : "space-y-1 max-w-[80%]"}>
+                  <p className={isList ? "text-sm flex items-center gap-2" : "text-sm flex items-center gap-1"}>
+                    {activity.title}
+                    {isNew ? (
+                      <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
+                        New
+                      </span>
+                    ) : null}
+                    {isFailure ? (
+                      <BadgeX size={18} fill="#fb2c36" stroke="#fff" />
+                    ) : (
+                      <BadgeCheck size={18} fill="#00c951" stroke="#fff" />
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {getProjectTitle(activity.project)}
+                    {activity.actor ? ` • ${activity.actor}` : ""}
+                  </p>
+                </div>
+                <span className="text-xs mt-1 text-muted-foreground">
+                  {formatTime(activity.created_at || activity.timestamp)}
+                </span>
+              </div>
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
+}

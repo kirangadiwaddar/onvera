@@ -1,6 +1,7 @@
 import Marquee from "@/components/marquee"
 import TestimonialCard from "@/components/ui/testimonialCard"
 import Logo from "@/components/ui/logo"
+import { AuthRedirect } from "@/components/auth-redirect"
 
 
 const testimonials = [
@@ -37,6 +38,7 @@ export default function AuthLayout({
 }) {
     return (
         <div className="grid min-h-svh lg:grid-cols-2">
+            <AuthRedirect />
             <div className="flex flex-col gap-4 p-6 md:p-10">
                 <div className="flex justify-center gap-2">
                     <a href="#" className="flex items-center gap-2 font-medium text-2xl">
@@ -50,7 +52,7 @@ export default function AuthLayout({
                     </div>
                 </div>
             </div>
-            <div className="bg-linear-to-b from-sky-50 to-blue-200 relative hidden lg:flex justify-between flex-col m-5 ml-0! rounded-4xl overflow-x-hidden">
+            <div className="bg-linear-to-b from-sky-50 to-blue-200 dark:from-violet-500/15! dark:to-slate-950/40! relative hidden lg:flex justify-between flex-col m-5 ml-0! rounded-4xl overflow-x-hidden">
                 <div
                     className="absolute inset-0 z-0 top-5 left-5 right-5 bottom-5"
                     style={{

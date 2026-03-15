@@ -6,12 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:supabase": "node scripts/seed-supabase.mjs"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.78.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.34.2",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.574.0",
     "motion": "^12.34.3",
     "next": "16.1.6",
@@ -19,6 +23,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^2.15.4",
+    "sonner": "^1.7.4",
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {

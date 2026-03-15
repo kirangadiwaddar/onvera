@@ -1,7 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar"
-import { SectionCards } from "@/components/dashboard/section-cards"
 import { SiteHeader } from "@/components/site-header"
-import { Separator } from "@/components/ui/separator"
+import { AuthGuard } from "@/components/auth-guard"
 import {
   SidebarInset,
   SidebarProvider,
@@ -21,8 +20,9 @@ export default function AdminLayout({
         } as React.CSSProperties
       }
     >
+      <AuthGuard />
       <AppSidebar variant="inset" />
-      <SidebarInset className="shadow-none! border border-gray-200">
+      <SidebarInset className="shadow-none! border border-border bg-background overflow-hidden">
         <SiteHeader />
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">

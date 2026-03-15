@@ -1,337 +1,714 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
-    AccordionItem,
-    AccordionTrigger,
-    AccordionContent,
+  AccordionItem,
+  AccordionContent,
 } from "@/components/ui/accordion"
+import { Accordion as AccordionPrimitive } from "radix-ui"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Section } from "@/lib/types"
-import { Send, SendHorizonal } from "lucide-react"
+import { CheckCircle2, ChevronDownIcon, XCircle } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
+type SubmissionValue = {
+  value?: string
+  status?: "submitted" | "approved" | "rejected" | string
+  preview?: string
+  submittedAt?: string
+}
+
+type DynamicRow = {
+  name?: string
+  url?: string
+  status?: "submitted" | "approved" | "rejected" | string
+  submittedAt?: string
+}
+
+type Submissions = Record<string, SubmissionValue | DynamicRow[] | unknown>
+
+type Props = {
+  section: Section
+  isAgency: boolean
+  canEdit?: boolean
+  canModerate?: boolean
+  submissions?: Submissions
+  onSubmissionsChange?: (next: Submissions) => void
+  showCompletionControl?: boolean
+  className?: string
+}
+
+function getStatusBadgeClass(status?: string) {
+  if (status === "approved") return "bg-green-50 text-green-700"
+  if (status === "rejected") return "bg-red-50 text-red-700"
+  return "bg-sky-50 text-sky-700"
+}
+
+function isUrlLike(value?: string) {
+  if (!value) return false
+  return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:")
+}
 
 export default function ChecklistSection({
-    section,
-    isAgency,
-    submissions = {},
-}: {
-    section: Section
-    isAgency: boolean
-    submissions?: Record<string, any>
-}) {
-    const [editMode, setEditMode] = useState<Record<string, boolean>>({})
-    const [localRows, setLocalRows] = useState<
-        { name: string; url: string }[]
-    >([])
+  section,
+  isAgency,
+  canEdit = isAgency,
+  canModerate = isAgency,
+  submissions = {},
+  onSubmissionsChange,
+  showCompletionControl = true,
+  className,
+}: Props) {
+  const [editMode, setEditMode] = useState<Record<string, boolean>>({})
+  const [draftValues, setDraftValues] = useState<Record<string, string>>({})
+  const [draftPreviews, setDraftPreviews] = useState<Record<string, string>>({})
+  const [localRows, setLocalRows] = useState<{ name: string; url: string }[]>([])
+  const [dynamicDrafts, setDynamicDrafts] = useState<Record<string, { name: string; url: string }>>({})
+  const dynamicRows = useMemo<DynamicRow[]>(() => {
+    const rows = submissions[section.id]
+    return Array.isArray(rows) ? (rows as DynamicRow[]) : []
+  }, [section.id, submissions])
 
-    const [editableValues, setEditableValues] = useState<Record<string, string>>({})
+  const completionKey = `__section_complete:${section.id}`
+  const completionValue = submissions[completionKey]
+  const isCompleted = completionValue === true
+  const isUpdated = completionValue === "updated"
+  const isMarked = isCompleted || isUpdated
+  const allStaticApproved = section.items.every((item) => {
+    const submission = submissions[item.id] as SubmissionValue | undefined
+    return submission?.status === "approved"
+  })
+  const allDynamicApproved = !section.dynamic
+    ? true
+    : dynamicRows.length > 0 && dynamicRows.every((row) => row.status === "approved")
+  const canShowCompletionControl =
+    showCompletionControl && (canEdit || canModerate || (allStaticApproved && allDynamicApproved))
+
+  const hasStaticContent = section.items.some((item) => {
+    const submission = submissions[item.id] as SubmissionValue | undefined
+    const value = submission?.value
+    return typeof value === "string" ? value.trim().length > 0 : Boolean(value)
+  })
+  const hasDynamicContent = dynamicRows.length > 0
+  const hasContent = hasStaticContent || hasDynamicContent
+
+  const patchSubmissions = (mutate: (prev: Submissions) => Submissions) => {
+    const next = mutate(submissions)
+    onSubmissionsChange?.(next)
+  }
 
 
-    const toggleEdit = (id: string) => {
-        setEditMode((prev) => ({
-            ...prev,
-            [id]: !prev[id],
-        }))
+  const toggleSectionComplete = () => {
+    patchSubmissions((prev) => ({
+      ...prev,
+      [completionKey]: prev[completionKey] === true ? false : true,
+    }))
+  }
+
+  const hasSectionContent = (data: Submissions) => {
+    const staticHasValue = section.items.some((item) => {
+      const submission = data[item.id] as SubmissionValue | undefined
+      const value = submission?.value
+      return typeof value === "string" ? value.trim().length > 0 : Boolean(value)
+    })
+    if (staticHasValue) return true
+    const dynamic = data[section.id]
+    return Array.isArray(dynamic) && dynamic.length > 0
+  }
+
+  const markSectionUpdated = (prev: Submissions, next: Submissions) => {
+    if (prev[completionKey] === true && hasSectionContent(prev)) {
+      return {
+        ...next,
+        [completionKey]: "updated",
+      }
     }
+    return next
+  }
 
-    const addRow = () => {
-        setLocalRows([...localRows, { name: "", url: "" }])
-    }
+  const toggleEdit = (id: string) => {
+    setEditMode((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
 
-    const renderField = (
-        itemId: string,
-        fieldType: string,
-        submissionValue: string,
-        isEditing: boolean
-    ) => {
-        const currentValue =
-            editableValues[itemId] ?? submissionValue ?? ""
+  const submitItem = (
+    itemId: string,
+    value: string,
+    defaultStatus: "submitted" | "approved" = "submitted",
+    extras?: Partial<SubmissionValue>,
+  ) => {
+    patchSubmissions((prev) => {
+      const next: Submissions = {
+        ...prev,
+        [itemId]: {
+          value,
+          status: defaultStatus,
+          submittedAt: new Date().toISOString(),
+          ...extras,
+        },
+      }
+      return markSectionUpdated(prev, next)
+    })
+  }
 
-        const handleChange = (value: string) => {
-            setEditableValues((prev) => ({
-                ...prev,
-                [itemId]: value,
-            }))
-        }
+  const setItemStatus = (itemId: string, status: "approved" | "rejected" | "submitted") => {
+    const current = (submissions[itemId] as SubmissionValue | undefined) || {}
+    patchSubmissions((prev) => {
+      const next: Submissions = {
+        ...prev,
+        [itemId]: {
+          ...current,
+          status,
+          submittedAt: current.submittedAt || new Date().toISOString(),
+        },
+      }
+      return markSectionUpdated(prev, next)
+    })
+  }
 
-        // TEXTAREA
-        if (fieldType === "textarea") {
-            if (isAgency) {
-                return (
-                    <Textarea
-                        value={currentValue}
-                        disabled={!isEditing}
-                        onChange={(e) =>
-                            isEditing && handleChange(e.target.value)
+  const saveAgencyEdit = (itemId: string) => {
+    const current = (submissions[itemId] as SubmissionValue | undefined) || {}
+    const nextValue = draftValues[itemId] ?? current.value ?? ""
+    const preview = draftPreviews[itemId] ?? current.preview
+    submitItem(itemId, nextValue, current.status === "approved" ? "approved" : "submitted", { preview })
+    setEditMode((prev) => ({ ...prev, [itemId]: false }))
+  }
+
+  const updateDynamicRow = (index: number, patch: Partial<DynamicRow>) => {
+    patchSubmissions((prev) => {
+      const rows = Array.isArray(prev[section.id]) ? [...(prev[section.id] as DynamicRow[])] : []
+      rows[index] = {
+        ...(rows[index] || {}),
+        ...patch,
+      }
+      const next: Submissions = {
+        ...prev,
+        [section.id]: rows,
+      }
+      return markSectionUpdated(prev, next)
+    })
+  }
+
+  const saveDynamicRow = (index: number) => {
+    const dynamicId = `${section.id}-${index}`
+    const draft = dynamicDrafts[dynamicId]
+    if (!draft) return
+
+    updateDynamicRow(index, {
+      name: draft.name,
+      url: draft.url,
+      status: "submitted",
+      submittedAt: new Date().toISOString(),
+    })
+    setEditMode((prev) => ({ ...prev, [dynamicId]: false }))
+  }
+
+  const addDynamicRow = () => {
+    setLocalRows((prev) => [...prev, { name: "", url: "" }])
+  }
+
+  const removeLocalRow = (index: number) => {
+    setLocalRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index))
+  }
+
+  const removeDynamicRow = (index: number) => {
+    patchSubmissions((prev) => {
+      const rows = Array.isArray(prev[section.id]) ? [...(prev[section.id] as DynamicRow[])] : []
+      rows.splice(index, 1)
+      const next: Submissions = {
+        ...prev,
+        [section.id]: rows,
+      }
+      return markSectionUpdated(prev, next)
+    })
+  }
+
+  const submitDynamicRow = (row: { name: string; url: string }, rowIndex: number) => {
+    if (!row.name.trim() || !row.url.trim()) return
+
+    patchSubmissions((prev) => {
+      const rows = Array.isArray(prev[section.id]) ? [...(prev[section.id] as DynamicRow[])] : []
+      rows.push({
+        name: row.name.trim(),
+        url: row.url.trim(),
+        status: "submitted",
+        submittedAt: new Date().toISOString(),
+      })
+      const next: Submissions = {
+        ...prev,
+        [section.id]: rows,
+      }
+      return markSectionUpdated(prev, next)
+    })
+
+    setLocalRows((prev) => prev.filter((_, index) => index !== rowIndex))
+  }
+
+  return (
+    <AccordionItem
+      value={section.id}
+      className={`rounded-none group${className ? ` ${className}` : ""}`}
+    >
+      <AccordionPrimitive.Header className="relative flex items-center gap-3 px-3 py-3 mb-0 hover:bg-zinc-50 has-[[data-state=open]]:bg-violet-50 dark:hover:bg-white/5 dark:has-[[data-state=open]]:bg-violet-500/10">
+        <AccordionPrimitive.Trigger
+          data-slot="accordion-trigger"
+          className="group/trigger focus-visible:border-ring focus-visible:ring-ring/50 flex flex-1 items-center justify-between gap-4 rounded-md text-left text-sm font-medium transition-all outline-none hover:no-underline focus-visible:ring-[3px] cursor-pointer disabled:pointer-events-none disabled:opacity-50 data-[state=open]:text-violet-700 dark:data-[state=open]:text-violet-200"
+        >
+          <span>{section.title}</span>
+          <div className="flex items-center justify-end flex-row-reverse gap-2">
+              <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/trigger:rotate-180" />
+          <div className="flex items-center gap-2">
+          {isCompleted && hasContent ? (
+            <Badge className="px-2 py-0.5 text-[11px] bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-200 dark:border-emerald-500/20">
+              Completed
+            </Badge>
+          ) : isUpdated && hasContent ? (
+            <Badge className="px-2 py-0.5 text-[11px] bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-200 dark:border-amber-500/20">
+              Updated
+            </Badge>
+          ) : null}
+          {canShowCompletionControl && (allStaticApproved && allDynamicApproved) ? (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button asChild variant="ghost" size="icon">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className={`h-7 w-7 ${isCompleted ? "text-destructive hover:text-destructive/80" : "text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-300"}`}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        toggleSectionComplete()
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          toggleSectionComplete()
                         }
-                    />
-                )
-            }
+                      }}
+                      aria-label={isCompleted ? "Mark as incomplete" : "Mark as complete"}
+                    >
+                      {isCompleted ? <XCircle className="size-4" /> : <CheckCircle2 className="size-4" />}
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isCompleted ? "Mark as incomplete" : "Mark as complete"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : null}
+        </div>
+          </div>          
+        </AccordionPrimitive.Trigger>
+      </AccordionPrimitive.Header>
 
-            return (
+      <AccordionContent className="border-b border-zinc-100 pb-0 last:border-b-0">
+        {section.items.map((item) => {
+          const submission = (submissions[item.id] as SubmissionValue | undefined) || {}
+          const isEditing = editMode[item.id] || false
+          const value = draftValues[item.id] ?? submission.value ?? ""
+          const preview = draftPreviews[item.id] ?? submission.preview
+
+          return (
+            <div key={item.id} className="border-b border-zinc-200 p-4 space-y-3 last-of-type:border-b-0 dark:border-white/10">
+              <div className="flex justify-between items-center">
+                <div className="text-xs font-medium">{item.label}</div>
+
+                <Badge className={`py-1 px-2 text-xs capitalize ${submission?.value ? getStatusBadgeClass(submission.status) : "bg-zinc-100 text-zinc-500"}`}>
+                  {submission?.value ? submission.status || "submitted" : "Not Submitted"}
+                </Badge>
+              </div>
+
+              {item.fieldType === "textarea" && (
                 <Textarea
-                    defaultValue={submissionValue || ""}
-                    onChange={() => { }}
+                  value={value}
+                  disabled={isAgency ? !isEditing || !canEdit : false}
+                  onChange={(event) =>
+                    setDraftValues((prev) => ({
+                      ...prev,
+                      [item.id]: event.target.value,
+                    }))
+                  }
                 />
-            )
-        }
+              )}
 
-        // URL / TEXT
-        if (fieldType === "url" || fieldType === "text") {
-            if (isAgency) {
-                return (
-                    <Input
-                        value={currentValue}
-                        disabled={!isEditing}
-                        onChange={(e) =>
-                            isEditing && handleChange(e.target.value)
-                        }
-                    />
-                )
-            }
-
-            return (
+              {(item.fieldType === "text" || item.fieldType === "url") && (
                 <Input
-                    defaultValue={submissionValue || ""}
-                    onChange={() => { }}
+                  value={value}
+                  disabled={isAgency ? !isEditing || !canEdit : false}
+                  onChange={(event) =>
+                    setDraftValues((prev) => ({
+                      ...prev,
+                      [item.id]: event.target.value,
+                    }))
+                  }
                 />
-            )
-        }
+              )}
 
-        // UPLOAD
-        if (fieldType === "upload") {
-            return (
-                <Input
+              {item.fieldType === "upload" && (
+                <div className="space-y-2">
+                  <Input
                     type="file"
-                    disabled={isAgency && !isEditing}
-                />
-            )
-        }
+                    disabled={isAgency ? !isEditing || !canEdit : false}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      if (!file) return
 
-        return null
-    }
+                      const reader = new FileReader()
+                      reader.onload = () => {
+                        const base64 = typeof reader.result === "string" ? reader.result : ""
+                        setDraftValues((prev) => ({
+                          ...prev,
+                          [item.id]: file.name,
+                        }))
+                        setDraftPreviews((prev) => ({
+                          ...prev,
+                          [item.id]: base64,
+                        }))
 
+                        if (!isAgency) {
+                          submitItem(item.id, file.name, "submitted", { preview: base64 })
+                        }
+                      }
+                      reader.readAsDataURL(file)
+                    }}
+                  />
 
+                  {preview && (
+                    <div className="text-xs text-muted-foreground space-y-2">
+                      <p>Preview</p>
+                      {preview.startsWith("data:image") || preview.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={preview} alt={item.label} className="max-h-24 rounded border" />
+                      ) : (
+                        <a href={preview} target="_blank" rel="noreferrer" className="underline text-blue-600">
+                          Open file
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  {!preview && submission.value && isUrlLike(submission.value) && (
+                    <a href={submission.value} target="_blank" rel="noreferrer" className="text-xs underline text-blue-600 inline-block">
+                      Open file
+                    </a>
+                  )}
+                </div>
+              )}
 
-    return (
-        <AccordionItem value={section.id} className="rounded-none group">
-            <AccordionTrigger className="text-sm px-3 py-3 mb-0 rounded-none hover:no-underline hover:bg-zinc-50 data-[state=open]:bg-violet-50
-    data-[state=open]:text-violet-700 group">
-                {section.title}
-            </AccordionTrigger>
+              {item.fieldType !== "upload" && !isAgency && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  disabled={!value}
+                  onClick={() => submitItem(item.id, value, "submitted")}
+                >
+                  Submit Data
+                </Button>
+              )}
 
-            <AccordionContent className="border-b border-zinc-100 pb-0 last:border-b-0">
-                {/* ================= PREDEFINED ITEMS ================= */}
-                {section.items.map((item) => {
-                    const submission = submissions[item.id] || {}
-                    const isEditing = editMode[item.id] || false
+              {item.fieldType === "url" &&
+                (submission.value || value) &&
+                isUrlLike(String(submission.value || value)) && (
+                <a href={String(submission.value || value)} target="_blank" rel="noreferrer" className="text-xs underline text-blue-600 inline-block">
+                  Preview Link
+                </a>
+              )}
 
-                    return (
-                        <div
-                            key={item.id}
-                            className="border-b border-zinc-200 p-4 space-y-3 last-of-type:border-b-0"
-                        >
-                            <div className="flex justify-between items-center">
-                                <div className="text-xs font-medium">{item.label}</div>
-
-                                {isAgency && (
-                                    <div className="flex items-center gap-2">
-                                        {!submission?.value ? (
-                                            <Badge className="bg-zinc-100 text-zinc-500 text-xs py-1 px-2"
-                                            >
-                                                Not Submitted
-                                            </Badge>
-                                        ) : (
-                                            // <Badge className="bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300 py-1 px-2 text-xs capitalize">
-                                            //     {submission.status || "Submitted"}
-                                            // </Badge>
-                                            <Badge
-                                                className={`py-1 px-2 text-xs capitalize ${submission.status === "submitted"
-                                                        ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
-                                                        : "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
-                                                    }`}
-                                            >
-                                                {submission.status || "Submitted"}
-                                            </Badge>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {renderField(
-                                item.id,
-                                item.fieldType,
-                                submission.value || "",
-                                isEditing
-                            )}
-
-                            {!isAgency && (
-                                <Button size="sm" variant="default">
-                                    Submit Data
-                                </Button>
-                            )}
-
-                            {isAgency && (
-                                <div className="flex gap-2 justify-between items-center">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-xs"
-                                        onClick={() => toggleEdit(item.id)}
-                                    >
-                                        {isEditing ? "Disable Edit" : "Enable Edit"}
-                                    </Button>
-                                    <div className="right-btns space-x-2">
-                                        <Button size="sm" variant="destructiveLight" className="text-xs">Reject</Button>
-                                        <Button variant="gradient" size="sm" className="text-xs" disabled={submission.status === "approved"}>Approve</Button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )
-                })}
-
-                {/* ================= DYNAMIC SECTION ================= */}
-                {section.dynamic && (
-                    <>
-                        {/* ===== If No Data Yet (Agency View Only) ===== */}
-                        {isAgency &&
-                            (!submissions[section.id] ||
-                                submissions[section.id].length === 0) && (
-                                <div className="text-destructive inline-block p-4">
-                                    Client submission pending.
-                                </div>
-                            )}
-
-                        {/* ===== If Data Exists ===== */}
-                        {(submissions[section.id] || []).map(
-                            (row: any, index: number) => {
-                                const dynamicId = `${section.id}-${index}`
-                                const isEditing = editMode[dynamicId] || false
-
-                                return (
-                                    <div
-                                        key={index}
-                                        className="border-b border-zinc-200 p-4 space-y-3"
-                                    >
-                                        <div className="flex justify-between items-center">
-                                            <div className="font-medium text-xs">{row.name}</div>
-
-                                            {isAgency && (
-                                                <div className="flex items-center gap-2">
-                                                    {!row?.url ? (
-                                                        <Badge className="bg-destructive/10 text-destructive font-light text-xs py-1 px-2"
-                                                        >
-                                                            Not Submitted
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge className={`py-1 px-2 text-xs capitalize ${row.status === "submitted"
-                                                                ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
-                                                                : "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
-                                                            }`}>
-                                                            {row.status || "Submitted"}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {isAgency ? (
-                                            <>
-                                                <Input
-                                                    value={row.name}
-                                                    disabled={!isEditing}
-                                                />
-                                                <Input
-                                                    value={row.url}
-                                                    disabled={!isEditing}
-                                                />
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Input
-                                                    defaultValue={row.name}
-                                                    onChange={() => { }}
-                                                />
-                                                <Input
-                                                    defaultValue={row.url}
-                                                    onChange={() => { }}
-                                                />
-                                            </>
-                                        )}
-
-                                        {isAgency && (
-                                            <div className="flex justify-between items-center gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => toggleEdit(dynamicId)}
-                                                    className="text-xs"
-                                                >
-                                                    {isEditing
-                                                        ? "Disable Edit"
-                                                        : "Enable Edit"}
-                                                </Button>
-                                                <div className="right-btns space-x-2">
-                                                    <Button size="sm" variant="destructiveLight" className="text-xs">Reject</Button>
-                                                    <Button size="sm" className="text-xs" variant="gradient" disabled={row.status === "approved"}>Approve</Button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )
-                            }
+              {isAgency && (canEdit || canModerate) && (
+                <div className="flex justify-end items-center gap-2">
+                  <TooltipProvider delayDuration={200}>
+                    {canEdit && (
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-7 px-2"
+                              onClick={() => toggleEdit(item.id)}
+                              aria-label={isEditing ? "Cancel edit" : "Enable edit"}
+                            >
+                              {isEditing ? "Cancel Edit" : "Enable Edit"}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {isEditing ? "Cancel edit" : "Enable edit"}
+                          </TooltipContent>
+                        </Tooltip>
+                        {isEditing && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                className="text-xs h-7 px-2"
+                                variant="default"
+                                onClick={() => saveAgencyEdit(item.id)}
+                                aria-label="Save"
+                              >
+                                Save
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Save</TooltipContent>
+                          </Tooltip>
                         )}
+                      </>
+                    )}
 
-                        {/* ===== Client Add Row ===== */}
-                        {!isAgency && (
-                            <div className="border-b border-zinc-200 p-4 space-y-3 last-of-type:border-b-0 bg-white">
-                                {localRows.map((row, index) => (
-                                    <div key={index} className="border border-zinc-200 rounded-lg bg-white overflow-hidden">
-                                        <div className="form-contents">
-                                            <Input
-                                                placeholder="Name"
-                                                value={row.name}
-                                                className="border-0 rounded-none border-b border-zinc-200 text-xs py-3! h-auto"
-                                                onChange={(e) => {
-                                                    const updated = [...localRows]
-                                                    updated[index].name = e.target.value
-                                                    setLocalRows(updated)
-                                                }}
-                                            />
+                    {canModerate && (
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="destructiveLight"
+                              className="text-xs h-7 px-2"
+                              onClick={() => setItemStatus(item.id, "rejected")}
+                              aria-label="Reject"
+                            >
+                              Reject
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Reject</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="gradient"
+                              size="sm"
+                              className="text-xs h-7 px-2"
+                              onClick={() => setItemStatus(item.id, "approved")}
+                              disabled={submission.status === "approved"}
+                              aria-label="Approve"
+                            >
+                              Approve
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Approve</TooltipContent>
+                        </Tooltip>
+                      </>
+                    )}
+                  </TooltipProvider>
+                </div>
+              )}
+            </div>
+          )
+        })}
 
-                                            <Input
-                                                placeholder="URL"
-                                                value={row.url}
-                                                className="border-0 rounded-none border-b border-zinc-200 text-xs py-3! h-auto"
-                                                onChange={(e) => {
-                                                    const updated = [...localRows]
-                                                    updated[index].url = e.target.value
-                                                    setLocalRows(updated)
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="flex gap-2 bg-zinc-50 p-3">
-                                            <Button size="sm" variant="default">Submit Data</Button>
-                                        </div>
-                                    </div>
-                                ))}
+        {section.dynamic && (
+          <>
+            {isAgency && dynamicRows.length === 0 && (
+              <div className="text-destructive inline-block p-4">Client submission pending.</div>
+            )}
 
-                                <Button
-                                    variant="ghost"
-                                    onClick={addRow}
-                                    className="w-full"
-                                >
-                                    + Add New Row
-                                </Button>
-                            </div>
-                        )}
-                    </>
-                )}
-            </AccordionContent>
-        </AccordionItem>
-    )
+            {dynamicRows.map((row, index: number) => {
+              const dynamicId = `${section.id}-${index}`
+              const isEditing = isAgency ? (canEdit ? editMode[dynamicId] || false : false) : true
+              const draft = dynamicDrafts[dynamicId] || {
+                name: row.name || "",
+                url: row.url || "",
+              }
+
+              return (
+                <div key={`${section.id}-${index}`} className="border-b border-zinc-200 p-4 space-y-3 dark:border-white/10">
+                  <div className="flex justify-between items-center">
+                    <div className="font-medium text-xs">{row.name || `Row ${index + 1}`}</div>
+
+                    <Badge className={`py-1 px-2 text-xs capitalize ${row?.url ? getStatusBadgeClass(row.status) : "bg-zinc-100 text-zinc-500"}`}>
+                      {row?.url ? row.status || "submitted" : "Not Submitted"}
+                    </Badge>
+                  </div>
+
+                  <Input
+                    value={draft.name}
+                    disabled={!isEditing}
+                    onChange={(event) =>
+                      setDynamicDrafts((prev) => ({
+                        ...prev,
+                        [dynamicId]: {
+                          ...draft,
+                          name: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                  <Input
+                    value={draft.url}
+                    disabled={!isEditing}
+                    onChange={(event) =>
+                      setDynamicDrafts((prev) => ({
+                        ...prev,
+                        [dynamicId]: {
+                          ...draft,
+                          url: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+
+                  {draft.url && isUrlLike(draft.url) && (
+                    <a href={draft.url} target="_blank" rel="noreferrer" className="text-xs underline text-blue-600 inline-block">
+                      Preview Link
+                    </a>
+                  )}
+
+                  <div className="flex justify-end items-center gap-2">
+                    <TooltipProvider delayDuration={200}>
+                      {(canEdit || !isAgency) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="destructiveLight"
+                              className="text-xs h-7 px-2"
+                              onClick={() => removeDynamicRow(index)}
+                              aria-label="Remove"
+                            >
+                              Remove
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Remove</TooltipContent>
+                        </Tooltip>
+                      )}
+                      {isAgency && canEdit && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-7 px-2"
+                              onClick={() => toggleEdit(dynamicId)}
+                              aria-label={isEditing ? "Cancel edit" : "Enable edit"}
+                            >
+                              {isEditing ? "Cancel Edit" : "Enable Edit"}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {isEditing ? "Cancel edit" : "Enable edit"}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+
+                      {isEditing && isAgency && canEdit && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              className="text-xs h-7 px-2"
+                              variant="default"
+                              onClick={() => saveDynamicRow(index)}
+                              disabled={!draft.name.trim() || !draft.url.trim()}
+                              aria-label="Save"
+                            >
+                              Save
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Save</TooltipContent>
+                        </Tooltip>
+                      )}
+
+                      {isAgency && canModerate && (
+                        <>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="destructiveLight"
+                                className="text-xs h-7 px-2"
+                                onClick={() => updateDynamicRow(index, { status: "rejected" })}
+                                aria-label="Reject"
+                              >
+                                Reject
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Reject</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                className="text-xs h-7 px-2"
+                                variant="gradient"
+                                onClick={() => updateDynamicRow(index, { status: "approved" })}
+                                disabled={row.status === "approved"}
+                                aria-label="Approve"
+                              >
+                                Approve
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Approve</TooltipContent>
+                          </Tooltip>
+                        </>
+                      )}
+                    </TooltipProvider>
+                  </div>
+                </div>
+              )
+            })}
+
+            {(!isAgency || (isAgency && canEdit)) && (
+              <div className="border-b border-zinc-200 bg-white p-4 space-y-3 last-of-type:border-b-0 dark:border-white/10 dark:bg-white/5">
+                {localRows.map((row, index) => (
+                  <div key={index} className="rounded-lg border border-zinc-200 bg-white overflow-hidden dark:border-white/10 dark:bg-white/5">
+                    <Input
+                      placeholder="Name"
+                      value={row.name}
+                      className="h-auto rounded-none border-0 border-b border-zinc-200 py-3! text-xs dark:border-white/10"
+                      onChange={(event) => {
+                        const updated = [...localRows]
+                        updated[index].name = event.target.value
+                        setLocalRows(updated)
+                      }}
+                    />
+
+                    <Input
+                      placeholder="URL"
+                      value={row.url}
+                      className="h-auto rounded-none border-0 border-b border-zinc-200 py-3! text-xs dark:border-white/10"
+                      onChange={(event) => {
+                        const updated = [...localRows]
+                        updated[index].url = event.target.value
+                        setLocalRows(updated)
+                      }}
+                    />
+
+                    <div className="flex gap-2 bg-zinc-50 p-3 dark:bg-white/5">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        disabled={!row.name.trim() || !row.url.trim()}
+                        onClick={() => submitDynamicRow(row, index)}
+                      >
+                        {isAgency ? "Save Row" : "Submit Data"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructiveLight"
+                        onClick={() => removeLocalRow(index)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                <Button variant="ghost" onClick={addDynamicRow} className="w-full">
+                  + Add New Row
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </AccordionContent>
+    </AccordionItem>
+  )
 }

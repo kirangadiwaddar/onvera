@@ -1,84 +1,107 @@
 "use client"
 
+import Link from "next/link"
+import { useEffect, useState } from "react"
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
 } from "@/components/ui/sidebar"
-import { MoreHorizontal, MoreVertical, Plus, Share2, Trash2 } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
 
-import data from "@/src/mocks/data/projects.json"
-import { Button } from "../ui/button"
-
-// Handle both possible JSON shapes
-const projectArray = Array.isArray(data)
-  ? data
-  : data.projects
-
-const recentProjects = [...projectArray]
-  .sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() -
-      new Date(a.createdAt).getTime()
-  )
-  .slice(0, 5)
-  .map((project) => ({
-    name: project.title,
-    url: `/projects/${project.slug}`,
-  }))
+import { Project } from "@/types/project"
+import { fetchWithAuth } from "@/lib/auth/client-fetch"
 
 export function NavProjects() {
-  const { isMobile } = useSidebar()
+  const [projects, setProjects] = useState<Project[]>([])
+
+  useEffect(() => {
+    let isActive = true
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
+    const fetchProjects = async () => {
+      try {
+        const res = await fetchWithAuth("/api/projects", {
+          cache: "no-store",
+        })
+
+        if (!res.ok) return
+
+        const data = await res.json()
+        const allProjects: Project[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.projects)
+            ? data.projects
+            : []
+
+        const ongoingProjects = allProjects
+          .filter((project) => project.status === "ongoing")
+          .sort((a, b) => {
+            const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime()
+            const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime()
+            return bTime - aTime
+          })
+          .slice(0, 7)
+
+        if (isActive) {
+          setProjects(ongoingProjects)
+        }
+      } catch (err) {
+        console.error("Sidebar project fetch failed:", err)
+      }
+    }
+
+    fetchProjects()
+    intervalId = setInterval(fetchProjects, 10000)
+
+    const handleFocus = () => {
+      void fetchProjects()
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void fetchProjects()
+      }
+    }
+    window.addEventListener("focus", handleFocus)
+    document.addEventListener("visibilitychange", handleVisibility)
+
+    return () => {
+      isActive = false
+      if (intervalId) clearInterval(intervalId)
+      window.removeEventListener("focus", handleFocus)
+      document.removeEventListener("visibilitychange", handleVisibility)
+    }
+  }, [])
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel className="text-violet-600">Recent Projects</SidebarGroupLabel>
+      {/* <Separator className="mb-5"/> */}
+      {projects.length === 0 ? (
+        <SidebarGroupLabel className="text-destructive text-xs">
+          <span className="w-2.5 h-2.5 rounded-full bg-destructive/80 mr-2"></span>
+          No Ongoing Projects
+        </SidebarGroupLabel>
+      ) : (
+        <SidebarGroupLabel className="text-violet-600 text-xs">
+          <span className="w-2.5 h-2.5 rounded-full bg-violet-600 mr-2"></span>
+          Ongoing Projects
+        </SidebarGroupLabel>
+      )}
       <SidebarMenu>
-        {recentProjects.map((item) => (
-          <SidebarMenuItem key={item.name}>
-            <SidebarMenuButton asChild className="text-sm text-zinc-600" size="sm">
-              <a href={item.url}>
-                <span>{item.name}</span>
-              </a>
+        {projects.map((project) => (
+          <SidebarMenuItem key={project.id}>
+            <SidebarMenuButton
+              asChild
+              className="text-xs text-zinc-600 dark:text-zinc-400 hover:dark:text-white h-auto py-1"
+              size="sm"
+            >
+              <Link href={`/projects/${project.slug}`}>
+                <span>{project.title}</span>
+              </Link>
             </SidebarMenuButton>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuAction
-                  showOnHover
-                  className="data-[state=open]:bg-accent rounded-sm"
-                >
-                  <MoreVertical />
-                  <span className="sr-only">More</span>
-                </SidebarMenuAction>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-24 rounded-lg text-xs"
-                side={isMobile ? "bottom" : "right"}
-                align={isMobile ? "end" : "start"}
-              >
-                <DropdownMenuItem>
-                    <Share2 />
-                  <span>Share</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive">
-                    <Trash2 />
-                  <span>Delete</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </SidebarMenuItem>
         ))}
       </SidebarMenu>

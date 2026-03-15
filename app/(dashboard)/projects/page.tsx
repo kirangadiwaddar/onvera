@@ -1,11 +1,25 @@
 "use client"
-import { useState, useEffect, useMemo } from "react"
-import { ProjectCard } from "@/components/project-card"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { ListFilter, Plus } from "lucide-react"
-import { LoadingState } from "@/components/loadingState"
 
+import { useEffect, useMemo, useState } from "react"
+import { FolderOpenDot, LayoutGrid, List, ListFilter, MoreVertical, PencilIcon, Plus, TrashIcon } from "lucide-react"
+
+import { ProjectCard } from "@/components/project-card"
+import { ProjectModal, type ProjectFormValues } from "@/components/projects/project-modal"
+import { DeleteProjectAlert } from "@/components/projects/delete-project-alert"
+import { EmptyState } from "@/components/emptyState"
+import { LoadingState } from "@/components/loadingState"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Pagination,
   PaginationContent,
@@ -14,25 +28,24 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-
+import { Separator } from "@/components/ui/separator"
 import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { EmptyState } from "@/components/emptyState"
-import { FolderOpenDot } from "lucide-react"
-import Link from "next/link"
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar"
+import { getAvatarColor } from "@/lib/get-avatar-colors"
+import type { status } from "@/lib/project-status"
+import { statusLabel, statusStyles } from "@/lib/project-status"
+import { useAuth } from "@/components/providers/auth-provider"
+import { fetchWithAuth } from "@/lib/auth/client-fetch"
+import { toast } from "sonner"
 
-import { getTemplateMap } from "@/lib/templateUtils";
-
-
-const statuses = [
+const statuses: Array<{ value: "all" | status; label: string }> = [
   { value: "all", label: "All" },
   { value: "ongoing", label: "Ongoing" },
   { value: "onhold", label: "On Hold" },
@@ -41,62 +54,107 @@ const statuses = [
   { value: "waiting", label: "Waiting" },
 ]
 
-// const templateOptions = [
-//   "All",
-//   "Web Development",
-//   "UI/UX Experience",
-//   "App Development",
-//   "SaaS Platform",
-//   "E-Commerce",
-//   "Digital Marketing",
-//   "Branding",
-// ]
+type TemplateOption = {
+  id: string
+  title: string
+}
 
-const templateOptions = [
-  { label: "All", value: "all" },
-  { label: "Web Development", value: "web-development" },
-  { label: "UI/UX Experience", value: "ui/ux-experience" },
-  { label: "App Development", value: "app-development" },
-  { label: "SaaS Platform", value: "saas-platform" },
-  { label: "E-Commerce", value: "ecommerce" },
-  { label: "Digital Marketing", value: "digital-marketing" },
-  { label: "Branding", value: "branding" },
-]
-
+type ProjectItem = {
+  id: number
+  slug: string
+  title: string
+  templateId: string
+  templateTitle?: string
+  status: status
+  avatarSrc?: string
+  createdAt?: string
+  members?: { id: number; name: string; image?: string }[]
+}
 
 export default function Page() {
-
-  const [projects, setProjects] = useState<any[]>([])
+  const { profile } = useAuth()
+  const [projects, setProjects] = useState<ProjectItem[]>([])
+  const [templates, setTemplates] = useState<TemplateOption[]>([])
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
 
   const [currentPage, setCurrentPage] = useState(1)
-  const [status, setStatus] = useState("all")
-  const [template, setTemplate] = useState<string[]>(["all"])
+  const [statusFilter, setStatusFilter] = useState<"all" | status>("all")
+  const [templateFilter, setTemplateFilter] = useState<string[]>(["all"])
+  const [projectsView, setProjectsView] = useState<"grid" | "table">("grid")
+  const [is2xl, setIs2xl] = useState(false)
+
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [editingProject, setEditingProject] = useState<ProjectItem | null>(null)
+  const [deletingProject, setDeletingProject] = useState<ProjectItem | null>(null)
+  const isReadOnlyRole = profile?.role === "project_member" || profile?.role === "team_member"
+
+  const loadProjects = async () => {
+    let res = await fetchWithAuth("/api/projects", { cache: "no-store" })
+    if (res.status === 401) {
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      res = await fetchWithAuth("/api/projects", { cache: "no-store" })
+    }
+    if (!res.ok) {
+      if (res.status === 401) {
+        setProjects([])
+        return
+      }
+      throw new Error("Failed to load projects")
+    }
+    const data = await res.json()
+    setProjects(Array.isArray(data?.projects) ? data.projects : [])
+  }
+
+  const loadTemplates = async () => {
+    const res = await fetchWithAuth("/api/templates", { cache: "no-store" })
+    if (!res.ok) throw new Error("Failed to load templates")
+    const data = await res.json()
+
+    const nextTemplates: TemplateOption[] = Array.isArray(data?.templates)
+      ? data.templates.map((item: { id: string; title: string }) => ({
+          id: item.id,
+          title: item.title,
+        }))
+      : []
+
+    setTemplates(nextTemplates)
+  }
 
   useEffect(() => {
-    fetch('/api/projects', { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => {
-        setProjects(data.projects)
+    const loadInitial = async () => {
+      try {
+        await Promise.all([loadProjects(), loadTemplates()])
+      } catch (error) {
+        console.error("Failed to initialize projects page:", error)
+      } finally {
         setLoading(false)
-      })
+      }
+    }
+
+    void loadInitial()
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const media = window.matchMedia("(min-width: 1536px)")
+    const update = () => setIs2xl(media.matches)
+    update()
+    media.addEventListener("change", update)
+    return () => media.removeEventListener("change", update)
   }, [])
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
-
-      const statusMatch =
-        status === "all" || project.status === status
-
+      const statusMatch = statusFilter === "all" || project.status === statusFilter
       const templateMatch =
-        template.includes("all") ||
-        template.includes(project.templateId)
+        templateFilter.includes("all") || templateFilter.includes(project.templateId)
 
       return statusMatch && templateMatch
     })
-  }, [projects, status, template])
+  }, [projects, statusFilter, templateFilter])
 
-  const ITEMS_PER_PAGE = 9
+  const ITEMS_PER_PAGE = projectsView === "table" ? 10 : is2xl ? 12 : 9
   const totalPages = Math.ceil(filteredProjects.length / ITEMS_PER_PAGE)
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
   const endIndex = startIndex + ITEMS_PER_PAGE
@@ -104,23 +162,16 @@ export default function Page() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [status, template])
-
-  if (loading) return (<LoadingState
-    title="Loading Projects..."
-    description="Fetching your projects, please wait."
-  />)
-  if (projects.length === 0) return <div>No projects found</div>
+  }, [statusFilter, templateFilter, projectsView, is2xl])
 
   const toggleOption = (value: string) => {
     if (value === "all") {
-      setTemplate(["all"])
+      setTemplateFilter(["all"])
       return
     }
 
-    setTemplate((prev) => {
+    setTemplateFilter((prev) => {
       const withoutAll = prev.filter((v) => v !== "all")
-
       const updated = withoutAll.includes(value)
         ? withoutAll.filter((v) => v !== value)
         : [...withoutAll, value]
@@ -129,15 +180,108 @@ export default function Page() {
     })
   }
 
-  const activeTemplateCount =
-    template.includes("all") ? 0 : template.length
+  const activeTemplateCount = templateFilter.includes("all") ? 0 : templateFilter.length
+  const isStatusActive = statusFilter !== "all"
 
-  const isStatusActive = status !== "all"
+  const handleCreateProject = async (values: ProjectFormValues) => {
+    setSubmitting(true)
+    try {
+      const res = await fetchWithAuth("/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: values.title,
+          avatarSrc: values.avatarSrc,
+          templateId: values.templateId,
+          status: "waiting",
+        }),
+      })
 
-  const totalActiveFilters =
-    activeTemplateCount + (isStatusActive ? 1 : 0)
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message || "Failed to create project")
+      }
 
-  const templateMap = getTemplateMap();
+      await loadProjects()
+      setIsCreateOpen(false)
+      toast.success("Project created")
+    } catch (error) {
+      console.error("Create project failed:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to create project")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleEditProject = async (values: ProjectFormValues) => {
+    if (!editingProject) return
+
+    setSubmitting(true)
+    try {
+      const res = await fetchWithAuth(`/api/projects/${editingProject.slug}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: values.title,
+          avatarSrc: values.avatarSrc,
+          templateId: values.templateId,
+          status: editingProject.status,
+        }),
+      })
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message || "Failed to update project")
+      }
+
+      await loadProjects()
+      setEditingProject(null)
+      toast.success("Project updated")
+    } catch (error) {
+      console.error("Update project failed:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to update project")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDeleteProject = async () => {
+    if (!deletingProject) return
+
+    setSubmitting(true)
+    try {
+      const res = await fetchWithAuth(`/api/projects/${deletingProject.slug}`, {
+        method: "DELETE",
+      })
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message || "Failed to delete project")
+      }
+
+      await loadProjects()
+      setDeletingProject(null)
+      toast.success("Project deleted")
+    } catch (error) {
+      console.error("Delete project failed:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to delete project")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <LoadingState
+        title="Loading Projects..."
+        description="Fetching your projects, please wait."
+      />
+    )
+  }
 
   return (
     <>
@@ -145,17 +289,40 @@ export default function Page() {
         <EmptyState
           title="No Projects Yet"
           description="You haven't created any projects yet."
-          buttonText="Create Project"
-          onClick={() => console.log("Create")}
+          buttonText={isReadOnlyRole ? undefined : "Create Project"}
+          onClick={isReadOnlyRole ? undefined : () => setIsCreateOpen(true)}
           icon={<FolderOpenDot />}
         />
       ) : (
         <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
           <div className="flex flex-col lg:flex-row items-center justify-between px-7 gap-4 lg:gap-5">
-            <p className="text-sm flex-1 lg:line-clamp-2">Manage and track all your projects, monitor progress, and stay on top of deadlines in one place.</p>
+            <p className="text-sm flex-1 lg:line-clamp-2">
+              Manage and track all your projects, monitor progress, and stay on top of deadlines in one place.
+            </p>
             <div className="right-actions flex items-center gap-3 justify-end">
+              <div className="flex items-center gap-1 rounded-full border border-zinc-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/5">
+                <Button
+                  size="icon-sm"
+                  variant={projectsView === "grid" ? "secondary" : "ghost"}
+                  className="rounded-full"
+                  onClick={() => setProjectsView("grid")}
+                  aria-pressed={projectsView === "grid"}
+                  aria-label="Grid view"
+                >
+                  <LayoutGrid className="size-4" />
+                </Button>
+                <Button
+                  size="icon-sm"
+                  variant={projectsView === "table" ? "secondary" : "ghost"}
+                  className="rounded-full"
+                  onClick={() => setProjectsView("table")}
+                  aria-pressed={projectsView === "table"}
+                  aria-label="Table view"
+                >
+                  <List className="size-4" />
+                </Button>
+              </div>
               <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
-                {/* Template Filter */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -173,20 +340,25 @@ export default function Page() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-52">
                     <DropdownMenuGroup>
-                      {templateOptions.map((item) => (
+                      <DropdownMenuCheckboxItem
+                        checked={templateFilter.includes("all")}
+                        onCheckedChange={() => toggleOption("all")}
+                      >
+                        All
+                      </DropdownMenuCheckboxItem>
+                      {templates.map((item) => (
                         <DropdownMenuCheckboxItem
-                          key={item.value}
-                          checked={template.includes(item.value)}
-                          onCheckedChange={() => toggleOption(item.value)}
+                          key={item.id}
+                          checked={templateFilter.includes(item.id)}
+                          onCheckedChange={() => toggleOption(item.id)}
                         >
-                          {item.label}
+                          {item.title}
                         </DropdownMenuCheckboxItem>
                       ))}
                     </DropdownMenuGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {/* Status Filter */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -203,7 +375,7 @@ export default function Page() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuRadioGroup value={status} onValueChange={setStatus}>
+                    <DropdownMenuRadioGroup value={statusFilter} onValueChange={(value) => setStatusFilter(value as "all" | status)}>
                       {statuses.map((item) => (
                         <DropdownMenuRadioItem key={item.value} value={item.value}>
                           {item.label}
@@ -213,38 +385,166 @@ export default function Page() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <Button variant="gradient"><Plus strokeWidth={2} /> Create New</Button>
+              {!isReadOnlyRole && (
+                <Button variant="gradient" onClick={() => setIsCreateOpen(true)}>
+                  <Plus strokeWidth={2} /> Create New
+                </Button>
+              )}
             </div>
           </div>
 
-          <Separator className="my-0 bg-gray-100" />
+          <Separator className="my-0 bg-border" />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
-            {projectsToShow.map((project: any) => (
-              <ProjectCard
-                key={project.id}
-                id={project.id}
-                slug={project.slug}
-                title={project.title}
-                templateTitle={templateMap[project.templateId]}
-                status={project.status}
-                createdAt={project.createdAt}
-                avatarSrc={project.avatarSrc}
-                // teams={project.teams}
-                members={project.members}
+          {filteredProjects.length === 0 ? (
+            <div className="px-7 pb-0 pt-0">
+              <EmptyState
+                title="No Projects Found"
+                description="No projects match the selected template or status."
+                buttonText="Reset filters"
+                onClick={() => {
+                  setTemplateFilter(["all"])
+                  setStatusFilter("all")
+                }}
+                icon={<FolderOpenDot />}
               />
-            ))}
-          </div>
+            </div>
+          ) : (
+            projectsView === "grid" ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
+                {projectsToShow.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    id={project.id}
+                    slug={project.slug}
+                    title={project.title}
+                    templateTitle={project.templateTitle}
+                    status={project.status}
+                    createdAt={project.createdAt}
+                    avatarSrc={project.avatarSrc}
+                    members={project.members}
+                    onEdit={isReadOnlyRole ? undefined : () => setEditingProject(project)}
+                    onDelete={isReadOnlyRole ? undefined : () => setDeletingProject(project)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="px-7 pb-0 pt-0">
+                <div className="rounded-2xl border border-zinc-200 dark:border-white/10 overflow-hidden">
+                  <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Project</TableHead>
+                        <TableHead>Template</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Members</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {projectsToShow.map((project) => (
+                        <TableRow key={project.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-9 w-9 rounded-lg">
+                                {project.avatarSrc && <AvatarImage src={project.avatarSrc} />}
+                                <AvatarFallback className={`font-semibold ${getAvatarColor(project.title)}`}>
+                                  {project.title.substring(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="text-sm font-medium">{project.title}</div>
+                                <div className="text-xs text-muted-foreground">{project.slug}</div>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {project.templateTitle || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {project.status ? (
+                              <Badge className={`${statusStyles[project.status]}`}>
+                                {statusLabel[project.status]}
+                              </Badge>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {project.members && project.members.length > 0 ? (
+                              <AvatarGroup className="justify-start">
+                                {project.members.slice(0, 3).map((member) => (
+                                  <Avatar key={member.id} size="sm">
+                                    {member.image && <AvatarImage src={member.image} />}
+                                    <AvatarFallback className={`${getAvatarColor(member.name)} font-semibold`}>
+                                      {member.name.substring(0, 1).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                ))}
+                                {project.members.length > 3 && (
+                                  <AvatarGroupCount className="bg-primary text-white">+{project.members.length - 3}</AvatarGroupCount>
+                                )}
+                              </AvatarGroup>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No members</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {project.createdAt
+                              ? new Date(project.createdAt).toLocaleDateString("en-GB", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {!isReadOnlyRole ? (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    size="icon-sm"
+                                    variant="ghost"
+                                    className="h-8 w-8"
+                                    aria-label="Project actions"
+                                  >
+                                    <MoreVertical className="size-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-36">
+                                  <DropdownMenuGroup>
+                                    <DropdownMenuItem onClick={() => setEditingProject(project)} className="text-xs">
+                                      <PencilIcon />
+                                      Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => setDeletingProject(project)}
+                                       variant="destructive"  className="text-xs!">
+                                            <TrashIcon />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuGroup>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )
+          )}
 
-          {projects.length > ITEMS_PER_PAGE && (
+          {totalPages > 1 && (
             <Pagination className="mt-8">
               <PaginationContent>
-
                 <PaginationItem>
                   <PaginationPrevious
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.max(prev - 1, 1))
-                    }
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                   />
                 </PaginationItem>
 
@@ -262,19 +562,54 @@ export default function Page() {
                 <PaginationItem>
                   <PaginationNext
                     onClick={() =>
-                      setCurrentPage((prev) =>
-                        Math.min(prev + 1, totalPages)
-                      )
+                      setCurrentPage((prev) => Math.min(prev + 1, totalPages))
                     }
                   />
                 </PaginationItem>
-
               </PaginationContent>
             </Pagination>
           )}
-
         </div>
       )}
+
+      {!isReadOnlyRole && isCreateOpen ? (
+        <ProjectModal
+          open={isCreateOpen}
+          onOpenChange={setIsCreateOpen}
+          mode="create"
+          templates={templates}
+          loading={submitting}
+          onSubmit={handleCreateProject}
+        />
+      ) : null}
+
+      {!isReadOnlyRole && editingProject ? (
+        <ProjectModal
+          open={!!editingProject}
+          onOpenChange={(open) => {
+            if (!open) setEditingProject(null)
+          }}
+          mode="edit"
+          templates={templates}
+          loading={submitting}
+          initialValues={{
+            title: editingProject.title,
+            avatarSrc: editingProject.avatarSrc ?? "",
+            templateId: editingProject.templateId,
+          }}
+          onSubmit={handleEditProject}
+        />
+      ) : null}
+
+      {!isReadOnlyRole && <DeleteProjectAlert
+        open={!!deletingProject}
+        onOpenChange={(open) => {
+          if (!open) setDeletingProject(null)
+        }}
+        projectTitle={deletingProject?.title}
+        loading={submitting}
+        onConfirm={handleDeleteProject}
+      />}
     </>
   )
 }

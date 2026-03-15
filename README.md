@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Onvera (Next.js + TS + shadcn + Tailwind)
 
-## Getting Started
+This project now supports:
+- Supabase authentication (email/password + OAuth)
+- User roles (`agency`, `freelancer`, `project_member`, `team_member`)
+- Token-based client onboarding links
+- Existing MSW mock APIs for dashboard/project UI development
 
-First, run the development server:
+## 1) Environment setup
+Copy `.env.example` to `.env.local` and fill values:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_REQUIRE_ONBOARDING_TOKEN=false
+NEXT_PUBLIC_USE_MSW=false
+```
+
+Set `NEXT_PUBLIC_REQUIRE_ONBOARDING_TOKEN=true` when you want onboarding pages to strictly require `?token=...`.
+
+## 2) Supabase SQL setup
+Run:
+- `supabase/schema.sql`
+
+This creates:
+- `profiles` table with role constraint
+- `onboarding_tokens` table
+- `templates`, `teams`, `projects` tables
+- RLS policies
+- `auth.users` trigger to auto-create profile rows
+
+Then seed data from your current MSW JSON:
+
+```bash
+npm run seed:supabase
+```
+
+## 3) Supabase Auth settings
+In Supabase dashboard:
+- Enable providers you need (`Google`, `Azure`)
+- Add redirect URL:
+  - `http://localhost:3000/auth/callback`
+  - production callback URL later
+
+## 4) Run project
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 5) How token onboarding works
+Agency/freelancer/team-member users can generate token links from project detail:
+- `POST /api/onboarding/token`
+- Link format: `/onboarding/[slug]?token=...`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Client onboarding page validates token via:
+- `GET /api/onboarding/validate?slug=...&token=...`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 6) MSW note
+MSW only starts when `NEXT_PUBLIC_USE_MSW=true`.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `false` (recommended): app reads from Supabase-backed API routes
+- `true`: app uses MSW mock handlers during development

@@ -1,7 +1,6 @@
 "use client"
 
 import {
-    Calendar,
     CalendarCheck,
     MoreVertical,
     PencilIcon,
@@ -9,6 +8,8 @@ import {
     TrashIcon,
 } from "lucide-react"
 import Link from "next/link"
+import type { ReactNode } from "react"
+import { cn } from "@/lib/utils"
 
 import {
     Card,
@@ -23,7 +24,6 @@ import {
     DropdownMenuContent,
     DropdownMenuGroup,
     DropdownMenuItem,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
@@ -36,7 +36,6 @@ import {
     AvatarGroup,
     AvatarGroupCount,
 } from "@/components/ui/avatar"
-import { on } from "events"
 import { getAvatarColor } from "@/lib/get-avatar-colors"
 import { status } from "@/lib/project-status"
 
@@ -54,6 +53,8 @@ export interface ProjectCardProps {
     onEdit?: () => void
     onDelete?: () => void
     onShare?: () => void
+    footerAction?: ReactNode
+    footerClassName?: string
     teams?: {
         id: number
         name: string
@@ -70,13 +71,14 @@ export interface ProjectCardProps {
 
 
 export function ProjectCard({
-    id,
     slug,
     title,
     templateTitle,
     status,
     avatarSrc,
     createdAt,
+    footerAction,
+    footerClassName,
     teams = [],
     members = [],
     onEdit,
@@ -84,14 +86,14 @@ export function ProjectCard({
     onShare,
     variant = "default",
 }: ProjectCardProps) {
-
+    const hasActions = Boolean(onEdit || onDelete || onShare)
 
     const statusStyles: Record<status, string> = {
-        completed: "bg-emerald-100 text-emerald-700",
-        overdue: "bg-rose-100 text-rose-700",
-        waiting: "bg-amber-100 text-amber-700",
-        ongoing: "bg-blue-100 text-blue-700",
-        onhold: "bg-violet-100 text-violet-700",
+        completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200",
+        overdue: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200",
+        waiting: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200",
+        ongoing: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200",
+        onhold: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200",
     }
 
     const statusLabel: Record<status, string> = {
@@ -116,58 +118,81 @@ export function ProjectCard({
 
 
     return (
-        <Link href={`/projects/${slug}`} key={slug} className="block">
-            <Card className="mx-auto w-full p-0 gap-2 shadow-none bg-gradient-violet rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-                <CardHeader className="p-5 pb-0">
-                    <Avatar className="h-10 w-10">
-                        {avatarSrc && <AvatarImage src={avatarSrc} />}
-                        <AvatarFallback className={`font-semibold ${getAvatarColor(title)}`}>
-                            {title.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                    </Avatar>
+        <Card
+            className="mx-auto w-full p-0 gap-2 shadow-none bg-gradient-violet rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+        >
+            <CardHeader className="p-5 pb-0">
+                <Avatar className="h-10 w-10 rounded-lg">
+                    {avatarSrc && <AvatarImage src={avatarSrc} />}
+                    <AvatarFallback className={`font-semibold rounded-lg ${getAvatarColor(title)}`}>
+                        {title.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                </Avatar>
 
-                    <CardAction className="flex items-start justify-end gap-1">
-                        {variant === "compact" && createdAt && (
-                            <Badge className="bg-white border border-zinc-100 flex items-center gap-1 justify-start text-[10px] mr-2">
-                                <CalendarCheck size={12} className="text-black" />
-                                <strong className="font-light text-muted-foreground mt-0.5">
-                                    {formattedDate}
-                                </strong>
-                            </Badge>
-                        )}
-                        {status && (
-                            <Badge className={`${statusStyles[status]}`}>
-                                {statusLabel[status]}
-                            </Badge>
-                        )}
-                        {variant === "default" && (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="-mt-1 -mr-1">
-                                        <MoreVertical className="size-5" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="rounded-lg">
-                                    <DropdownMenuGroup>
-                                        <DropdownMenuItem onClick={onEdit} className="text-xs!">
+                <CardAction className="flex items-start justify-end gap-1">
+                    {status && (
+                        <Badge className={`${statusStyles[status]}`}>
+                            {statusLabel[status]}
+                        </Badge>
+                    )}
+                    {variant === "default" && hasActions && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="-mt-2 -mr-1"
+                                >
+                                    <MoreVertical className="size-5" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-lg">
+                                <DropdownMenuGroup>
+                                    {onEdit && (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => {
+                                                event.preventDefault()
+                                                onEdit()
+                                            }}
+                                            className="text-xs!"
+                                        >
                                             <PencilIcon />
                                             Edit
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={onShare} className="text-xs!">
+                                    )}
+                                    {/* {onShare && (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => {
+                                                event.preventDefault()
+                                                onShare()
+                                            }}
+                                            className="text-xs!"
+                                        >
                                             <Share2 />
                                             Share
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={onDelete} variant="destructive" className="text-xs!">
+                                    )} */}
+                                    {onDelete && (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => {
+                                                event.preventDefault()
+                                                onDelete()
+                                            }}
+                                            variant="destructive"
+                                            className="text-xs!"
+                                        >
                                             <TrashIcon />
                                             Delete
                                         </DropdownMenuItem>
-                                    </DropdownMenuGroup>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        )}
-                    </CardAction>
-                </CardHeader>
-                <CardContent className="mb-5">
+                                    )}
+                                </DropdownMenuGroup>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
+                </CardAction>
+            </CardHeader>
+            <Link href={`/projects/${slug}`} className="block">
+                <CardContent className="mb-5 cursor-pointer">
                     <div className="flex gap-4 items-start min-w-0">
                         <div className="space-y-1 flex-1 min-w-0">
                             <h3 className="font-medium text-sm truncate">
@@ -180,7 +205,6 @@ export function ProjectCard({
                             )}
                         </div>
                     </div>
-                    
 
                     {variant === "default" && teams.length > 0 && (
                         <p className="text-xs text-muted-foreground truncate">
@@ -188,40 +212,48 @@ export function ProjectCard({
                         </p>
                     )}
                 </CardContent>
+            </Link>
+
+
+            <CardFooter className="border-t py-4! text-xs text-muted-foreground flex items-center justify-between">
+                {createdAt && (
+                    <span className="flex items-center gap-1 justify-start">
+                                <CalendarCheck size={16} className="text-foreground" />
+                                <strong className="font-medium text-foreground mt-0.5">
+                            {formattedDate}
+                        </strong>
+                    </span>
+                )}
 
                 {variant === "default" && (
-                    <CardFooter className="border-t py-4! text-xs text-muted-foreground flex items-center justify-between">
-                        {createdAt && (
-                            <span className="flex items-center gap-1 justify-start">
-                                <CalendarCheck size={16} className="text-black" />
-                                <strong className="font-medium text-black mt-0.5">
-                                    {formattedDate}
-                                </strong>
-                            </span>
-                        )}
+                    <AvatarGroup>
+                        {visibleMembers.map((member) => (
+                            <Avatar key={member.id} size="sm">
+                                <AvatarImage src={member.image} alt={member.name} />
+                                <AvatarFallback className={`font-bold ${getAvatarColor(String(member.id))}`}>
+                                    {member.name.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                            </Avatar>
+                        ))}
 
-
-                        <AvatarGroup>
-                            {visibleMembers.map((member) => (
-                                <Avatar key={member.id} size="sm">
-                                    <AvatarImage src={member.image} alt={member.name} />
-                                    <AvatarFallback className={`font-bold ${getAvatarColor(String(member.id))}`}>
-                                        {member.name.charAt(0).toUpperCase()}
-                                    </AvatarFallback>
-                                </Avatar>
-                            ))}
-
-                            {remainingCount > 0 && (
-                                <AvatarGroupCount className="bg-black text-white text-xs">
+                        {remainingCount > 0 && (
+                                <AvatarGroupCount className="bg-zinc-900 text-white text-xs dark:bg-violet-900 dark:text-white">
                                     +{remainingCount}
                                 </AvatarGroupCount>
                             )}
-                        </AvatarGroup>
-
-                    </CardFooter>
+                    </AvatarGroup>
                 )}
 
-            </Card>
-        </Link>
+                {variant === "compact" && footerAction && (
+                    <>
+                        {footerAction}
+                    </>
+                )}
+            </CardFooter>
+
+
+
+
+        </Card>
     )
 }
