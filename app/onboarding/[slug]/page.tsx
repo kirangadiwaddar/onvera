@@ -154,7 +154,9 @@ function hasFileExtension(value: string) {
 }
 
 export default function ClientOnboardingPage() {
-  const { slug } = useParams()
+  const params = useParams()
+  const slugParam = params?.slug
+  const slug = Array.isArray(slugParam) ? slugParam[0] : slugParam
   const searchParams = useSearchParams()
   const requireToken = process.env.NEXT_PUBLIC_REQUIRE_ONBOARDING_TOKEN !== "false"
   const token = searchParams.get("t") || searchParams.get("token")

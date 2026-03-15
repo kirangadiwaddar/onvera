@@ -4,6 +4,7 @@ import { attachRelations, getStoreData } from "@/lib/server/data-store"
 import { filterProjectsForIdentity } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import type { status } from "@/lib/project-status"
+import type { StoreData } from "@/lib/server/data-store"
 function hasChecklistActivity(submissions?: Record<string, unknown>) {
   if (!submissions || typeof submissions !== "object") return false
 
@@ -66,6 +67,12 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "")
 }
 
+type Project = StoreData["projects"][number]
+
+function withStatus(project: Project, nextStatus: status): Project {
+  return { ...project, status: nextStatus }
+}
+
 export async function GET(request: Request) {
   const { projects, teams, templates } = await getStoreData()
   const identity = await getRequestIdentityFromRequest(request)
@@ -122,15 +129,15 @@ export async function GET(request: Request) {
     )
   }
 
-  const normalizedProjects = visibleProjects.map((project) => {
+  const normalizedProjects: Project[] = visibleProjects.map((project) => {
     if (project.status === "completed" && hasIncompleteSections(project.submissions)) {
-      return { ...project, status: "ongoing" }
+      return withStatus(project, "ongoing")
     }
     if (shouldMarkOverdue(project, tokenExpiryBySlug.get(project.slug))) {
-      return { ...project, status: "overdue" }
+      return withStatus(project, "overdue")
     }
     if (shouldMarkOngoing(project)) {
-      return { ...project, status: "ongoing" }
+      return withStatus(project, "ongoing")
     }
     return project
   })
