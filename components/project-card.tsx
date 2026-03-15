@@ -4,12 +4,10 @@ import {
     CalendarCheck,
     MoreVertical,
     PencilIcon,
-    Share2,
     TrashIcon,
 } from "lucide-react"
 import Link from "next/link"
 import type { ReactNode } from "react"
-import { cn } from "@/lib/utils"
 
 import {
     Card,
@@ -54,7 +52,6 @@ export interface ProjectCardProps {
     onDelete?: () => void
     onShare?: () => void
     footerAction?: ReactNode
-    footerClassName?: string
     teams?: {
         id: number
         name: string
@@ -78,7 +75,6 @@ export function ProjectCard({
     avatarSrc,
     createdAt,
     footerAction,
-    footerClassName,
     teams = [],
     members = [],
     onEdit,

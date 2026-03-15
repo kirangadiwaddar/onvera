@@ -1,13 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { CalendarDays, ArrowLeft, Monitor, Moon, Sun } from "lucide-react"
 
-import { projects } from "@/src/mocks/data/projects.json"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { Button } from "./ui/button"
 import {
@@ -22,9 +21,14 @@ export function SiteHeader() {
   const pathname = usePathname()
   const router = useRouter()
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system")
-  const [mounted, setMounted] = useState(false)
-  const [dateLabel, setDateLabel] = useState("")
-  const [dynamicTitle, setDynamicTitle] = useState<string | null>(null)
+  const dateLabel = useMemo(() => {
+    const now = new Date()
+    const day = now.getDate()
+    const month = now.toLocaleString("en-US", { month: "short" })
+    const year = now.getFullYear()
+    return `${day} ${month}, ${year}`
+  }, [])
+  const [dynamicTitle, setDynamicTitle] = useState<{ id: string; title: string } | null>(null)
 
   const segments = pathname.split("/").filter(Boolean)
 
@@ -52,7 +56,9 @@ export function SiteHeader() {
 
     const segments = pathname.split("/").filter(Boolean)
 
-    if (dynamicTitle) return dynamicTitle
+    if (dynamicTitle && segments[0] === "templates" && segments[1] === dynamicTitle.id) {
+      return dynamicTitle.title
+    }
 
     // fallback formatting
     const last = segments[segments.length - 1];
@@ -60,16 +66,16 @@ export function SiteHeader() {
   }
 
   useEffect(() => {
-    setMounted(true)
     if (typeof window === "undefined") return
     const saved = window.localStorage.getItem("onvera-theme")
     if (saved === "light" || saved === "dark" || saved === "system") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme(saved)
     }
   }, [])
 
   useEffect(() => {
-    if (!mounted || typeof window === "undefined") return
+    if (typeof window === "undefined") return
     const root = document.documentElement
     const media = window.matchMedia("(prefers-color-scheme: dark)")
 
@@ -93,19 +99,9 @@ export function SiteHeader() {
     window.localStorage.setItem("onvera-theme", theme)
 
     return () => cleanup?.()
-  }, [theme, mounted])
+  }, [theme])
 
   useEffect(() => {
-    if (typeof window === "undefined") return
-    const now = new Date()
-    const day = now.getDate()
-    const month = now.toLocaleString("en-US", { month: "short" })
-    const year = now.getFullYear()
-    setDateLabel(`${day} ${month}, ${year}`)
-  }, [])
-
-  useEffect(() => {
-    setDynamicTitle(null)
     const segments = pathname.split("/").filter(Boolean)
     const isTemplateDetail = segments[0] === "templates" && Boolean(segments[1])
     if (!isTemplateDetail) return
@@ -117,7 +113,7 @@ export function SiteHeader() {
         const templates = Array.isArray(data?.templates) ? data.templates : []
         const found = templates.find((template: { id?: string; title?: string }) => template.id === templateId)
         if (found?.title) {
-          setDynamicTitle(found.title)
+          setDynamicTitle({ id: templateId, title: found.title })
         }
       })
       .catch(() => null)
@@ -153,7 +149,7 @@ export function SiteHeader() {
         <h1 className="text-base font-medium">{getTitle()}</h1>
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center gap-2">
-            <p className="text-[12px] uppercase text-zinc-600 dark:text-white/70">
+            <p className="text-[12px] uppercase text-zinc-600 dark:text-white/70" suppressHydrationWarning>
               {dateLabel}
             </p>
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-white/5 dark:text-violet-200">

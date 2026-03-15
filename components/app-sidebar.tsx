@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { Home, FolderOpenDot, LayoutPanelTop, CirclePile, LayoutGrid } from "lucide-react"
+import { FolderOpenDot, LayoutPanelTop, CirclePile, LayoutGrid } from "lucide-react"
 
 // import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/sidebar/nav-main"

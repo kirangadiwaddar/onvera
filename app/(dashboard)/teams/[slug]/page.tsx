@@ -154,7 +154,7 @@ export default function TeamDetailPage() {
   }, [projectsView, is2xl])
 
   const membersPerPage = 10
-  const teamMembers = team?.members ?? []
+  const teamMembers = useMemo(() => team?.members ?? [], [team?.members])
   const totalMemberPages = Math.ceil(teamMembers.length / membersPerPage)
   const membersStartIndex = (membersPage - 1) * membersPerPage
   const membersEndIndex = membersStartIndex + membersPerPage
@@ -661,7 +661,6 @@ export default function TeamDetailPage() {
                   avatarSrc={project.avatarSrc}
                   members={project.members}
                   variant="compact"
-                  footerClassName="pt-0"
                   footerAction={
                     !isReadOnlyRole ? (
                       <Button

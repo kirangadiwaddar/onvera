@@ -68,6 +68,7 @@ function slugify(value: string) {
 }
 
 type Project = StoreData["projects"][number]
+type Team = StoreData["teams"][number]
 
 function withStatus(project: Project, nextStatus: status): Project {
   return { ...project, status: nextStatus }
@@ -79,7 +80,7 @@ export async function GET(request: Request) {
   if (!identity) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
-  const visibleProjects = filterProjectsForIdentity(projects, teams, identity)
+  const visibleProjects = filterProjectsForIdentity<Project, Team>(projects, teams, identity)
   const admin = createAdminClient()
   const tokenExpiryBySlug = new Map<string, string | null>()
   if (admin && visibleProjects.length > 0) {

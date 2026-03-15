@@ -3,7 +3,7 @@ import { Sora } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/providers/auth-provider"
 import { Toaster } from "sonner";
-import { BadgeCheck, BadgeX, XCircle } from "lucide-react";
+import { BadgeCheck, BadgeX } from "lucide-react";
 
 const sora = Sora({
   subsets: ["latin"],
