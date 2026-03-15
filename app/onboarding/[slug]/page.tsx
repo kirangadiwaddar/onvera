@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/avatar"
 import { getAvatarColor } from "@/lib/get-avatar-colors"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { BadgeCheck, Check, Download, Files, Monitor, Moon, Sun } from "lucide-react"
 import { EmptyState } from "@/components/emptyState"

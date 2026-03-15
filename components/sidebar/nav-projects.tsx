@@ -10,7 +10,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
 
 import { Project } from "@/types/project"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"

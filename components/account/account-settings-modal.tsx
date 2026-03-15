@@ -30,7 +30,7 @@ import { createClient } from "@/lib/supabase/client"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
 import { Separator } from "../ui/separator"
-import { CircleX, UserPen, UserRoundPen, X } from "lucide-react"
+import { UserPen, UserRoundPen, X } from "lucide-react"
 import { Spinner } from "../ui/spinner"
 
 type Props = {
@@ -52,7 +52,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deletingAccount, setDeletingAccount] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState("")
-  const [error, setError] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const currentRole =
     profile?.role ||
@@ -78,7 +77,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     setNewPassword("")
     setConfirmPassword("")
     setDeleteConfirmText("")
-    setError(null)
   }, [displayInitial.initialAvatar, displayInitial.initialName, open])
 
   const trimmedAvatarUrl = avatarUrl.trim()
@@ -123,13 +121,11 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
     if (!trimmedFullName) {
       const message = "Full name is required."
-      setError(message)
       toast.error(message)
       return
     }
 
     setSavingProfile(true)
-    setError(null)
 
     try {
       await persistProfileData(trimmedFullName, avatarUrl.trim())
@@ -137,7 +133,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       toast.success("Profile details updated.")
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to update profile details."
-      setError(message)
       toast.error(message)
     } finally {
       setSavingProfile(false)
@@ -150,13 +145,11 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
     if (trimmedAvatarUrl.length > 2000) {
       const message = "Avatar URL is too long."
-      setError(message)
       toast.error(message)
       return
     }
 
     setSavingAvatar(true)
-    setError(null)
 
     try {
       await persistProfileData(trimmedFullName, trimmedAvatarUrl)
@@ -164,7 +157,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       toast.success(trimmedAvatarUrl ? "Avatar updated." : "Avatar removed.")
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to update avatar."
-      setError(message)
       toast.error(message)
     } finally {
       setSavingAvatar(false)
@@ -177,27 +169,23 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
     if (!trimmedPassword) {
       const message = "New password is required."
-      setError(message)
       toast.error(message)
       return
     }
 
     if (trimmedPassword.length < 8) {
       const message = "New password must be at least 8 characters."
-      setError(message)
       toast.error(message)
       return
     }
 
     if (trimmedPassword !== trimmedConfirmPassword) {
       const message = "Password confirmation does not match."
-      setError(message)
       toast.error(message)
       return
     }
 
     setSavingPassword(true)
-    setError(null)
 
     try {
       const supabase = createClient()
@@ -206,7 +194,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       })
 
       if (passwordError) {
-        setError(passwordError.message)
         toast.error(passwordError.message)
         return
       }
@@ -216,7 +203,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       toast.success("Password updated.")
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to update password."
-      setError(message)
       toast.error(message)
     } finally {
       setSavingPassword(false)
@@ -226,7 +212,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   const handleDeleteAccount = async () => {
     if (!user?.id) return
     setDeletingAccount(true)
-    setError(null)
     try {
       const response = await fetchWithAuth("/api/account/delete", {
         method: "POST",
@@ -241,7 +226,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       onOpenChange(false)
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to delete account"
-      setError(message)
       toast.error(message)
     } finally {
       setDeletingAccount(false)
@@ -257,13 +241,11 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   const handleUploadAvatarFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       const message = "Please upload an image file."
-      setError(message)
       toast.error(message)
       return
     }
 
     setUploadingAvatar(true)
-    setError(null)
     const toastId = toast.loading("Uploading avatar...")
 
     try {
@@ -278,7 +260,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       const payload = (await response.json().catch(() => null)) as { message?: string; url?: string } | null
       if (!response.ok || !payload?.url) {
         const message = payload?.message || "Unable to upload avatar."
-        setError(message)
         toast.error(message, { id: toastId })
         return
       }
@@ -287,7 +268,6 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       toast.success("Avatar uploaded. Save to apply.", { id: toastId })
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to upload avatar."
-      setError(message)
       toast.error(message, { id: toastId })
     } finally {
       setUploadingAvatar(false)

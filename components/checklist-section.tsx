@@ -81,7 +81,6 @@ export default function ChecklistSection({
   const completionValue = submissions[completionKey]
   const isCompleted = completionValue === true
   const isUpdated = completionValue === "updated"
-  const isMarked = isCompleted || isUpdated
   const allStaticApproved = section.items.every((item) => {
     const submission = submissions[item.id] as SubmissionValue | undefined
     return submission?.status === "approved"

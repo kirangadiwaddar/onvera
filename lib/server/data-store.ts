@@ -266,13 +266,22 @@ export async function getStoreData(): Promise<StoreData> {
   }))
 
   const normalizedTemplates = (templates as Template[]).map((template) => {
+    const templateKey =
+      (template as Template & { template_key?: string }).template_key ??
+      template.templateKey ??
+      template.id
     const hasStructureArray =
       Array.isArray(template.structure) && (template.structure as Section[]).length > 0
     return {
       ...template,
+      templateKey,
+      isDefault:
+        typeof (template as Template & { is_default?: boolean }).is_default === "boolean"
+          ? (template as Template & { is_default?: boolean }).is_default
+          : template.isDefault,
       structure: hasStructureArray
         ? (template.structure as Section[])
-        : templateStructure[template.id] ?? [],
+        : templateStructure[templateKey] ?? templateStructure[template.id] ?? [],
     }
   })
 
@@ -284,7 +293,7 @@ export async function getStoreData(): Promise<StoreData> {
 }
 
 export function attachRelations(project: Project, teams: Team[], templates: Template[]) {
-  const template = templates.find((t) => t.id === project.templateId)
+  const template = templates.find((t) => t.id === project.templateId || t.templateKey === project.templateId)
 
   const assignedTeams = teams.filter((team) => project.teamIds.includes(team.id))
 
@@ -311,7 +320,9 @@ export function attachRelations(project: Project, teams: Team[], templates: Temp
     templateStructure:
       template?.structure && template.structure.length > 0
         ? template.structure
-        : templateStructure[project.templateId] ?? [],
+        : templateStructure[template?.templateKey ?? project.templateId] ??
+          templateStructure[project.templateId] ??
+          [],
     teams: assignedTeams,
     members: uniqueMembers,
   }

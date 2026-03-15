@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -29,29 +29,28 @@ export function TemplateModal({
   onSubmit,
   mode = "create",
 }: Props) {
-  const [values, setValues] = useState<TemplateFormValues>({
-    title: "",
-    description: "",
-  })
-
-  useEffect(() => {
-    if (!open) return
-    if (initialValues) {
-      setValues(initialValues)
-      return
-    }
-    setValues({
+  const emptyValues = useMemo<TemplateFormValues>(
+    () => ({
       title: "",
       description: "",
-    })
-  }, [open, initialValues])
+    }),
+    [],
+  )
+  const [values, setValues] = useState<TemplateFormValues>(() => initialValues ?? emptyValues)
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setValues(initialValues ?? emptyValues)
+    }
+    onOpenChange(nextOpen)
+  }
 
   const handleSubmit = () => {
     onSubmit(values)
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>{mode === "edit" ? "Edit Template" : "Create Template"}</DialogTitle>

@@ -13,7 +13,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Separator } from '../ui/separator'
 import Link from 'next/link'
 
 type Props = {

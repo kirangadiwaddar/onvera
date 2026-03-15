@@ -32,7 +32,6 @@ import Logo from "@/components/ui/logo"
 export default function Home() {
   const { user, profile } = useAuth()
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system")
-  const [mounted, setMounted] = useState(false)
   const [pricingMode, setPricingMode] = useState<"agency" | "freelancer">("agency")
   const pricing = useMemo(
     () => ({
@@ -89,16 +88,16 @@ export default function Home() {
   }
 
   useEffect(() => {
-    setMounted(true)
     if (typeof window === "undefined") return
     const saved = window.localStorage.getItem("onvera-theme")
     if (saved === "light" || saved === "dark" || saved === "system") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme(saved)
     }
   }, [])
 
   useEffect(() => {
-    if (!mounted || typeof window === "undefined") return
+    if (typeof window === "undefined") return
     const root = document.documentElement
     const media = window.matchMedia("(prefers-color-scheme: dark)")
 
@@ -122,7 +121,7 @@ export default function Home() {
     window.localStorage.setItem("onvera-theme", theme)
 
     return () => cleanup?.()
-  }, [theme, mounted])
+  }, [theme])
 
   return (
     <div className="min-h-screen bg-white text-zinc-900 dark:bg-[#0b0b13] dark:text-white">

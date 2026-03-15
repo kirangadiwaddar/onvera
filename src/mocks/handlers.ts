@@ -32,7 +32,7 @@ type Project = {
 
 const mockTeams = teamsData.teams
 const initialData = rawData as { projects: Project[] }
-let mockProjects: Project[] = [...initialData.projects]
+const mockProjects: Project[] = [...initialData.projects]
 
 /* ================================
    RELATION ATTACHER

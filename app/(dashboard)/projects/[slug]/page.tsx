@@ -385,8 +385,14 @@ export default function ProjectDetailPage() {
 
   const canEditProject = !restrictedRole
   const submissions = project?.submissions ?? {}
-  const templateSections = project?.templateStructure || []
-  const checklistSections = project ? [...templateSections, ...customSections] : []
+  const templateSections = useMemo(
+    () => project?.templateStructure || [],
+    [project?.templateStructure]
+  )
+  const checklistSections = useMemo(
+    () => (project ? [...templateSections, ...customSections] : []),
+    [customSections, project, templateSections]
+  )
   const totalSections = checklistSections.length
   const uploadedCount = checklistSections.filter((section) => {
     if (section.dynamic) {

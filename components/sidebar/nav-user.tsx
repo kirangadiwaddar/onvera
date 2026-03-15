@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
-import { Bell, ChevronsUpDown, CircleUserRound, CreditCard, LogOut } from "lucide-react"
+import { Bell, ChevronsUpDown, CircleUserRound, LogOut } from "lucide-react"
 import { USER_ROLE_LABELS, isUserRole } from "@/lib/auth/roles"
 import { AccountSettingsModal } from "@/components/account/account-settings-modal"
 import { RecentActivity } from "@/components/dashboard/recentActivity"
