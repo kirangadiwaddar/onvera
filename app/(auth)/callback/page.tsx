@@ -5,6 +5,8 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { getDefaultPathForRole } from "@/lib/auth/roles"
 
+export const dynamic = "force-dynamic"
+
 export default function AuthCallbackPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
