@@ -19,6 +19,9 @@ import {
 import Logo from "@/components/ui/logo"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import Image from "next/image"
+import dashboardDark from "./assets/dashboard-dark.png"
+import dashboardLight from "./assets/dashboard-light.png"
 
 const stats = [
   { value: "4,200+", label: "Projects shipped" },
@@ -184,7 +187,7 @@ export default function OnveraLandingV2Page() {
         <Grain />
 
         <header className="sticky top-0 z-50 border-b border-black/10 dark:border-white/10 bg-white/80 dark:bg-black/35 backdrop-blur-xl">
-          <div className="mx-auto flex w-full items-center justify-between px-20 py-4">
+          <div className="mx-auto flex w-full items-center justify-between px-5 lg:px-20 py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center text-black shadow-[0_0_40px_rgba(255,255,255,0.12)]">
                 <Logo width={40} height={40} />
@@ -224,12 +227,12 @@ export default function OnveraLandingV2Page() {
                 Start now
                 <ArrowRight className="h-4 w-4" />
               </a> */}
-              <a href="#" className="inline-flex items-center gap-2 rounded-full bg-violet-500 px-4 py-2 text-sm font-medium text-white transition hover:scale-[1.02]">Get Early Access  <ArrowRight className="h-4 w-4" /></a>
+              <a href="#" className="hidden lg:inline-flex items-center gap-2 rounded-full bg-violet-500 px-4 py-2 text-sm font-medium text-white transition hover:scale-[1.02]">Get Early Access  <ArrowRight className="h-4 w-4" /></a>
             </div>
           </div>
         </header>
 
-        <section className="relative mx-auto grid w-full items-center gap-16 px-20 pb-20 pt-16 lg:grid-cols-[1.05fr_.95fr] lg:pb-28 lg:pt-24">
+        <section className="relative mx-auto grid w-full items-center gap-16 px-5 lg:px-20 pb-20 pt-16 lg:grid-cols-[1.05fr_.95fr] lg:pb-28 lg:pt-24">
           <div>
             <SectionBadge>Premium onboarding workspace</SectionBadge>
 
@@ -242,7 +245,7 @@ export default function OnveraLandingV2Page() {
               A modern client onboarding OS for agencies and freelancers.
             </motion.h1>
 
-            <p className="mt-6 max-w-2xl text-base text-zinc-600 dark:text-white/70">
+            <p className="mt-6 max-w-2xl text-sm text-zinc-600 dark:text-white/70">
               Onvera turns chaotic handoffs into a premium experience. Build branded onboarding,
               coordinate teams, and keep every project moving with elegant checklists, approvals,
               and visibility your clients actually enjoy.
@@ -250,22 +253,22 @@ export default function OnveraLandingV2Page() {
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <Link href="/register">
-              <Button
-              variant="gradient"
-              size="lg"
-                className="rounded-full transition hover:scale-[1.02]"
-              >
-                Launch your workspace
-                <ArrowRight className="h-4 w-4" />
+                <Button
+                  variant="gradient"
+                  size="lg"
+                  className="rounded-full transition hover:scale-[1.02]"
+                >
+                  Launch your workspace
+                  <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
               <Link href="/register">
-              <Button
-              variant="ghost"
-              size="lg"
-                className="rounded-full transition hover:scale-[1.02] font-semibold text-violet-600"
-              >
-                View Dashboard
+                <Button
+                  variant="ghost"
+                  size="lg"
+                  className="rounded-full transition hover:scale-[1.02] text-violet-600 dark:text-white"
+                >
+                  View Dashboard
                 </Button>
               </Link>
             </div>
@@ -274,7 +277,7 @@ export default function OnveraLandingV2Page() {
               <span className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-sky-100/80 to-violet-100/80 px-3 py-1.5 text-black font-normal shadow-[0_4px_12px_rgba(59,130,246,0.08)]">Setup in minutes</span>
               <span className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-indigo-100/80 to-fuchsia-100/80 px-3 py-1.5 text-black font-normal shadow-[0_4px_12px_rgba(124,58,237,0.08)]">Cancel anytime</span>
               <span className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-emerald-100/80 to-teal-100/80 px-3 py-1.5 text-black font-normal shadow-[0_4px_12px_rgba(16,185,129,0.08)]">Premium client UX</span>
-            </div>            
+            </div>
           </div>
 
           <motion.div
@@ -286,16 +289,30 @@ export default function OnveraLandingV2Page() {
             <div className="absolute -left-12 top-10 hidden h-28 w-28 rounded-full bg-violet-500/20 blur-3xl lg:block" />
             <div className="absolute -right-8 bottom-10 hidden h-28 w-28 rounded-full bg-sky-500/20 blur-3xl lg:block" />
 
-            <div className="relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 p-3 shadow-[0_0_80px_rgba(99,102,241,0.12)] backdrop-blur-2xl">
-              <div className="rounded-[1.5rem] border border-black/10 dark:border-white/10 bg-white dark:bg-[#0a0a0a] p-4">
+            <div className="relative overflow-hidden rounded-2xl bg-black/5 dark:bg-white/5 p-3 shadow-[0_0_80px_rgba(99,102,241,0.12)] backdrop-blur-2xl">
+              {/* Prismatic Aurora Burst - Multi-layered Gradient */}
+              <div
+                className="absolute inset-0 z-0"
+                style={{
+                  background: `
+                        radial-gradient(ellipse 120% 80% at 70% 20%, rgba(255, 20, 147, 0.15), transparent 50%),
+                        radial-gradient(ellipse 100% 60% at 30% 10%, rgba(0, 255, 255, 0.12), transparent 60%),
+                        radial-gradient(ellipse 90% 70% at 50% 0%, rgba(138, 43, 226, 0.18), transparent 65%),
+                        radial-gradient(ellipse 110% 50% at 80% 30%, rgba(255, 215, 0, 0.08), transparent 40%),
+                        transparent
+                      `,
+                }}
+              />
+              <div className="rounded-2xl bg-white dark:bg-[#0a0a0a] p-4 relative z-10">
                 <div className="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-4">
                   <div>
                     <p className="text-sm text-zinc-600 dark:text-white/70">Workspace</p>
                     <h3 className="text-xl font-semibold">Studio Aurora</h3>
                   </div>
-                  <span className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-emerald-100/80 to-teal-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(16,185,129,0.08)]">
+                  <div className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-emerald-100/80 to-teal-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(16,185,129,0.08)]">
+                    <span className="inline-block mr-2 h-2 w-2 rounded-full bg-green-600"></span>
                     Active
-                  </span>
+                  </div>
                 </div>
 
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -315,13 +332,15 @@ export default function OnveraLandingV2Page() {
                   ))}
                 </div>
 
-                <div className="mt-4 rounded-3xl border border-black/10 dark:border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-5">
+                <div
+                  className="mt-4 rounded-3xl border border-black/10 dark:border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-5"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-zinc-600 dark:text-white/70">Live status</p>
                       <h4 className="mt-1 text-lg font-semibold">Approvals, uploads, timelines</h4>
                     </div>
-                    <BadgeCheck className="h-5 w-5 text-zinc-600 dark:text-white/70" />
+                    <BadgeCheck className="h-5 w-5 text-zinc-600 dark:text-white/70" fill="#00c951" stroke="#fff" />
                   </div>
                   <div className="mt-4 space-y-3">
                     {[82, 61, 94].map((v, i) => (
@@ -331,7 +350,7 @@ export default function OnveraLandingV2Page() {
                           <span>{v}%</span>
                         </div>
                         <div className="h-2 rounded-full bg-black/5 dark:bg-white/5">
-                          <div className="h-2 rounded-full bg-white" style={{ width: `${v}%` }} />
+                          <div className="h-2 rounded-full bg-violet-500" style={{ width: `${v}%` }} />
                         </div>
                       </div>
                     ))}
@@ -343,17 +362,20 @@ export default function OnveraLandingV2Page() {
         </section>
       </div>
 
-      <section id="stats" className="mx-auto w-full px-20 py-8 lg:py-16">
+
+      <section id="stats" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16">
         <motion.div>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+
+
             {stats.map((item, index) => {
               const Icon = [FolderKanban, Workflow, ShieldCheck, BadgeCheck][index]
               return (
                 <div
                   key={item.label}
-                  className="rounded-[26px] border border-black/10 dark:border-white/10 bg-white/80 dark:bg-white/5 p-5 shadow-[0_18px_36px_rgba(15,23,42,0.08)]"
+                  className=" relative overflow-hidden rounded-[26px] border border-black/10 dark:border-white/10 bg-white/80 dark:bg-white/5 p-5 shadow-[0_18px_36px_rgba(15,23,42,0.08)]"
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between relative z-10">
                     <div>
                       <div className="text-3xl font-semibold text-zinc-900 dark:text-white">{item.value}</div>
                       <div className="mt-1 text-sm text-zinc-600 dark:text-white/70">{item.label}</div>
@@ -373,21 +395,41 @@ export default function OnveraLandingV2Page() {
         </motion.div>
       </section>
 
-      <section id="demo" className="mx-auto w-full px-20 py-8  lg:py-16">
+      <section id="demo" className="mx-auto w-full px-5 lg:px-20 py-8  lg:py-16">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
-          <div className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl">
+          <div
+            className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl"
+          >
             <SectionBadge>Product tour</SectionBadge>
-            <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-3xl">
+            <h2 className="mt-5 text-2xl font-semibold tracking-tight sm:text-3xl">
               Full client onboarding, shown end-to-end.
             </h2>
-            <p className="mt-4 max-w-2xl text-zinc-600 dark:text-white/70">
+            <p className="mt-4 max-w-2xl text-sm text-zinc-600 dark:text-white/70">
               Show intake, approvals, project tracking, and team coordination in a single polished workspace.
             </p>
 
-            <div className="mt-6 overflow-hidden rounded-[1.75rem] border border-black/10 dark:border-white/10 bg-white dark:bg-[#0a0a0a] p-3">
-              <div className="aspect-[16/10] rounded-[1.25rem] border border-black/10 dark:border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.18),transparent_28%),linear-gradient(180deg,#101010,#050505)] p-5">
-                <div className="grid h-full gap-4 lg:grid-cols-[.85fr_1.15fr]">
-                  <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4">
+            <div
+              className="mt-6 overflow-hidden bg-white dark:bg-[#0a0a0a]"
+            >
+              <div className="rounded-[1.25rem] border border-black/10 dark:border-white/10  p-5 relative overflow-hidden">
+                {/* Prismatic Aurora Burst - Multi-layered Gradient */}
+                <div
+                  className="absolute inset-0 z-0"
+                  style={{
+                    background: `
+                        radial-gradient(ellipse 120% 80% at 70% 20%, rgba(255, 20, 147, 0.15), transparent 50%),
+                        radial-gradient(ellipse 100% 60% at 30% 10%, rgba(0, 255, 255, 0.12), transparent 60%),
+                        radial-gradient(ellipse 90% 70% at 50% 0%, rgba(138, 43, 226, 0.18), transparent 65%),
+                        radial-gradient(ellipse 110% 50% at 80% 30%, rgba(255, 215, 0, 0.08), transparent 40%),
+                        transparent
+                      `,
+                  }}
+                />
+
+                <div className="grid h-full gap-4 lg:grid-cols-[.85fr_1.15fr] relative z-10">
+                  <div
+                    className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4"
+                  >
                     <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-white/70">
                       <ShieldCheck className="h-4 w-4" /> Dashboard preview
                     </div>
@@ -398,35 +440,47 @@ export default function OnveraLandingV2Page() {
                         "Project tracking",
                         "Role-based visibility",
                       ].map((item) => (
-                        <div key={item} className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 px-3 py-2.5 text-sm text-zinc-600 dark:text-white/70">
-                          <CheckCircle2 className="h-4 w-4 text-zinc-600 dark:text-white/70" />
+                        <div
+                          key={item}
+                          className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 px-3 py-2.5 text-sm text-zinc-600 dark:text-white/70"
+                        >
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
                           {item}
                         </div>
                       ))}
                     </div>
                   </div>
                   <div className="grid gap-4">
-                    <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4">
+                    <div
+                      className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4"
+                    >
                       <div className="text-sm text-zinc-600 dark:text-white/70">Milestone timeline</div>
                       <div className="mt-4 grid grid-cols-4 gap-2">
                         {["Brief", "Assets", "Review", "Launch"].map((step, i) => (
-                          <div key={step} className="rounded-2xl border border-black/10 dark:border-white/10 p-3 text-center text-xs">
-                            <div className={`mx-auto mb-2 h-2 w-2 rounded-full ${i < 3 ? "bg-white" : "bg-black/5 dark:bg-white/5"}`} />
-                            <div className="text-zinc-600 dark:text-white/70">{step}</div>
+                          <div
+                            key={step}
+                            className="rounded-2xl border border-black/10 dark:border-white/10 p-3 text-center text-xs"
+                          >
+                            <div className={`mx-auto mb-2 h-2 w-2 rounded-full ${i < 3 ? "bg-green-500" : "bg-black/50 dark:bg-white/50"}`} />
+                            <div className="text-zinc-600 dark:text-white/70 text-xs">{step}</div>
                           </div>
                         ))}
                       </div>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4">
+                      <div
+                        className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4"
+                      >
                         <div className="text-sm text-zinc-600 dark:text-white/70">Client uploads</div>
                         <div className="mt-3 text-2xl font-semibold">24</div>
-                        <p className="mt-1 text-sm text-zinc-600 dark:text-white/70">Always visible, always in sync.</p>
+                        <p className="mt-1 text-xs text-zinc-600 dark:text-white/70">Always visible, always in sync.</p>
                       </div>
-                      <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4">
+                      <div
+                        className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4"
+                      >
                         <div className="text-sm text-zinc-600 dark:text-white/70">Team status</div>
                         <div className="mt-3 text-2xl font-semibold">6 / 7</div>
-                        <p className="mt-1 text-sm text-zinc-600 dark:text-white/70">Aligned across approvals.</p>
+                        <p className="mt-1 text-xs text-zinc-600 dark:text-white/70">Aligned across approvals.</p>
                       </div>
                     </div>
                   </div>
@@ -439,14 +493,17 @@ export default function OnveraLandingV2Page() {
             {features.map((feature) => {
               const Icon = feature.icon
               return (
-                <div key={feature.title} className="flex items-start gap-5 rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl">
+                <div
+                  key={feature.title}
+                  className="flex items-start gap-5 rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl"
+                >
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-black/10 dark:border-white/10 bg-white/[0.06]">
                     <Icon className="h-5 w-5" />
                   </div>
                   <div>
                     <h3 className="text-xl font-semibold">{feature.title}</h3>
-                  <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-white/70">{feature.desc}</p>
-                  </div>                  
+                    <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-white/70">{feature.desc}</p>
+                  </div>
                 </div>
               )
             })}
@@ -454,9 +511,11 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section id="features" className="mx-auto w-full px-20 py-8 lg:py-16">
+      <section id="features" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16">
         <div className="grid gap-6 lg:grid-cols-3">
-          <div className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-8 lg:col-span-2">
+          <div
+            className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-8 lg:col-span-2"
+          >
             <SectionBadge>Client experience</SectionBadge>
             <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
               A polished workflow clients actually enjoy.
@@ -466,8 +525,11 @@ export default function OnveraLandingV2Page() {
             </p>
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               {clientPoints.map((point) => (
-                <div key={point} className="flex items-start gap-3 rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.03] p-4">
-                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-white text-black">
+                <div
+                  key={point}
+                  className="flex items-start gap-3 rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.03] p-4"
+                >
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-black">
                     <CheckCircle2 className="h-4 w-4" />
                   </div>
                   <p className="text-sm leading-7 text-zinc-600 dark:text-white/70">{point}</p>
@@ -476,13 +538,17 @@ export default function OnveraLandingV2Page() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-8">
+          <div
+            className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-8"
+          >
             <SectionBadge>Premium feel</SectionBadge>
             <h3 className="mt-5 text-2xl font-semibold">Built to make your process look expensive.</h3>
             <p className="mt-4 text-sm leading-7 text-zinc-600 dark:text-white/70">
               Combine modern visuals, premium layout structure, and clean motion to make every onboarding step feel intentional.
             </p>
-            <div className="mt-8 rounded-3xl border border-black/10 dark:border-white/10 bg-white/90 dark:bg-black/30 p-4">
+            <div
+              className="mt-8 rounded-3xl border border-black/10 dark:border-white/10 bg-white/90 dark:bg-black/30 p-4"
+            >
               <div className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 p-3">
                 <MessageSquareMore className="h-5 w-5 text-zinc-600 dark:text-white/70" />
                 <div>
@@ -502,8 +568,10 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section id="experience" className="mx-auto w-full px-20 py-8  lg:py-16">
-        <div className="overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04]">
+      <section id="experience" className="mx-auto w-full px-5 lg:px-20 py-8  lg:py-16">
+        <div
+          className="overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04]"
+        >
           <div className="border-b border-black/10 dark:border-white/10 px-[30px] py-6 lg:px-[30px]">
             <SectionBadge>Roles & access</SectionBadge>
             <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -537,13 +605,28 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section id="pricing" className="mx-auto w-full px-20 py-8 lg:py-16">
-        <div className="flex gap-6">
-          <div className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-8 lg:w-100 shrink-0">
+      <section id="pricing" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16">
+        <div className="lg:grid lg:grid-cols-3 space-y-5 lg:space-y-0 gap-6">
+          <div
+            className="relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/4 p-8 shrink-0"
+          >
+            {/* Prismatic Aurora Burst - Multi-layered Gradient */}
+            <div
+              className="absolute inset-0 z-0"
+              style={{
+                background: `
+                        radial-gradient(ellipse 120% 80% at 70% 20%, rgba(255, 20, 147, 0.15), transparent 50%),
+                        radial-gradient(ellipse 100% 60% at 30% 10%, rgba(0, 255, 255, 0.12), transparent 60%),
+                        radial-gradient(ellipse 90% 70% at 50% 0%, rgba(138, 43, 226, 0.18), transparent 65%),
+                        radial-gradient(ellipse 110% 50% at 80% 30%, rgba(255, 215, 0, 0.08), transparent 40%),
+                        transparent
+                      `,
+              }}
+            />
             <SectionBadge>Pricing</SectionBadge>
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+            <div className="mt-5 lg:flex lg:flex-wrap items-center justify-between gap-4 relative z-10">
               <div>
-                <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
                   Flexible plans for agency and freelancer teams.
                 </h2>
                 <p className="mt-4 text-zinc-600 dark:text-white/70">
@@ -554,77 +637,79 @@ export default function OnveraLandingV2Page() {
                 <button
                   type="button"
                   onClick={() => setBillingCycle("monthly")}
-                  className={`rounded-full px-4 py-1.5 text-xs transition ${
-                    billingCycle === "monthly"
+                  className={`rounded-full px-4 py-1.5 text-xs transition cursor-pointer ${billingCycle === "monthly"
                       ? "bg-black text-white"
                       : "text-zinc-600 dark:text-white/70"
-                  }`}
+                    }`}
                 >
                   Monthly
                 </button>
                 <button
                   type="button"
                   onClick={() => setBillingCycle("annual")}
-                  className={`rounded-full px-4 py-1.5 text-xs transition ${
-                    billingCycle === "annual"
+                  className={`rounded-full px-4 py-1.5 text-xs transition ${billingCycle === "annual"
                       ? "bg-black text-white"
                       : "text-zinc-600 dark:text-white/70"
-                  }`}
+                    }`}
                 >
                   Annual
                 </button>
               </div>
             </div>
           </div>
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            {pricingPlans.map((plan) => (
-              <div
-                key={plan.label}
-                className="group relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white shadow-[0_20px_40px_rgba(15,23,42,0.08)] dark:bg-[#0a0a0a]"
-              >
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(124,58,237,0.18),transparent_70%)] opacity-70" />
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(59,130,246,0.14),transparent_70%)] opacity-50" />
-                <div className="relative rounded-[1.5rem] p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="inline-flex rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-violet-100/80 to-fuchsia-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(124,58,237,0.08)]">
-                        {plan.label}
+          <div className="lg:col-span-2">
+            <div className="lg:grid lg:gap-6 lg:grid-cols-2 space-y-5 lg:space-y-0">
+              {pricingPlans.map((plan) => (
+                <div
+                  key={plan.label}
+                  className="group relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white shadow-[0_20px_40px_rgba(15,23,42,0.08)] dark:bg-[#0a0a0a]"
+                >
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(124,58,237,0.18),transparent_70%)] opacity-70" />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(59,130,246,0.14),transparent_70%)] opacity-50" />
+                  <div className="relative rounded-[1.5rem] p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="inline-flex rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-violet-100/80 to-fuchsia-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(124,58,237,0.08)]">
+                          {plan.label}
+                        </div>
                       </div>
+                      <div className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-violet-100/80 to-indigo-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(99,102,241,0.08)]">
+                        {plan.badge}
+                      </div>
+                    </div>
+
+                    <div className="mt-6 grid gap-3">
                       <h3 className="mt-4 text-2xl font-semibold text-zinc-900 dark:text-white">
                         {billingCycle === "annual" ? plan.annual : plan.monthly}
                       </h3>
                       <p className="mt-1 text-sm text-zinc-600 dark:text-white/70">{plan.note}</p>
+                      {plan.bullets.map((item) => (
+                        <div
+                          key={item}
+                          className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 px-4 py-3 text-sm text-zinc-600 dark:text-white/70"
+                        >
+                          <CheckCircle2 className="h-4 w-4 text-zinc-600 dark:text-white/70" />
+                          {item}
+                        </div>
+                      ))}
                     </div>
-                    <div className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-violet-100/80 to-indigo-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(99,102,241,0.08)]">
-                      {plan.badge}
-                    </div>
-                  </div>
 
-                  <div className="mt-6 grid gap-3">
-                    {plan.bullets.map((item) => (
-                      <div key={item} className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 px-4 py-3 text-sm text-zinc-600 dark:text-white/70">
-                        <CheckCircle2 className="h-4 w-4 text-zinc-600 dark:text-white/70" />
-                        {item}
-                      </div>
-                    ))}
+                    <a
+                      href="/register"
+                      className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:scale-[1.02]"
+                    >
+                      {plan.cta}
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
                   </div>
-
-                  <a
-                    href="/register"
-                    className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:scale-[1.02]"
-                  >
-                    {plan.cta}
-                    <ArrowRight className="h-4 w-4" />
-                  </a>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <section id="faq" className="mx-auto w-full px-20 py-8 lg:py-16">
+      <section id="faq" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16">
         <div className="text-center">
           <SectionBadge>Frequently asked questions</SectionBadge>
           <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -634,7 +719,10 @@ export default function OnveraLandingV2Page() {
 
         <div className="mt-10 space-y-4">
           {faqs.map((faq) => (
-            <div key={faq.q} className="rounded-[1.75rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6">
+            <div
+              key={faq.q}
+              className="rounded-[1.75rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6"
+            >
               <h3 className="text-lg font-semibold">{faq.q}</h3>
               <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-white/70">{faq.a}</p>
             </div>
@@ -642,8 +730,10 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section className="mx-auto w-full px-20 pb-10 pt-6 lg:pb-16">
-        <div className="relative overflow-hidden rounded-[2.5rem] border border-black/10 dark:border-white/10 bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.18),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-8 text-center sm:p-12">
+      <section className="mx-auto w-full px-5 lg:px-20 pb-10 pt-6 lg:pb-16">
+        <div
+          className="relative overflow-hidden rounded-[2.5rem] border border-black/10 dark:border-white/10 bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.18),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-8 text-center sm:p-12"
+        >
           <Grain />
           <div className="relative z-10 mx-auto max-w-3xl">
             <SectionBadge>Start now</SectionBadge>
@@ -673,7 +763,7 @@ export default function OnveraLandingV2Page() {
       </section>
 
       <footer className="border-t border-black/10 dark:border-white/10 bg-white/90 dark:bg-black/40">
-        <div className="mx-auto flex w-full flex-col gap-4 px-20 py-8 text-sm text-zinc-600 dark:text-white/70 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex w-full flex-col gap-4 px-5 lg:px-20 py-8 text-sm text-zinc-600 dark:text-white/70 md:flex-row md:items-center md:justify-between">
           <span>© {new Date().getFullYear()} Onvera. All rights reserved.</span>
           <div className="flex flex-wrap gap-4">
             <a href="#" className="transition hover:text-zinc-900 dark:text-white">Privacy</a>
