@@ -106,7 +106,7 @@ function Grain() {
 }
 
 export default function OnveraLandingV2Page() {
-  const [theme, setTheme] = useState<"light" | "dark">("light")
+  const [theme, setTheme] = useState<"light" | "dark">("dark")
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly")
   const pricingPlans = useMemo(
     () => [
@@ -163,7 +163,7 @@ export default function OnveraLandingV2Page() {
       return
     }
 
-    apply(media.matches ? "dark" : "light")
+    apply("dark")
 
     const handleChange = (event: MediaQueryListEvent) => {
       apply(event.matches ? "dark" : "light")
