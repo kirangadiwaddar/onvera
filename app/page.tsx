@@ -608,7 +608,7 @@ export default function OnveraLandingV2Page() {
       <section id="pricing" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16">
         <div className="lg:grid lg:grid-cols-3 space-y-5 lg:space-y-0 gap-6">
           <div
-            className="relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/4 p-8 w-full shrink-0"
+            className="relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/4 p-8 shrink-0"
           >
             {/* Prismatic Aurora Burst - Multi-layered Gradient */}
             <div
