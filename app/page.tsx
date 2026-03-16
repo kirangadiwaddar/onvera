@@ -1,11 +1,12 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import { useEffect, useMemo, useState } from "react"
 import {
   ArrowRight,
   BadgeCheck,
   CheckCircle2,
+  ChevronDown,
   FolderKanban,
   Lock,
   MessageSquareMore,
@@ -78,6 +79,18 @@ const faqs = [
     a: "No. Clients can access project progress, approvals, and uploads through secure links and controlled permissions.",
   },
   {
+    q: "Is onboarding secured?",
+    a: "Yes. Access is permissioned, links are controlled, and every workspace action is scoped to the right role.",
+  },
+  {
+    q: "How fast can I get set up?",
+    a: "Most teams can launch in a day using templates, client-ready checklists, and guided setup.",
+  },
+  {
+    q: "Can I track approvals and revisions?",
+    a: "Yes. Built-in approvals, uploads, and feedback loops keep reviews organized and transparent.",
+  },
+  {
     q: "Can I brand the onboarding experience?",
     a: "Yes. The product is built around making the onboarding journey feel premium, polished, and aligned with your studio brand.",
   },
@@ -108,6 +121,7 @@ function Grain() {
 export default function OnveraLandingV2Page() {
   const [theme, setTheme] = useState<"light" | "dark">("dark")
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly")
+  const [openFaq, setOpenFaq] = useState<number | null>(0)
   const pricingPlans = useMemo(
     () => [
       {
@@ -409,7 +423,7 @@ export default function OnveraLandingV2Page() {
             </p>
 
             <div
-              className="mt-6 overflow-hidden bg-white dark:bg-[#0a0a0a]"
+              className="mt-10 overflow-hidden bg-white dark:bg-[#0a0a0a]"
             >
               <div className="rounded-[1.25rem] border border-black/10 dark:border-white/10  p-5 relative overflow-hidden">
                 {/* Prismatic Aurora Burst - Multi-layered Gradient */}
@@ -502,7 +516,7 @@ export default function OnveraLandingV2Page() {
                   </div>
                   <div>
                     <h3 className="text-xl font-semibold">{feature.title}</h3>
-                    <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-white/70">{feature.desc}</p>
+                    <p className="mt-2 text-sm text-zinc-600 dark:text-white/70">{feature.desc}</p>
                   </div>
                 </div>
               )
@@ -539,9 +553,24 @@ export default function OnveraLandingV2Page() {
           </div>
 
           <div
-            className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-8"
+            className="relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-8"
           >
-            <SectionBadge>Premium feel</SectionBadge>
+            {/* Prismatic Aurora Burst - Multi-layered Gradient */}
+                <div
+                  className="absolute inset-0 z-0"
+                  style={{
+                    background: `
+                        radial-gradient(ellipse 120% 80% at 70% 20%, rgba(255, 20, 147, 0.15), transparent 50%),
+                        radial-gradient(ellipse 100% 60% at 30% 10%, rgba(0, 255, 255, 0.12), transparent 60%),
+                        radial-gradient(ellipse 90% 70% at 50% 0%, rgba(138, 43, 226, 0.18), transparent 65%),
+                        radial-gradient(ellipse 110% 50% at 80% 30%, rgba(255, 215, 0, 0.08), transparent 40%),
+                        transparent
+                      `,
+                  }}
+                />
+              
+            <div className="relative z-10">
+              <SectionBadge>Premium feel</SectionBadge>
             <h3 className="mt-5 text-2xl font-semibold">Built to make your process look expensive.</h3>
             <p className="mt-4 text-sm leading-7 text-zinc-600 dark:text-white/70">
               Combine modern visuals, premium layout structure, and clean motion to make every onboarding step feel intentional.
@@ -563,6 +592,7 @@ export default function OnveraLandingV2Page() {
                   <div className="text-xs text-zinc-600 dark:text-white/70">Project portal active</div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -633,7 +663,7 @@ export default function OnveraLandingV2Page() {
                   Choose the workflow that matches how you deliver projects, from solo studios to full teams.
                 </p>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/5 p-1">
+              <div className="mt-5 flex items-center gap-2 rounded-full border border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/5 p-1">
                 <button
                   type="button"
                   onClick={() => setBillingCycle("monthly")}
@@ -718,15 +748,38 @@ export default function OnveraLandingV2Page() {
         </div>
 
         <div className="mt-10 space-y-4">
-          {faqs.map((faq) => (
-            <div
-              key={faq.q}
-              className="rounded-[1.75rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6"
-            >
-              <h3 className="text-lg font-semibold">{faq.q}</h3>
-              <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-white/70">{faq.a}</p>
-            </div>
-          ))}
+          {faqs.map((faq, index) => {
+            const isOpen = openFaq === index
+            return (
+              <div
+                key={faq.q}
+                className="rounded-[1.75rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6"
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(isOpen ? null : index)}
+                  className="flex w-full items-center justify-between gap-4 text-left"
+                  aria-expanded={isOpen}
+                >
+                  <span className="text-lg font-semibold">{faq.q}</span>
+                  <ChevronDown className={`h-5 w-5 transition ${isOpen ? "rotate-180" : ""}`} />
+                </button>
+                <AnimatePresence initial={false}>
+                  {isOpen ? (
+                    <motion.p
+                      className="mt-3 text-sm leading-7 text-zinc-600 dark:text-white/70"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                    >
+                      {faq.a}
+                    </motion.p>
+                  ) : null}
+                </AnimatePresence>
+              </div>
+            )
+          })}
         </div>
       </section>
 
