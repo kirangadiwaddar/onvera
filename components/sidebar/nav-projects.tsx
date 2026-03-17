@@ -13,11 +13,14 @@ import {
 
 import { Project } from "@/types/project"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
+import { useAuth } from "@/components/providers/auth-provider"
 
 export function NavProjects() {
   const [projects, setProjects] = useState<Project[]>([])
+  const { user, loading: authLoading } = useAuth()
 
   useEffect(() => {
+    if (authLoading || !user?.id) return
     let isActive = true
     let intervalId: ReturnType<typeof setInterval> | null = null
 
@@ -73,7 +76,7 @@ export function NavProjects() {
       window.removeEventListener("focus", handleFocus)
       document.removeEventListener("visibilitychange", handleVisibility)
     }
-  }, [])
+  }, [authLoading, user?.id])
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">

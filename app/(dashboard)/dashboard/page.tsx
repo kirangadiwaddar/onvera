@@ -37,7 +37,7 @@ type DashboardResponse = {
 
 
 export default function Page() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
 
   const [data, setData] = useState<DashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -114,8 +114,10 @@ export default function Page() {
   }, [hiddenKey])
 
   useEffect(() => {
+    if (authLoading) return
+    if (!user?.id) return
     void load()
-  }, [load])
+  }, [load, user?.id, authLoading])
 
   useEffect(() => {
     if (!supabase) return

@@ -12,6 +12,10 @@ export function AuthRedirect() {
 
   useEffect(() => {
     if (loading) return
+    if (typeof window !== "undefined") {
+      const suppressed = window.sessionStorage.getItem("suppress-auth-redirect")
+      if (suppressed === "1") return
+    }
     if (user) {
       if (pathname?.startsWith("/reset-password")) return
       const role = profile?.role || (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null)

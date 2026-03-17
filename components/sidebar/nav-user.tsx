@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bell, ChevronsUpDown, CircleUserRound, LogOut } from "lucide-react"
+import { Bell, ChevronsUpDown, CircleUserRound, LogOut, CheckCheck, Trash2 } from "lucide-react"
 import { USER_ROLE_LABELS, isUserRole } from "@/lib/auth/roles"
 import { AccountSettingsModal } from "@/components/account/account-settings-modal"
 import { RecentActivity } from "@/components/dashboard/recentActivity"
@@ -45,6 +45,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Activity = {
   id: string
@@ -310,17 +311,29 @@ export function NavUser({
       <AccountSettingsModal open={showAccountDialog} onOpenChange={setShowAccountDialog} />
       <Sheet open={showNotifications} onOpenChange={setShowNotifications}>
         <SheetContent side="right" className="w-90 max-w-full">
-          <SheetHeader className="border-b border-zinc-100">
+          <SheetHeader className="border-b border-zinc-100 pr-12">
             <div className="flex items-center justify-between">
               <SheetTitle>Notifications</SheetTitle>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={handleMarkAllSeen}>
-                  Mark all seen
-                </Button>
-                <Button variant="destructiveLight" size="sm" onClick={handleClearAll}>
-                  Clear
-                </Button>
-              </div>
+              <TooltipProvider delayDuration={150}>
+                <div className="flex items-center gap-2 pr-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="icon" onClick={handleMarkAllSeen}>
+                        <CheckCheck className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Mark all seen</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="destructiveLight" size="icon" onClick={handleClearAll}>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Clear all</TooltipContent>
+                  </Tooltip>
+                </div>
+              </TooltipProvider>
             </div>
           </SheetHeader>
           <div className="px-4 h-[calc(100dvh-100px)] overflow-y-auto">
