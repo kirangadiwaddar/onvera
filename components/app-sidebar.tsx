@@ -51,7 +51,7 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { user, profile } = useAuth()
+  const { user, profile, loading: authLoading } = useAuth()
   const [serverIdentity, setServerIdentity] = useState<{
     user: { email: string | null; fullName: string | null } | null
     profile: { fullName: string | null; role?: string | null } | null
@@ -59,6 +59,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [teamMembership, setTeamMembership] = useState<"none" | "member" | "lead">("none")
 
   useEffect(() => {
+    if (authLoading || !user?.id) return
     const loadServerIdentity = async () => {
       try {
         const response = await fetchWithAuth("/api/auth/me", {
@@ -73,9 +74,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
 
     void loadServerIdentity()
-  }, [])
+  }, [authLoading, user?.id])
 
   useEffect(() => {
+    if (authLoading || !user?.id) return
     const metadataRole =
       typeof user?.user_metadata?.role === "string"
         ? user.user_metadata.role
@@ -113,7 +115,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
 
     void detectTeamMembership()
-  }, [profile?.role, serverIdentity?.profile?.role, user?.email, user?.user_metadata?.role, serverIdentity?.user?.email])
+  }, [
+    authLoading,
+    user?.id,
+    profile?.role,
+    serverIdentity?.profile?.role,
+    user?.email,
+    user?.user_metadata?.role,
+    serverIdentity?.user?.email,
+  ])
 
   const name =
     profile?.full_name ||
@@ -131,6 +141,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ? user.user_metadata.role
       : null
   const currentRole = profile?.role || serverIdentity?.profile?.role || metadataRole || null
+  const roleReady = !authLoading && (!user || !!currentRole)
   const managedByLabel =
     teamMembership === "lead"
       ? "Team Lead"
@@ -141,16 +152,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         : null
   const canAccessTeams = currentRole === "team_member" || teamMembership !== "none"
 
-  const navItems =
-    currentRole === "freelancer"
+  const navItems = roleReady
+    ? currentRole === "freelancer"
       ? data.navMain.filter((item) => item.url !== "/teams")
       : currentRole === "project_member"
       ? data.navMain.filter((item) => item.url === "/projects" || (canAccessTeams && item.url === "/teams"))
       : currentRole === "team_member"
         ? data.navMain.filter((item) => item.url === "/projects" || item.url === "/teams")
         : data.navMain
+    : []
 
-  const showOngoingProjects = currentRole !== "team_member"
+  const showOngoingProjects = roleReady && currentRole !== "team_member"
 
   const handleLogout = () => {
     const supabase = createClient()
@@ -178,10 +190,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navItems} />  
-        {showOngoingProjects ? (
-          <NavProjects />
-        ) : null}
+        {roleReady ? (
+          <>
+            <NavMain items={navItems} />
+            {showOngoingProjects ? <NavProjects /> : null}
+          </>
+        ) : (
+          <div className="px-4 py-3 text-xs text-muted-foreground">Loading menu...</div>
+        )}
         {/* <UpgradeBlock /> */}
         {/* <NavSecondary items={data.navSecondary} className="mt-auto" />   */}
       </SidebarContent>

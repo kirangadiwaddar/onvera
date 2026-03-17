@@ -1,4 +1,4 @@
-import Marquee from "@/components/marquee"
+import { Marquee } from "@/components/ui/marquee"
 import TestimonialCard from "@/components/ui/testimonialCard"
 import Logo from "@/components/ui/logo"
 import { AuthRedirect } from "@/components/auth-redirect"
@@ -6,29 +6,47 @@ import { AuthRedirect } from "@/components/auth-redirect"
 
 const testimonials = [
     {
-        message: "This design system brings consistency and efficiency to our creative process.",
-        name: "John Smith",
-        role: "Creative Director, StudioX",
-        avatar: "https://randomuser.me/api/portraits/men/45.jpg"
+        message: "Onvera keeps our client work tidy and transparent. The handoffs finally feel effortless.",
+        name: "Ava Patel",
+        username: "@avapatel",
+        role: "Operations Lead, Harbor Studio",
+        avatar: "https://avatar.vercel.sh/ava-patel",
     },
     {
-        message: "Our team ships faster and with better alignment than ever before.",
-        name: "Sarah Miller",
-        role: "Product Lead, NovaTech",
-        avatar: "https://randomuser.me/api/portraits/women/44.jpg"
+        message: "The dashboard gives me a clear pulse on every project without the status-chase.",
+        name: "Marcus Reed",
+        username: "@marcusreed",
+        role: "Founder, Reed & Co.",
+        avatar: "https://avatar.vercel.sh/marcus-reed",
     },
     {
-        message: "The design system has transformed our workflow, enabling us to create with ease.",
-        name: "David Lee",
-        role: "UX Designer, PixelCraft",
-        avatar: "https://randomuser.me/api/portraits/men/32.jpg"
+        message: "Our team onboarded in a day. It’s calm, focused, and clients love the experience.",
+        name: "Sofia Alvarez",
+        username: "@sofiaa",
+        role: "Client Success, Northlane",
+        avatar: "https://avatar.vercel.sh/sofia-alvarez",
     },
     {
-        message: "A game-changer for our design and development teams.",
-        name: "Emily Davis",
-        role: "Head of Design, BrightWave",
-        avatar: "https://randomuser.me/api/portraits/women/68.jpg"
-    }
+        message: "We finally have one place for briefs, updates, and approvals. It just flows.",
+        name: "Ethan Brooks",
+        username: "@ethanb",
+        role: "Creative Director, Fieldhouse",
+        avatar: "https://avatar.vercel.sh/ethan-brooks",
+    },
+    {
+        message: "The project timeline view reduced our weekly standups by half. Huge win.",
+        name: "Priya Nair",
+        username: "@priyanair",
+        role: "Product Lead, Bluewave",
+        avatar: "https://avatar.vercel.sh/priya-nair",
+    },
+    {
+        message: "Onvera feels crafted for agencies. The client portals look premium out of the box.",
+        name: "Liam Chen",
+        username: "@liamchen",
+        role: "Co-founder, Studio Koi",
+        avatar: "https://avatar.vercel.sh/liam-chen",
+    },
 ]
 
 export default function AuthLayout({
@@ -69,14 +87,14 @@ export default function AuthLayout({
                 </div>
                 <div className="testimonial-cards-marquee py-16 space-y-8">
                     {/* Left Scroll */}
-                    <Marquee direction="left">
+                    <Marquee pauseOnHover repeat={4} className="[--duration:22s] [--gap:1rem]">
                         {testimonials.map((t, i) => (
                             <TestimonialCard key={i} {...t} />
                         ))}
                     </Marquee>
 
                     {/* Right Scroll */}
-                    <Marquee direction="right">
+                    <Marquee reverse pauseOnHover repeat={4} className="[--duration:22s] [--gap:1rem]">
                         {testimonials.map((t, i) => (
                             <TestimonialCard key={i} {...t} />
                         ))}

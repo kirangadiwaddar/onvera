@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
+  TvMinimalPlay,
   Users,
   Workflow,
 } from "lucide-react"
@@ -23,6 +24,8 @@ import Link from "next/link"
 import Image from "next/image"
 import dashboardDark from "./assets/dashboard-dark.png"
 import dashboardLight from "./assets/dashboard-light.png"
+import { useAuth } from "@/components/providers/auth-provider"
+import { getDefaultPathForRole } from "@/lib/auth/roles"
 
 const stats = [
   { value: "4,200+", label: "Projects shipped" },
@@ -119,6 +122,7 @@ function Grain() {
 }
 
 export default function OnveraLandingV2Page() {
+  const { user, profile } = useAuth()
   const [theme, setTheme] = useState<"light" | "dark">("dark")
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly")
   const [openFaq, setOpenFaq] = useState<number | null>(0)
@@ -201,7 +205,7 @@ export default function OnveraLandingV2Page() {
         <Grain />
 
         <header className="sticky top-0 z-50 border-b border-black/10 dark:border-white/10 bg-white/80 dark:bg-black/35 backdrop-blur-xl">
-          <div className="mx-auto flex w-full items-center justify-between px-5 lg:px-20 py-4">
+          <div className="mx-auto grid grid-cols-3 w-full items-center justify-between px-5 lg:px-20 py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center text-black shadow-[0_0_40px_rgba(255,255,255,0.12)]">
                 <Logo width={40} height={40} />
@@ -212,14 +216,14 @@ export default function OnveraLandingV2Page() {
               </div>
             </div>
 
-            <nav className="hidden items-center gap-8 text-sm text-zinc-600 dark:text-white/70 md:flex">
+            <nav className="hidden items-center justify-center gap-8 text-sm text-zinc-600 dark:text-white/70 md:flex">
               <a href="#features" className="transition hover:text-zinc-900 dark:text-white">Features</a>
               <a href="#experience" className="transition hover:text-zinc-900 dark:text-white">Experience</a>
               <a href="#pricing" className="transition hover:text-zinc-900 dark:text-white">Pricing</a>
               <a href="#faq" className="transition hover:text-zinc-900 dark:text-white">FAQ</a>
             </nav>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={toggleTheme}
@@ -241,7 +245,7 @@ export default function OnveraLandingV2Page() {
                 Start now
                 <ArrowRight className="h-4 w-4" />
               </a> */}
-              <a href="#" className="hidden lg:inline-flex items-center gap-2 rounded-full bg-violet-500 px-4 py-2 text-sm font-medium text-white transition hover:scale-[1.02]">Get Early Access  <ArrowRight className="h-4 w-4" /></a>
+              {/* <a href="#" className="hidden lg:inline-flex items-center gap-2 rounded-full bg-violet-500 px-4 py-2 text-sm font-medium text-white transition hover:scale-[1.02]">Enter the portal  <ArrowRight className="h-4 w-4" /></a> */}
             </div>
           </div>
         </header>
@@ -256,7 +260,7 @@ export default function OnveraLandingV2Page() {
               transition={{ duration: 0.6 }}
               className="mt-6 max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl"
             >
-              A modern client onboarding OS for agencies and freelancers.
+              A modern client OS - <span className="bg-gradient-to-tr from-violet-400  to-violet-700 bg-clip-text text-transparent">Onboarding System</span> for agencies and freelancers.
             </motion.h1>
 
             <p className="mt-6 max-w-2xl text-sm text-zinc-600 dark:text-white/70">
@@ -266,23 +270,33 @@ export default function OnveraLandingV2Page() {
             </p>
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-              <Link href="/register">
+              <Link
+                href={
+                  user
+                    ? getDefaultPathForRole(
+                        profile?.role ||
+                          (typeof user.user_metadata?.role === "string" ? user.user_metadata.role : null)
+                      )
+                    : "/register"
+                }
+              >
                 <Button
                   variant="gradient"
                   size="lg"
                   className="rounded-full transition hover:scale-[1.02]"
                 >
-                  Launch your workspace
+                  {user ? "Go to dashboard" : "Launch your workspace"}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link href="/register">
+              <Link href="#demo">
                 <Button
                   variant="ghost"
                   size="lg"
                   className="rounded-full transition hover:scale-[1.02] text-violet-600 dark:text-white"
                 >
-                  View Dashboard
+                <TvMinimalPlay className="size-6" strokeWidth={1.5} />
+                 See Product Demo
                 </Button>
               </Link>
             </div>
@@ -677,7 +691,7 @@ export default function OnveraLandingV2Page() {
                 <button
                   type="button"
                   onClick={() => setBillingCycle("annual")}
-                  className={`rounded-full px-4 py-1.5 text-xs transition ${billingCycle === "annual"
+                  className={`rounded-full px-4 py-1.5 text-xs transition cursor-pointer ${billingCycle === "annual"
                       ? "bg-black text-white"
                       : "text-zinc-600 dark:text-white/70"
                     }`}
@@ -709,7 +723,7 @@ export default function OnveraLandingV2Page() {
                     </div>
 
                     <div className="mt-6 grid gap-3">
-                      <h3 className="mt-4 text-2xl font-semibold text-zinc-900 dark:text-white">
+                      <h3 className="mt-4 text-5xl font-semibold text-zinc-900 dark:text-white">
                         {billingCycle === "annual" ? plan.annual : plan.monthly}
                       </h3>
                       <p className="mt-1 text-sm text-zinc-600 dark:text-white/70">{plan.note}</p>
@@ -739,7 +753,7 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section id="faq" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16">
+      <section id="faq" className="mx-auto w-full max-w-3xl px-5 py-10 lg:py-14">
         <div className="text-center">
           <SectionBadge>Frequently asked questions</SectionBadge>
           <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -747,13 +761,13 @@ export default function OnveraLandingV2Page() {
           </h2>
         </div>
 
-        <div className="mt-10 space-y-4">
+        <div className="mt-8 space-y-3">
           {faqs.map((faq, index) => {
             const isOpen = openFaq === index
             return (
               <div
                 key={faq.q}
-                className="rounded-[1.75rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6"
+                className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-5"
               >
                 <button
                   type="button"
@@ -761,22 +775,14 @@ export default function OnveraLandingV2Page() {
                   className="flex w-full items-center justify-between gap-4 text-left"
                   aria-expanded={isOpen}
                 >
-                  <span className="text-lg font-semibold">{faq.q}</span>
+                  <span className="text-base font-semibold">{faq.q}</span>
                   <ChevronDown className={`h-5 w-5 transition ${isOpen ? "rotate-180" : ""}`} />
                 </button>
-                <AnimatePresence initial={false}>
-                  {isOpen ? (
-                    <motion.p
-                      className="mt-3 text-sm leading-7 text-zinc-600 dark:text-white/70"
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                    >
-                      {faq.a}
-                    </motion.p>
-                  ) : null}
-                </AnimatePresence>
+                {isOpen ? (
+                  <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-white/70">
+                    {faq.a}
+                  </p>
+                ) : null}
               </div>
             )
           })}
@@ -815,15 +821,15 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <footer className="border-t border-black/10 dark:border-white/10 bg-white/90 dark:bg-black/40">
-        <div className="mx-auto flex w-full flex-col gap-4 px-5 lg:px-20 py-8 text-sm text-zinc-600 dark:text-white/70 md:flex-row md:items-center md:justify-between">
+      <footer className="border-t border-black/10 dark:border-white/10 bg-violet-100 dark:bg-violet-900/40">
+        <div className="mx-auto flex justify-center w-full flex-col gap-4 px-5 lg:px-20 py-8 text-sm text-zinc-900 dark:text-white/70 md:flex-row md:items-center">
           <span>© {new Date().getFullYear()} Onvera. All rights reserved.</span>
-          <div className="flex flex-wrap gap-4">
+          {/* <div className="flex flex-wrap gap-4">
             <a href="#" className="transition hover:text-zinc-900 dark:text-white">Privacy</a>
             <a href="#" className="transition hover:text-zinc-900 dark:text-white">Terms</a>
             <a href="#" className="transition hover:text-zinc-900 dark:text-white">Careers</a>
             <a href="#" className="transition hover:text-zinc-900 dark:text-white">Contact</a>
-          </div>
+          </div> */}
         </div>
       </footer>
     </main>
