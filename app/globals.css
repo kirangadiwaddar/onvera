@@ -247,3 +247,34 @@ html {
     opacity: 0;
   }
 }
+
+:where([data-sonner-toast][data-styled="true"]) {
+  align-items: flex-start !important;
+}
+
+.branding-drop .uppy-DragDrop-container {
+  padding: 10px;
+  border-radius: 12px;
+}
+
+.branding-drop .uppy-DragDrop-inner {
+  padding: 20px;
+}
+
+.branding-drop .uppy-DragDrop-container .uppy-DragDrop-inner {
+  gap: 6px;
+}
+
+.branding-drop .uppy-DragDrop-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.branding-drop .uppy-DragDrop-note {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.branding-drop .uppy-DragDrop-arrow {
+  display: none;
+}

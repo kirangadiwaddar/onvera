@@ -3,8 +3,48 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { attachRelations, getStoreData } from "@/lib/server/data-store"
 import { filterProjectsForIdentity } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import { templateStructure } from "@/lib/template-structure"
 import type { status } from "@/lib/project-status"
 import type { StoreData } from "@/lib/server/data-store"
+
+const resolveTemplateKeyFromTitle = (title?: string) => {
+  if (!title) return undefined
+  const normalizedTitle = slugify(title)
+  if (!normalizedTitle) return undefined
+  return Object.keys(templateStructure).find((key) => slugify(key) === normalizedTitle)
+}
+
+function normalizeTemplateKey(template: Record<string, unknown>) {
+  const rawKey =
+    (template as { templateKey?: string }).templateKey ??
+    (template as { template_key?: string }).template_key ??
+    (template as { id?: string }).id ??
+    ""
+  const resolvedKey =
+    templateStructure[rawKey] ||
+    !(template as { title?: string }).title
+      ? rawKey
+      : resolveTemplateKeyFromTitle((template as { title?: string }).title) ?? rawKey
+  const structure = Array.isArray((template as { structure?: unknown }).structure)
+    ? ((template as { structure: unknown[] }).structure as Array<{ id?: string }>)
+    : null
+  const normalizedStructure = structure && structure.length > 0 && resolvedKey !== "branding"
+    ? [
+        {
+          id: "branding",
+          title: "Branding",
+          items: [],
+          dynamic: true,
+        },
+        ...structure.filter((section) => section?.id !== "branding"),
+      ]
+    : undefined
+  return {
+    ...template,
+    templateKey: resolvedKey,
+    ...(normalizedStructure ? { structure: normalizedStructure } : {}),
+  }
+}
 function hasChecklistActivity(submissions?: Record<string, unknown>) {
   if (!submissions || typeof submissions !== "object") return false
 
@@ -75,6 +115,8 @@ function withStatus(project: Project, nextStatus: status): Project {
 }
 
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const summary = searchParams.get("summary") === "1"
   const { projects, teams, templates } = await getStoreData()
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
@@ -143,8 +185,24 @@ export async function GET(request: Request) {
     return project
   })
 
+  if (summary) {
+    return NextResponse.json({
+      projects: normalizedProjects.map((project) => ({
+        id: project.id,
+        slug: project.slug,
+        title: project.title,
+        status: project.status,
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+        teamIds: project.teamIds,
+      })),
+    })
+  }
+
   return NextResponse.json({
-    projects: normalizedProjects.map((project) => attachRelations(project, teams, templates)),
+    projects: normalizedProjects.map((project) =>
+      attachRelations(project, teams, templates, { includeTemplateStructure: false }),
+    ),
   })
 }
 
@@ -179,14 +237,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
   }
 
-  const { projects } = await getStoreData()
   const baseSlug = slugify(body.slug || body.title)
 
   if (!baseSlug) {
     return NextResponse.json({ message: "Invalid project title" }, { status: 400 })
   }
 
-  const existingSlugs = new Set(projects.map((project) => project.slug))
+  const existingSlugs = new Set<string>()
+  const { data: slugRows } = await admin
+    .from("projects")
+    .select("slug")
+    .ilike("slug", `${baseSlug}%`)
+  if (Array.isArray(slugRows)) {
+    slugRows.forEach((row) => {
+      if (row?.slug) existingSlugs.add(row.slug)
+    })
+  }
   let slug = baseSlug
   let suffix = 1
 
@@ -224,12 +290,48 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
 
-  const { projects: latestProjects, teams, templates } = await getStoreData()
-  const project = latestProjects.find((item) => item.slug === slug)
+  const { data: createdRow } = await admin
+    .from("projects")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle()
 
-  if (!project) {
+  if (!createdRow) {
     return NextResponse.json({ message: "Project created but could not be fetched" }, { status: 201 })
   }
 
-  return NextResponse.json(attachRelations(project, teams, templates), { status: 201 })
+  const teamIds = Array.isArray(createdRow.team_ids) ? createdRow.team_ids : []
+  const [{ data: teams }, { data: templates }] = await Promise.all([
+    teamIds.length > 0
+      ? admin.from("teams").select("*").in("id", teamIds)
+      : Promise.resolve({ data: [] }),
+    admin
+      .from("templates")
+      .select("*")
+      .or(`id.eq.${createdRow.template_id},template_key.eq.${createdRow.template_id}`),
+  ])
+
+  const project = {
+    id: createdRow.id,
+    slug: createdRow.slug,
+    title: createdRow.title,
+    templateId: createdRow.template_id,
+    status: createdRow.status,
+    createdAt: createdRow.created_at,
+    updatedAt: createdRow.updated_at ?? undefined,
+    avatarSrc: createdRow.avatar_src ?? undefined,
+    teamIds: createdRow.team_ids ?? [],
+    extraMembers: createdRow.extra_members ?? [],
+    submissions: createdRow.submissions ?? {},
+    createdBy: createdRow.created_by ?? null,
+  }
+
+  const normalizedTemplates = Array.isArray(templates)
+    ? templates.map((template) => normalizeTemplateKey(template as Record<string, unknown>))
+    : []
+
+  return NextResponse.json(
+    attachRelations(project, Array.isArray(teams) ? teams : [], normalizedTemplates),
+    { status: 201 },
+  )
 }

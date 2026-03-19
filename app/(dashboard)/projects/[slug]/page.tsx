@@ -236,7 +236,7 @@ function getLatestClientSubmissionAt(submissions?: Record<string, unknown>) {
 
 
 export default function ProjectDetailPage() {
-  const { user, profile } = useAuth()
+  const { user, profile, loading: authLoading } = useAuth()
   const { slug } = useParams()
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
@@ -246,6 +246,7 @@ export default function ProjectDetailPage() {
   const latestClientSubmissionAtRef = useRef<string | null>(null)
 
   const [customSections, setCustomSections] = useState<Section[]>([])
+  const [openSectionId, setOpenSectionId] = useState<string>("")
   const [showSectionForm, setShowSectionForm] = useState(false)
   const [newSectionTitle, setNewSectionTitle] = useState("")
   const [newSectionType, setNewSectionType] = useState<"textarea" | "url">("textarea")
@@ -299,6 +300,7 @@ export default function ProjectDetailPage() {
         ) {
           if (hasLoadedRef.current) {
             toast("Client updated this project", {
+              id: `client-update-${slug}-${latestClientSubmissionAt}`,
               description: "New checklist submissions were added.",
             })
           }
@@ -327,10 +329,12 @@ export default function ProjectDetailPage() {
   }, [])
 
   useEffect(() => {
+    if (authLoading) return
+    if (!user?.id) return
     if (!slug) return
     lastSeenStorageKeyRef.current = `project_client_submission_seen:${slug}`
     void loadProject()
-  }, [loadProject, slug])
+  }, [authLoading, loadProject, slug, user?.id])
 
 
   useEffect(() => {
@@ -351,6 +355,11 @@ export default function ProjectDetailPage() {
 
 
   useEffect(() => {
+    if (authLoading) return
+    if (!user?.id) return
+    if (!openInvite || inviteType !== "team") return
+    if (teams.length > 0) return
+
     const fetchTeams = async () => {
       const res = await fetchWithAuth("/api/teams", { cache: "no-store" })
       if (!res.ok) {
@@ -364,7 +373,7 @@ export default function ProjectDetailPage() {
     }
 
     fetchTeams()
-  }, [])
+  }, [authLoading, inviteType, openInvite, teams.length, user?.id])
 
   const currentRole = (profile?.role || user?.user_metadata?.role || null) as string | null
   const restrictedRole = currentRole === "project_member" || currentRole === "team_member"
@@ -393,8 +402,27 @@ export default function ProjectDetailPage() {
     () => (project ? [...templateSections, ...customSections] : []),
     [customSections, project, templateSections]
   )
+
+  useEffect(() => {
+    if (checklistSections.length === 0) return
+    setOpenSectionId((prev) =>
+      prev && checklistSections.some((section) => section.id === prev) ? prev : ""
+    )
+  }, [checklistSections])
   const totalSections = checklistSections.length
   const uploadedCount = checklistSections.filter((section) => {
+    const hasRejected = section.dynamic
+      ? (() => {
+          const rows = submissions?.[section.id]
+          if (!Array.isArray(rows) || rows.length === 0) return false
+          return rows.some((row) => row && typeof row === "object" && (row as { status?: unknown }).status === "rejected")
+        })()
+      : section.items.some((item) => {
+          const entry = submissions?.[item.id]
+          if (!entry || typeof entry !== "object") return false
+          return (entry as { status?: unknown }).status === "rejected"
+        })
+    if (hasRejected) return false
     if (section.dynamic) {
       const rows = submissions?.[section.id]
       if (!Array.isArray(rows) || rows.length === 0) return false
@@ -408,6 +436,7 @@ export default function ProjectDetailPage() {
       })
     }
 
+    if (!section.items || section.items.length === 0) return false
     return section.items.every((item) => {
       const entry = submissions?.[item.id]
       if (!entry || typeof entry !== "object") return false
@@ -424,6 +453,12 @@ export default function ProjectDetailPage() {
   const progressStroke = 4
   const progressCircumference = 2 * Math.PI * progressRadius
   const progressOffset = progressCircumference * (1 - checklistProgress / 100)
+
+  const getProgressStrokeColor = (value: number) => {
+    if (value < 40) return "text-red-500"
+    if (value < 80) return "text-amber-500"
+    return "text-emerald-500"
+  }
 
   const completionKeyBySection = useMemo(
     () =>
@@ -964,7 +999,7 @@ export default function ProjectDetailPage() {
                   strokeWidth={progressStroke}
                   strokeLinecap="round"
                   fill="none"
-                  className="text-emerald-500"
+                  className={getProgressStrokeColor(checklistProgress)}
                   strokeDasharray={progressCircumference}
                   strokeDashoffset={progressOffset}
                 />
@@ -979,7 +1014,13 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          <Accordion type="multiple" className="border border-zinc-200 divide-y rounded-lg overflow-hidden dark:border-white/10 dark:divide-white/10 hover:no-underline!">
+          <Accordion
+            type="single"
+            collapsible
+            value={openSectionId}
+            onValueChange={(value) => setOpenSectionId(value || "")}
+            className="border border-zinc-200 divide-y rounded-lg overflow-hidden dark:border-white/10 dark:divide-white/10 hover:no-underline!"
+          >
             {checklistSections.map(
               (section) => {
                 const isCustom = section.id.startsWith("custom-")

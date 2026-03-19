@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   AccordionItem,
   AccordionContent,
@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Section } from "@/lib/types"
 import { CheckCircle2, ChevronDownIcon, XCircle } from "lucide-react"
+import { BrandingUploader } from "@/components/branding-uploader"
 import {
   Tooltip,
   TooltipContent,
@@ -68,6 +69,8 @@ export default function ChecklistSection({
   className,
 }: Props) {
   const [editMode, setEditMode] = useState<Record<string, boolean>>({})
+  const [brandingEdit, setBrandingEdit] = useState(false)
+  const [selectedBrandingRows, setSelectedBrandingRows] = useState<Set<number>>(new Set())
   const [draftValues, setDraftValues] = useState<Record<string, string>>({})
   const [draftPreviews, setDraftPreviews] = useState<Record<string, string>>({})
   const [localRows, setLocalRows] = useState<{ name: string; url: string }[]>([])
@@ -81,16 +84,6 @@ export default function ChecklistSection({
   const completionValue = submissions[completionKey]
   const isCompleted = completionValue === true
   const isUpdated = completionValue === "updated"
-  const allStaticApproved = section.items.every((item) => {
-    const submission = submissions[item.id] as SubmissionValue | undefined
-    return submission?.status === "approved"
-  })
-  const allDynamicApproved = !section.dynamic
-    ? true
-    : dynamicRows.length > 0 && dynamicRows.every((row) => row.status === "approved")
-  const canShowCompletionControl =
-    showCompletionControl && (canEdit || canModerate || (allStaticApproved && allDynamicApproved))
-
   const hasStaticContent = section.items.some((item) => {
     const submission = submissions[item.id] as SubmissionValue | undefined
     const value = submission?.value
@@ -98,10 +91,119 @@ export default function ChecklistSection({
   })
   const hasDynamicContent = dynamicRows.length > 0
   const hasContent = hasStaticContent || hasDynamicContent
+  const allStaticApproved = section.items.every((item) => {
+    const submission = submissions[item.id] as SubmissionValue | undefined
+    return submission?.status === "approved"
+  })
+  const allDynamicApproved = !section.dynamic
+    ? true
+    : dynamicRows.length > 0 && dynamicRows.every((row) => row.status === "approved")
+  const allBrandingApproved =
+    section.id === "branding" && dynamicRows.length > 0 && dynamicRows.every((row) => row.status === "approved")
+  const allBrandingRejected =
+    section.id === "branding" && dynamicRows.length > 0 && dynamicRows.every((row) => row.status === "rejected")
+  const hasRejected =
+    section.items.some((item) => {
+      const submission = submissions[item.id] as SubmissionValue | undefined
+      return submission?.status === "rejected"
+    }) || dynamicRows.some((row) => row.status === "rejected")
+  const canShowCompletionControl =
+    showCompletionControl &&
+    (canEdit || canModerate || (allStaticApproved && allDynamicApproved)) &&
+    hasContent
+
+  useEffect(() => {
+    if (section.id !== "branding") return
+    if (hasContent) return
+    if (completionValue !== true) return
+    patchSubmissions((prev) => ({
+      ...prev,
+      [completionKey]: false,
+    }))
+  }, [completionKey, completionValue, hasContent, section.id])
+
+  useEffect(() => {
+    if (section.id !== "branding") return
+    setSelectedBrandingRows((prev) => {
+      const next = new Set<number>()
+      dynamicRows.forEach((_, idx) => {
+        if (prev.has(idx)) next.add(idx)
+      })
+      return next
+    })
+  }, [dynamicRows, section.id])
 
   const patchSubmissions = (mutate: (prev: Submissions) => Submissions) => {
     const next = mutate(submissions)
     onSubmissionsChange?.(next)
+  }
+
+  const handleBrandingFileAdded = (file: File) => {
+    const canWrite = !isAgency || ((canEdit || canModerate) && brandingEdit)
+    if (!canWrite) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const preview = typeof reader.result === "string" ? reader.result : ""
+      patchSubmissions((prev) => {
+        const existing = Array.isArray(prev[section.id]) ? (prev[section.id] as DynamicRow[]) : []
+        const next: DynamicRow[] = [
+          ...existing,
+          {
+            name: file.name,
+            url: preview,
+            status: "submitted",
+            submittedAt: new Date().toISOString(),
+          },
+        ]
+        return {
+          ...prev,
+          [section.id]: next,
+        }
+      })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const setBrandingStatus = (rowIndex: number, status: "approved" | "rejected") => {
+    patchSubmissions((prev) => {
+      const existing = Array.isArray(prev[section.id]) ? (prev[section.id] as DynamicRow[]) : []
+      const next = existing.map((row, index) =>
+        index === rowIndex ? { ...row, status } : row,
+      )
+      return { ...prev, [section.id]: next }
+    })
+  }
+
+  const removeBrandingRow = (rowIndex: number) => {
+    patchSubmissions((prev) => {
+      const existing = Array.isArray(prev[section.id]) ? (prev[section.id] as DynamicRow[]) : []
+      const next = existing.filter((_, index) => index !== rowIndex)
+      return {
+        ...prev,
+        [section.id]: next,
+        [completionKey]: next.length === 0 ? false : prev[completionKey],
+      }
+    })
+  }
+
+  const toggleBrandingRowSelection = (rowIndex: number) => {
+    setSelectedBrandingRows((prev) => {
+      const next = new Set(prev)
+      if (next.has(rowIndex)) {
+        next.delete(rowIndex)
+      } else {
+        next.add(rowIndex)
+      }
+      return next
+    })
+  }
+
+  const applyBrandingStatusToSelection = (status: "approved" | "rejected") => {
+    if (selectedBrandingRows.size === 0) {
+      dynamicRows.forEach((_, idx) => setBrandingStatus(idx, status))
+      return
+    }
+    selectedBrandingRows.forEach((idx) => setBrandingStatus(idx, status))
   }
 
 
@@ -255,7 +357,7 @@ export default function ChecklistSection({
       value={section.id}
       className={`rounded-none group${className ? ` ${className}` : ""}`}
     >
-      <AccordionPrimitive.Header className="relative flex items-center gap-3 px-3 py-3 mb-0 hover:bg-zinc-50 has-[[data-state=open]]:bg-violet-50 dark:hover:bg-white/5 dark:has-[[data-state=open]]:bg-violet-500/10">
+      <AccordionPrimitive.Header className="relative flex items-center gap-3 px-3 py-2.5 mb-0 hover:bg-zinc-50 has-[[data-state=open]]:bg-violet-50 dark:hover:bg-white/5 dark:has-[[data-state=open]]:bg-violet-500/10">
         <AccordionPrimitive.Trigger
           data-slot="accordion-trigger"
           className="group/trigger focus-visible:border-ring focus-visible:ring-ring/50 flex flex-1 items-center justify-between gap-4 rounded-md text-left text-sm font-medium transition-all outline-none hover:no-underline focus-visible:ring-[3px] cursor-pointer disabled:pointer-events-none disabled:opacity-50 data-[state=open]:text-violet-700 dark:data-[state=open]:text-violet-200"
@@ -264,7 +366,11 @@ export default function ChecklistSection({
           <div className="flex items-center justify-end flex-row-reverse gap-2">
               <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/trigger:rotate-180" />
           <div className="flex items-center gap-2">
-          {isCompleted && hasContent ? (
+          {hasRejected ? (
+            <Badge className="px-2 py-0.5 text-[11px] bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-200 dark:border-rose-500/20">
+              Rejected
+            </Badge>
+          ) : isCompleted && hasContent ? (
             <Badge className="px-2 py-0.5 text-[11px] bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-200 dark:border-emerald-500/20">
               Completed
             </Badge>
@@ -312,6 +418,101 @@ export default function ChecklistSection({
       </AccordionPrimitive.Header>
 
       <AccordionContent className="border-b border-zinc-100 pb-0 last:border-b-0">
+        {section.id === "branding" ? (
+          <div className="p-3 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Upload your brand logo, guidelines, fonts, and related branding assets.
+            </p>
+            <BrandingUploader
+              disabled={isAgency ? !((canEdit || canModerate) && brandingEdit) : false}
+              onFileAdded={handleBrandingFileAdded}
+            />
+            {dynamicRows.length > 0 ? (
+              <div className="space-y-2">
+                {dynamicRows.map((row, index) => (
+                  <div
+                    key={`${section.id}-branding-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-md border border-zinc-200 px-3 py-2 text-xs dark:border-white/10"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {isAgency && canModerate && dynamicRows.length > 1 ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedBrandingRows.has(index)}
+                          onChange={() => toggleBrandingRowSelection(index)}
+                          aria-label="Select file"
+                          className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-0"
+                        />
+                      ) : null}
+                      {row.url && isUrlLike(row.url) && row.url.match(/^data:image\/|\\.(png|jpg|jpeg|gif|webp|svg)$/i) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={row.url} alt={row.name || "Brand file"} className="h-8 w-8 rounded-md object-cover border border-zinc-200 dark:border-white/10" />
+                      ) : null}
+                      <span className="truncate">{row.name || "Brand file"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`py-1 px-2 text-[11px] capitalize ${getStatusBadgeClass(row.status)}`}>
+                        {row.status || "submitted"}
+                      </Badge>
+                      {(!isAgency || ((canEdit || canModerate) && brandingEdit)) ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => removeBrandingRow(index)}
+                          aria-label="Remove file"
+                        >
+                          <XCircle className="size-4 text-muted-foreground" />
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">No branding files uploaded yet.</div>
+            )}
+            {isAgency && (canEdit || canModerate) ? (
+              <div className="flex justify-end items-center gap-1.5">
+                {canEdit || canModerate ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7 px-2"
+                    onClick={() => setBrandingEdit((prev) => !prev)}
+                  >
+                    {brandingEdit ? "Cancel Edit" : "Enable Edit"}
+                  </Button>
+                ) : null}
+                {canModerate ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="destructiveLight"
+                      className="text-xs h-7 px-2"
+                      onClick={() => applyBrandingStatusToSelection("rejected")}
+                      aria-label="Reject"
+                      disabled={dynamicRows.length === 0 || allBrandingRejected}
+                    >
+                      Reject
+                    </Button>
+                    <Button
+                      variant="gradient"
+                      size="sm"
+                      className="text-xs h-7 px-2"
+                      onClick={() => applyBrandingStatusToSelection("approved")}
+                      aria-label="Approve"
+                      disabled={dynamicRows.length === 0 || allBrandingApproved}
+                    >
+                      Approve
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+        <>
         {section.items.map((item) => {
           const submission = (submissions[item.id] as SubmissionValue | undefined) || {}
           const isEditing = editMode[item.id] || false
@@ -319,7 +520,7 @@ export default function ChecklistSection({
           const preview = draftPreviews[item.id] ?? submission.preview
 
           return (
-            <div key={item.id} className="border-b border-zinc-200 p-4 space-y-3 last-of-type:border-b-0 dark:border-white/10">
+            <div key={item.id} className="border-b border-zinc-200 p-3 space-y-2 last-of-type:border-b-0 dark:border-white/10">
               <div className="flex justify-between items-center">
                 <div className="text-xs font-medium">{item.label}</div>
 
@@ -355,7 +556,7 @@ export default function ChecklistSection({
               )}
 
               {item.fieldType === "upload" && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Input
                     type="file"
                     disabled={isAgency ? !isEditing || !canEdit : false}
@@ -424,7 +625,7 @@ export default function ChecklistSection({
               )}
 
               {isAgency && (canEdit || canModerate) && (
-                <div className="flex justify-end items-center gap-2">
+                <div className="flex justify-end items-center gap-1.5">
                   <TooltipProvider delayDuration={200}>
                     {canEdit && (
                       <>
@@ -506,7 +707,7 @@ export default function ChecklistSection({
         {section.dynamic && (
           <>
             {isAgency && dynamicRows.length === 0 && (
-              <div className="text-destructive inline-block p-4">Client submission pending.</div>
+              <div className="text-destructive inline-block p-3 text-sm">Client submission pending.</div>
             )}
 
             {dynamicRows.map((row, index: number) => {
@@ -518,7 +719,7 @@ export default function ChecklistSection({
               }
 
               return (
-                <div key={`${section.id}-${index}`} className="border-b border-zinc-200 p-4 space-y-3 dark:border-white/10">
+                <div key={`${section.id}-${index}`} className="border-b border-zinc-200 p-3 space-y-2 dark:border-white/10">
                   <div className="flex justify-between items-center">
                     <div className="font-medium text-xs">{row.name || `Row ${index + 1}`}</div>
 
@@ -655,7 +856,7 @@ export default function ChecklistSection({
             })}
 
             {(!isAgency || (isAgency && canEdit)) && (
-              <div className="border-b border-zinc-200 bg-white p-4 space-y-3 last-of-type:border-b-0 dark:border-white/10 dark:bg-white/5">
+              <div className="border-b border-zinc-200 bg-white p-3 space-y-2 last-of-type:border-b-0 dark:border-white/10 dark:bg-white/5">
                 {localRows.map((row, index) => (
                   <div key={index} className="rounded-lg border border-zinc-200 bg-white overflow-hidden dark:border-white/10 dark:bg-white/5">
                     <Input
@@ -706,6 +907,8 @@ export default function ChecklistSection({
               </div>
             )}
           </>
+        )}
+        </>
         )}
       </AccordionContent>
     </AccordionItem>

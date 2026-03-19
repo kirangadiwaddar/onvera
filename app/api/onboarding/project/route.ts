@@ -156,7 +156,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ message: "Invalid submissions payload" }, { status: 400 })
   }
 
-  const { projects } = await getStoreData()
+  const { projects } = await getStoreData({ bypassCache: true })
   const currentProject = projects.find((item) => item.slug === slug)
   if (!currentProject) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })
@@ -168,7 +168,10 @@ export async function PUT(request: Request) {
     updated_at: string
   } = {
     updated_at: new Date().toISOString(),
-    submissions,
+    submissions: {
+      ...submissions,
+      __last_client_update: new Date().toISOString(),
+    },
   }
 
   if (hasIncompleteSections(submissions)) {
@@ -184,7 +187,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
 
-  const { projects: refreshedProjects, teams, templates } = await getStoreData()
+  const { projects: refreshedProjects, teams, templates } = await getStoreData({ bypassCache: true })
   const updatedProject = refreshedProjects.find((item) => item.slug === slug)
   if (!updatedProject) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })

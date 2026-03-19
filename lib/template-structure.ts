@@ -1,6 +1,13 @@
 import { Section } from "./types"
 
-export const templateStructure: Record<string, Section[]> = {
+const brandingSection = (): Section => ({
+  id: "branding",
+  title: "Branding",
+  items: [],
+  dynamic: true,
+})
+
+const baseTemplates: Record<string, Section[]> = {
   // =====================================================
   // 1️⃣ Web Development
   // =====================================================
@@ -200,3 +207,16 @@ export const templateStructure: Record<string, Section[]> = {
     },
   ],
 }
+
+const withBranding = (templates: Record<string, Section[]>) =>
+  Object.fromEntries(
+    Object.entries(templates).map(([key, sections]) => {
+      if (key === "branding") {
+        return [key, sections]
+      }
+      const filtered = sections.filter((section) => section.id !== "branding")
+      return [key, [brandingSection(), ...filtered]]
+    }),
+  )
+
+export const templateStructure: Record<string, Section[]> = withBranding(baseTemplates)

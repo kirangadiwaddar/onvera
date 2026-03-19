@@ -23,7 +23,7 @@ export async function GET(
 
   const teamProjects = projects
     .filter((project) => project.teamIds.includes(team.id))
-    .map((project) => attachRelations(project, teams, templates))
+    .map((project) => attachRelations(project, teams, templates, { includeTemplateStructure: false }))
 
   return NextResponse.json({ team, projects: teamProjects })
 }
@@ -38,7 +38,7 @@ export async function PUT(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
 
-  const { teams } = await getStoreData()
+  const { teams } = await getStoreData({ bypassCache: true })
   const currentTeam = teams.find((item) => item.slug === slug)
   if (!currentTeam) {
     return NextResponse.json({ message: "Team not found" }, { status: 404 })
@@ -105,7 +105,7 @@ export async function PUT(
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
 
-  const { projects, teams: allTeams, templates } = await getStoreData()
+  const { projects, teams: allTeams, templates } = await getStoreData({ bypassCache: true })
   const team = allTeams.find((item) => item.slug === slug)
 
   if (!team) {
@@ -114,7 +114,7 @@ export async function PUT(
 
   const teamProjects = projects
     .filter((project) => project.teamIds.includes(team.id))
-    .map((project) => attachRelations(project, allTeams, templates))
+    .map((project) => attachRelations(project, allTeams, templates, { includeTemplateStructure: false }))
 
   return NextResponse.json({ team, projects: teamProjects })
 }
@@ -129,7 +129,7 @@ export async function DELETE(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
 
-  const { teams } = await getStoreData()
+  const { teams } = await getStoreData({ bypassCache: true })
   const currentTeam = teams.find((item) => item.slug === slug)
   if (!currentTeam) {
     return NextResponse.json({ message: "Team not found" }, { status: 404 })

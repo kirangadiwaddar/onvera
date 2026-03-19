@@ -67,14 +67,24 @@ type TeamDetailResponse = {
   projects: Project[]
 }
 
+type ProjectSummary = {
+  id: number
+  slug: string
+  title: string
+  status: Project["status"]
+  createdAt?: string
+  updatedAt?: string
+  teamIds: number[]
+}
+
 export default function TeamDetailPage() {
-  const { user, profile } = useAuth()
+  const { user, profile, loading: authLoading } = useAuth()
   const params = useParams()
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug
 
   const [team, setTeam] = useState<Team | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
-  const [allProjects, setAllProjects] = useState<Project[]>([])
+  const [allProjects, setAllProjects] = useState<ProjectSummary[]>([])
   const [loading, setLoading] = useState(true)
 
   const [openInvite, setOpenInvite] = useState(false)
@@ -110,12 +120,17 @@ export default function TeamDetailPage() {
     setTeam(data.team)
     setProjects(data.projects || [])
 
-    const projectResponse = await fetchWithAuth("/api/projects", { cache: "no-store" })
-    const projectData = (await projectResponse.json()) as { projects?: Project[] }
-    setAllProjects(Array.isArray(projectData.projects) ? projectData.projects : [])
   }, [slug])
 
   useEffect(() => {
+    if (authLoading) return
+    if (!user?.id) {
+      setTeam(null)
+      setProjects([])
+      setAllProjects([])
+      setLoading(false)
+      return
+    }
     if (!slug) return
     if (isFreelancer) {
       setLoading(false)
@@ -129,7 +144,22 @@ export default function TeamDetailPage() {
       .finally(() => {
         setLoading(false)
       })
-  }, [loadTeam, slug, isFreelancer])
+  }, [authLoading, loadTeam, slug, isFreelancer, user?.id])
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!user?.id) return
+    if (!openAssignProject) return
+    if (allProjects.length > 0) return
+
+    const loadProjectSummary = async () => {
+      const projectResponse = await fetchWithAuth("/api/projects?summary=1", { cache: "no-store" })
+      const projectData = (await projectResponse.json()) as { projects?: ProjectSummary[] }
+      setAllProjects(Array.isArray(projectData.projects) ? projectData.projects : [])
+    }
+
+    void loadProjectSummary()
+  }, [allProjects.length, authLoading, openAssignProject, user?.id])
 
   useEffect(() => {
     if (typeof window === "undefined") return

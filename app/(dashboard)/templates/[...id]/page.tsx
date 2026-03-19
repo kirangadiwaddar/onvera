@@ -25,6 +25,7 @@ import type { ChecklistItem, FieldType, Section } from "@/lib/types"
 import { templateStructure } from "@/lib/template-structure"
 import { EmptyState } from "@/components/emptyState"
 import { toast } from "sonner"
+import { BrandingUploader } from "@/components/branding-uploader"
 
 type TemplatePayload = {
   id: string
@@ -39,11 +40,8 @@ const DEFAULT_STRUCTURE: Section[] = [
   {
     id: "branding",
     title: "Branding",
-    items: [
-      { id: "logo", label: "Logo", type: "predefined", fieldType: "upload" },
-      { id: "brand-guidelines", label: "Brand Guidelines", type: "predefined", fieldType: "upload" },
-      { id: "fonts", label: "Fonts", type: "predefined", fieldType: "upload" },
-    ],
+    items: [],
+    dynamic: true,
   },
   {
     id: "docs",
@@ -78,6 +76,22 @@ const getDefaultStructure = (key?: string) => {
   return templateStructure[key] ?? []
 }
 
+const ensureBrandingSection = (sections: Section[], templateKey?: string) => {
+  const filtered = sections.filter((section) => section.id !== "branding")
+  if (templateKey === "branding") {
+    return filtered
+  }
+  return [
+    {
+      id: "branding",
+      title: "Branding",
+      items: [],
+      dynamic: true,
+    },
+    ...filtered,
+  ]
+}
+
 const isLegacyDefaultStructure = (structure?: Section[]) => {
   if (!structure || structure.length === 0) return false
   return structure.some((section) => section.title?.trim().toLowerCase() === "default checklist")
@@ -106,7 +120,7 @@ export default function TemplateChecklistPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
+  const [openSectionId, setOpenSectionId] = useState<string | null>(null)
   const sectionTitleRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [showDefaultPrompt, setShowDefaultPrompt] = useState(false)
@@ -127,10 +141,15 @@ export default function TemplateChecklistPage() {
         const templateKey = found.templateKey ?? found.template_key ?? found.id
         setTemplate(found)
         if (templateStructure[templateKey] && isLegacyDefaultStructure(found.structure)) {
-          setStructure(getDefaultStructure(templateKey))
+          setStructure(ensureBrandingSection(getDefaultStructure(templateKey), templateKey))
           return
         }
-        setStructure(found.structure?.length ? found.structure : getDefaultStructure(templateKey))
+        setStructure(
+          ensureBrandingSection(
+            found.structure?.length ? found.structure : getDefaultStructure(templateKey),
+            templateKey,
+          ),
+        )
       } catch {
         setError("Unable to load template")
       } finally {
@@ -142,20 +161,9 @@ export default function TemplateChecklistPage() {
 
   useEffect(() => {
     if (structure.length === 0) return
-    setOpenSections((prev) => {
-      const next = { ...prev }
-      structure.forEach((section, index) => {
-        if (next[section.id] === undefined) {
-          next[section.id] = index === 0
-        }
-      })
-      Object.keys(next).forEach((key) => {
-        if (!structure.some((section) => section.id === key)) {
-          delete next[key]
-        }
-      })
-      return next
-    })
+    setOpenSectionId((prev) =>
+      prev && structure.some((section) => section.id === prev) ? prev : null
+    )
   }, [structure])
 
   useEffect(() => {
@@ -184,14 +192,13 @@ export default function TemplateChecklistPage() {
         items: [],
       },
     ])
-    setOpenSections((prev) => ({ ...prev, [sectionId]: true }))
+    setOpenSectionId(sectionId)
     setEditingSectionId(sectionId)
-    toast.success("Section added")
   }
 
   const handleRemoveSection = (sectionId: string) => {
+    if (sectionId === "branding") return
     setStructure((prev) => prev.filter((section) => section.id !== sectionId))
-    toast.success("Section removed")
   }
 
   const handleAddItem = (sectionId: string) => {
@@ -208,7 +215,6 @@ export default function TemplateChecklistPage() {
           : section
       )
     )
-    toast.success("Item added")
   }
 
   const handleRemoveItem = (sectionId: string, itemId: string) => {
@@ -219,7 +225,6 @@ export default function TemplateChecklistPage() {
           : section
       )
     )
-    toast.success("Item removed")
   }
 
   const requestDeleteSection = (section: Section) => {
@@ -271,7 +276,7 @@ export default function TemplateChecklistPage() {
         const payload = await res.json().catch(() => null) as { message?: string } | null
         throw new Error(payload?.message || "Unable to update checklist")
       }
-      toast.success("Checklist saved")
+      toast.success("Checklist updated")
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to update checklist"
       setError(message)
@@ -285,12 +290,11 @@ export default function TemplateChecklistPage() {
     setStructure(DEFAULT_STRUCTURE)
     setShowDefaultPrompt(false)
     setDefaultPromptDismissed(true)
-    toast.success("Default checklist loaded")
   }
 
   const focusSectionTitle = (sectionId: string) => {
     setEditingSectionId(sectionId)
-    setOpenSections((prev) => ({ ...prev, [sectionId]: true }))
+    setOpenSectionId(sectionId)
     requestAnimationFrame(() => {
       const input = sectionTitleRefs.current[sectionId]
       if (!input) return
@@ -354,20 +358,19 @@ export default function TemplateChecklistPage() {
             </div>
           ) : null}
           {structure.map((section) => {
-            const isOpen = Boolean(openSections[section.id])
+            const isOpen = openSectionId === section.id
+            const isBranding = section.id === "branding"
             return (
               <Collapsible
                 key={section.id}
                 open={isOpen}
-                onOpenChange={(open) =>
-                  setOpenSections((prev) => ({ ...prev, [section.id]: open }))
-                }
+                onOpenChange={(open) => setOpenSectionId(open ? section.id : null)}
                 className="border-b last-of-type:border-b-0 border-zinc-200 dark:border-white/10"
               >
                 <div
                   className={`flex items-center gap-3 p-2.5 ${isOpen ? "bg-violet-50 dark:bg-violet-500/10" : ""}`}
                 >
-                {editingSectionId === section.id ? (
+                {editingSectionId === section.id && !isBranding ? (
                   <Input
                     value={section.title}
                     onChange={(event) => handleSectionTitleChange(section.id, event.target.value)}
@@ -389,29 +392,33 @@ export default function TemplateChecklistPage() {
                   </div>
                 )}
                   <div className="flex items-center gap-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+                    {!isBranding && (
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="rounded-full"
+                              onClick={() => focusSectionTitle(section.id)}
+                              aria-label="Edit section title"
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">Edit title</TooltipContent>
+                        </Tooltip>
                         <Button
-                          variant="ghost"
+                          variant="destructiveLight"
                           size="icon"
                           className="rounded-full"
-                          onClick={() => focusSectionTitle(section.id)}
-                          aria-label="Edit section title"
+                          onClick={() => requestDeleteSection(section)}
+                          aria-label="Remove section"
                         >
-                          <Pencil className="size-4" />
+                          <Trash2 className="size-4" />
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">Edit title</TooltipContent>
-                    </Tooltip>
-                    <Button
-                      variant="destructiveLight"
-                      size="icon"
-                      className="rounded-full"
-                      onClick={() => requestDeleteSection(section)}
-                      aria-label="Remove section"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                      </>
+                    )}
                     <CollapsibleTrigger asChild>
                       <Button
                         variant="secondary"
@@ -427,57 +434,68 @@ export default function TemplateChecklistPage() {
 
                 <CollapsibleContent>
                   <div className="border-t border-border px-4 pb-4 pt-4">
-                    <div className="space-y-3">
-                      {section.items.map((item) => (
-                        <div key={item.id} className="grid gap-3 sm:grid-cols-[1.4fr_0.8fr_auto]">
-                          <Input
-                            value={item.label}
-                            onChange={(event) =>
-                              handleItemChange(section.id, item.id, { label: event.target.value })
-                            }
-                            placeholder="Item label"
-                          />
-                          <div className="right-actions flex items-center gap-5">
-                                <Select
-                            value={item.fieldType}
-                            onValueChange={(value) =>
-                              handleItemChange(section.id, item.id, { fieldType: value as FieldType })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {FIELD_TYPE_OPTIONS.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="destructiveLight"
-                            size="icon"
-                            className="rounded-full"
-                            onClick={() => requestDeleteItem(section.id, item)}
-                            aria-label="Remove item"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                          </div>                          
+                    {isBranding ? (
+                      <div className="space-y-3">
+                        <p className="text-xs text-muted-foreground">
+                          Upload your brand logo, guidelines, fonts, and related branding assets.
+                        </p>
+                        <BrandingUploader disabled />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="space-y-3">
+                          {section.items.map((item) => (
+                            <div key={item.id} className="grid gap-3 sm:grid-cols-[1.4fr_0.8fr_auto]">
+                              <Input
+                                value={item.label}
+                                onChange={(event) =>
+                                  handleItemChange(section.id, item.id, { label: event.target.value })
+                                }
+                                placeholder="Item label"
+                              />
+                              <div className="right-actions flex items-center gap-5">
+                                    <Select
+                                value={item.fieldType}
+                                onValueChange={(value) =>
+                                  handleItemChange(section.id, item.id, { fieldType: value as FieldType })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {FIELD_TYPE_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                variant="destructiveLight"
+                                size="icon"
+                                className="rounded-full"
+                                onClick={() => requestDeleteItem(section.id, item)}
+                                aria-label="Remove item"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              </div>                          
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
 
-                    <Button
-                      variant="gradient"
-                      size="sm"
-                      className="mt-3 border border-zinc-300 dark:border-white/10"
-                      onClick={() => handleAddItem(section.id)}
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add item
-                    </Button>
+                        <Button
+                          variant="gradient"
+                          size="sm"
+                          className="mt-3 border border-zinc-300 dark:border-white/10"
+                          onClick={() => handleAddItem(section.id)}
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add item
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </CollapsibleContent>
               </Collapsible>

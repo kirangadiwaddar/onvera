@@ -26,6 +26,7 @@ import {
 import { getAvatarColor } from "@/lib/get-avatar-colors";
 import { ProjectModal, type ProjectFormValues } from "@/components/projects/project-modal";
 import { fetchWithAuth } from "@/lib/auth/client-fetch";
+import { useAuth } from "@/components/providers/auth-provider"
 import { LoadingState } from "@/components/loadingState";
 import { toast } from "sonner";
 import {
@@ -87,6 +88,8 @@ type Props = {
 
 export default function TemplateCards({ canSeed = true }: Props) {
     const router = useRouter();
+    const { user, loading: authLoading } = useAuth()
+    const storageKey = user?.id ? `onvera:seed-templates-dismissed:${user.id}` : null
     const [templates, setTemplates] = useState<TemplateWithCount[]>([])
     const [loadingTemplates, setLoadingTemplates] = useState(true)
     const [selectedTemplate, setSelectedTemplate] = useState<TemplateWithCount | null>(null)
@@ -127,8 +130,29 @@ export default function TemplateCards({ canSeed = true }: Props) {
     }
 
     useEffect(() => {
+        if (authLoading) return
+        if (!user?.id) {
+            setTemplates([])
+            setLoadingTemplates(false)
+            return
+        }
+        if (storageKey && typeof window !== "undefined") {
+            const stored = window.localStorage.getItem(storageKey)
+            setSeedPromptDismissed(stored === "1")
+        } else {
+            setSeedPromptDismissed(false)
+        }
         loadTemplates()
-    }, [])
+    }, [authLoading, storageKey, user?.id])
+
+    const persistSeedDismissed = (dismissed: boolean) => {
+        if (!storageKey || typeof window === "undefined") return
+        if (dismissed) {
+            window.localStorage.setItem(storageKey, "1")
+        } else {
+            window.localStorage.removeItem(storageKey)
+        }
+    }
 
     useEffect(() => {
         if (!canSeed) return
@@ -320,6 +344,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
             toast.success("Predefined templates added")
             setShowSeedPrompt(false)
             setSeedPromptDismissed(true)
+            persistSeedDismissed(true)
             loadTemplates(true)
         } catch (error) {
             toast.error(error instanceof Error ? error.message : "Failed to add templates")
@@ -671,7 +696,10 @@ export default function TemplateCards({ canSeed = true }: Props) {
                     open={showSeedPrompt}
                     onOpenChange={(open) => {
                         setShowSeedPrompt(open)
-                        if (!open) setSeedPromptDismissed(true)
+                        if (!open) {
+                            setSeedPromptDismissed(true)
+                            persistSeedDismissed(true)
+                        }
                     }}
                 >
                     <DialogContent className="sm:max-w-md">
@@ -756,6 +784,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                 onClick={() => {
                                     setShowSeedPrompt(false)
                                     setSeedPromptDismissed(true)
+                                    persistSeedDismissed(true)
                                 }}
                                 disabled={submitting}
                             >

@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
   }
 
-  const { teams, templates } = await getStoreData()
+  const { teams, templates } = await getStoreData({ bypassCache: true })
   const baseSlug = slugify(body.name)
 
   if (!baseSlug) {
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
 
-  const { teams: latestTeams, projects } = await getStoreData()
+  const { teams: latestTeams, projects } = await getStoreData({ bypassCache: true })
   const created = latestTeams.find((team) => team.slug === slug)
 
   if (!created) {

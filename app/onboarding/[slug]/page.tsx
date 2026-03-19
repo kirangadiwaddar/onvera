@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import type { Project } from "@/types/project"
 import type { Section } from "@/lib/types"
@@ -23,6 +23,7 @@ import { BadgeCheck, Check, Download, Files, Monitor, Moon, Sun } from "lucide-r
 import { EmptyState } from "@/components/emptyState"
 import { Separator } from "@/components/ui/separator"
 import { LoadingState } from "@/components/loadingState"
+import { OnboardingNotificationBell } from "@/components/notifications/onboarding-notification-bell"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -170,6 +171,9 @@ export default function ClientOnboardingPage() {
   const [passwordInput, setPasswordInput] = useState("")
   const [unlocking, setUnlocking] = useState(false)
   const [submissionsDraft, setSubmissionsDraft] = useState<Record<string, unknown>>({})
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const hasUnsavedChangesRef = useRef(false)
+  const [openSectionId, setOpenSectionId] = useState<string>("")
   const [savingSubmissions, setSavingSubmissions] = useState(false)
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system")
   const [mounted, setMounted] = useState(false)
@@ -315,7 +319,10 @@ export default function ClientOnboardingPage() {
     const data = await res.json().catch(() => null) as { project?: Project } | null
     if (data?.project) {
       setProject(data.project)
-      setSubmissionsDraft(data.project.submissions || {})
+      if (!silent || !hasUnsavedChangesRef.current) {
+        setSubmissionsDraft(data.project.submissions || {})
+        setHasUnsavedChanges(false)
+      }
     }
     if (!silent) setLoading(false)
   }, [accessGranted, missingRequiredToken, slug, token, tokenError, tokenValidating])
@@ -348,6 +355,16 @@ export default function ClientOnboardingPage() {
     }
   }, [accessGranted, loadProject, missingRequiredToken, slug, supabase, tokenError, tokenValidating])
 
+  useEffect(() => {
+    if (!slug || tokenValidating || tokenError || missingRequiredToken || !accessGranted) return
+    const interval = window.setInterval(() => {
+      void loadProject(true)
+    }, 2000)
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [accessGranted, loadProject, missingRequiredToken, slug, tokenError, tokenValidating])
+
   const saveProgress = async () => {
     if (!project) return
 
@@ -373,6 +390,7 @@ export default function ClientOnboardingPage() {
       if (data?.project) {
         setProject(data.project)
         setSubmissionsDraft(data.project.submissions || {})
+        setHasUnsavedChanges(false)
       }
     } catch (error) {
       console.error("Unable to save onboarding progress:", error)
@@ -380,6 +398,26 @@ export default function ClientOnboardingPage() {
       setSavingSubmissions(false)
     }
   }
+
+  const sections = useMemo(
+    () =>
+      project
+        ? [
+          ...(project.templateStructure || []),
+          ...getCustomSectionsFromSubmissions(submissionsDraft),
+        ]
+        : [],
+    [project, project?.templateStructure, submissionsDraft],
+  )
+
+  useEffect(() => {
+    if (sections.length === 0) return
+    setOpenSectionId((prev) => (prev && sections.some((section) => section.id === prev) ? prev : ""))
+  }, [sections])
+
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges
+  }, [hasUnsavedChanges])
 
   if (missingRequiredToken) {
     return (
@@ -447,19 +485,29 @@ export default function ClientOnboardingPage() {
     )
   }
 
-  const sections = [
-    ...(project.templateStructure || []),
-    ...getCustomSectionsFromSubmissions(submissionsDraft),
-  ]
-
   const totalSections = sections.length
   const completedSections = sections.filter(
     (section) => submissionsDraft?.[`__section_complete:${section.id}`] === true,
   ).length
-  const projectProgress = totalSections === 0
-    ? 0
-    : Math.min(Math.round((completedSections / totalSections) * 100), 100)
+  const isProjectCompleted = project?.status === "completed"
+  const projectProgress = isProjectCompleted
+    ? 100
+    : totalSections === 0
+      ? 0
+      : Math.min(Math.round((completedSections / totalSections) * 100), 100)
   const uploadedCount = sections.filter((section) => {
+    const hasRejected = section.dynamic
+      ? (() => {
+        const rows = submissionsDraft?.[section.id]
+        if (!Array.isArray(rows) || rows.length === 0) return false
+        return rows.some((row) => row && typeof row === "object" && (row as { status?: unknown }).status === "rejected")
+      })()
+      : section.items.some((item) => {
+        const entry = submissionsDraft?.[item.id]
+        if (!entry || typeof entry !== "object") return false
+        return (entry as { status?: unknown }).status === "rejected"
+      })
+    if (hasRejected) return false
     if (section.dynamic) {
       const rows = submissionsDraft?.[section.id]
       if (!Array.isArray(rows) || rows.length === 0) return false
@@ -473,6 +521,7 @@ export default function ClientOnboardingPage() {
       })
     }
 
+    if (!section.items || section.items.length === 0) return false
     return section.items.every((item) => {
       const entry = submissionsDraft?.[item.id]
       if (!entry || typeof entry !== "object") return false
@@ -481,9 +530,10 @@ export default function ClientOnboardingPage() {
       return Boolean(value)
     })
   }).length
+  const effectiveUploadedCount = isProjectCompleted ? totalSections : uploadedCount
   const progress = totalSections === 0
     ? 0
-    : Math.min(Math.round((uploadedCount / totalSections) * 100), 100)
+    : Math.min(Math.round((effectiveUploadedCount / totalSections) * 100), 100)
   const progressRadius = 22
   const progressStroke = 4
   const progressCircumference = 2 * Math.PI * progressRadius
@@ -495,17 +545,17 @@ export default function ClientOnboardingPage() {
   const remainingCount =
     members.length > 3 ? members.length - 3 : 0
 
-    const getProgressStrokeColor = (value: number) => {
-  if (value < 40) return "text-red-500"
-  if (value < 80) return "text-amber-500"
-  return "text-emerald-500"
-}
+  const getProgressStrokeColor = (value: number) => {
+    if (value < 40) return "text-red-500"
+    if (value < 80) return "text-amber-500"
+    return "text-emerald-500"
+  }
 
-    const getProgressBarColor = (value: number) => {
-  if (value < 40) return "!bg-gradient-to-r from-red-400 to-red-500"
-  if (value < 80) return "!bg-gradient-to-r from-amber-400 to-orange-500"
-  return "!bg-gradient-to-r from-emerald-400 to-green-500"
-}
+  const getProgressBarColor = (value: number) => {
+    if (value < 40) return "!bg-gradient-to-r from-red-400 to-red-500"
+    if (value < 80) return "!bg-gradient-to-r from-amber-400 to-orange-500"
+    return "!bg-gradient-to-r from-emerald-400 to-green-500"
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-[#0b0b13] dark:text-white">
@@ -553,6 +603,10 @@ export default function ClientOnboardingPage() {
                 No team members added yet.
               </div>
             )}
+
+            <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />
+            <OnboardingNotificationBell slug={slug} token={token} />
+            <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -606,7 +660,7 @@ export default function ClientOnboardingPage() {
           <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-white/5">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Project Onboarding Checklist</p>
-              <p className="text-xs text-muted-foreground mt-1">{uploadedCount}/{totalSections} sections uploaded</p>
+              <p className="text-xs text-muted-foreground mt-1">{effectiveUploadedCount}/{totalSections} sections uploaded</p>
             </div>
             <div className="relative h-14 w-14">
               <svg viewBox="0 0 52 52" className="-rotate-90 h-14 w-14">
@@ -643,14 +697,24 @@ export default function ClientOnboardingPage() {
           </div>
 
           {/* Sections */}
-          <Accordion type="multiple" className="border border-zinc-200 rounded-lg overflow-hidden dark:border-white/10">
+          <Accordion
+            type="single"
+            collapsible
+            value={openSectionId}
+            onValueChange={(value) => setOpenSectionId(value || "")}
+            className="border border-zinc-200 rounded-lg overflow-hidden dark:border-white/10"
+          >
             {sections.map((section) => (
               <ChecklistSection
                 key={section.id}
                 section={section}
                 isAgency={false}
                 submissions={submissionsDraft || {}}
-                onSubmissionsChange={setSubmissionsDraft}
+                onSubmissionsChange={(next) => {
+                  setSubmissionsDraft(next)
+                  setHasUnsavedChanges(true)
+                  hasUnsavedChangesRef.current = true
+                }}
                 showCompletionControl={false}
               />
             ))}
@@ -669,8 +733,8 @@ export default function ClientOnboardingPage() {
         </div>
 
         {/* RIGHT 40% */}
-          <div className="right-block space-y-8 py-10">
-           
+        <div className="right-block space-y-8 py-10">
+
           {/* Uploaded Files */}
           {getUploadedEntries(submissionsDraft, [
             ...(project.templateStructure || []),
@@ -728,7 +792,7 @@ export default function ClientOnboardingPage() {
             </div>
           }
 
-           <Separator />
+          <Separator />
           <div className="project-progress-block">
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium">Project Progress</span>
@@ -757,12 +821,12 @@ export default function ClientOnboardingPage() {
                 </p>
               </div>
               {project.updatedAt && (
-              <div className="flex justify-between items-center text-sm border-b p-2.5 pt-0 last:border-b-0">
-                <p className="font-medium text-xs">Last Updated</p>
-                <p className="text-muted-foreground">
-                  {new Date(project.updatedAt).toLocaleDateString()}
-                </p>
-              </div>)}
+                <div className="flex justify-between items-center text-sm border-b p-2.5 pt-0 last:border-b-0">
+                  <p className="font-medium text-xs">Last Updated</p>
+                  <p className="text-muted-foreground">
+                    {new Date(project.updatedAt).toLocaleDateString()}
+                  </p>
+                </div>)}
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { attachRelations, getStoreData } from "@/lib/server/data-store"
+import { attachRelations } from "@/lib/server/data-store"
 import type { status } from "@/lib/project-status"
 import {
   filterProjectsForIdentity,
@@ -8,6 +8,111 @@ import {
   isLeadForProject,
 } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import { templateStructure } from "@/lib/template-structure"
+
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+
+const resolveTemplateKeyFromTitle = (title?: string) => {
+  if (!title) return undefined
+  const normalizedTitle = slugify(title)
+  if (!normalizedTitle) return undefined
+  return Object.keys(templateStructure).find((key) => slugify(key) === normalizedTitle)
+}
+
+type ProjectRow = {
+  id: number
+  slug: string
+  title: string
+  template_id: string
+  status: status
+  created_at: string
+  updated_at?: string | null
+  avatar_src?: string | null
+  team_ids?: number[] | null
+  extra_members?: unknown[] | null
+  submissions?: Record<string, unknown> | null
+  created_by?: string | null
+}
+
+type TeamRow = {
+  id: number
+  name: string
+  slug: string
+  description: string
+  status: "active" | "inactive"
+  lead?: unknown | null
+  members?: unknown[] | null
+  created_at: string
+  created_by?: string | null
+}
+
+function normalizeTemplateKey(template: Record<string, unknown>) {
+  const rawKey =
+    (template as { templateKey?: string }).templateKey ??
+    (template as { template_key?: string }).template_key ??
+    (template as { id?: string }).id ??
+    ""
+  const resolvedKey =
+    templateStructure[rawKey] ||
+    !(template as { title?: string }).title
+      ? rawKey
+      : resolveTemplateKeyFromTitle((template as { title?: string }).title) ?? rawKey
+  const structure = Array.isArray((template as { structure?: unknown }).structure)
+    ? ((template as { structure: unknown[] }).structure as Array<{ id?: string }>)
+    : null
+  const normalizedStructure = structure && structure.length > 0 && resolvedKey !== "branding"
+    ? [
+        {
+          id: "branding",
+          title: "Branding",
+          items: [],
+          dynamic: true,
+        },
+        ...structure.filter((section) => section?.id !== "branding"),
+      ]
+    : undefined
+  return {
+    ...template,
+    templateKey: resolvedKey,
+    ...(normalizedStructure ? { structure: normalizedStructure } : {}),
+  }
+}
+
+function normalizeProject(row: ProjectRow) {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    templateId: row.template_id,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at ?? undefined,
+    avatarSrc: row.avatar_src ?? undefined,
+    teamIds: row.team_ids ?? [],
+    extraMembers: row.extra_members ?? [],
+    submissions: row.submissions ?? {},
+    createdBy: row.created_by ?? null,
+  }
+}
+
+function normalizeTeam(row: TeamRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    description: row.description,
+    status: row.status,
+    lead: row.lead ?? undefined,
+    members: row.members ?? [],
+    createdAt: row.created_at,
+    createdBy: row.created_by ?? null,
+  }
+}
 
 function hasChecklistActivity(submissions?: Record<string, unknown>) {
   if (!submissions || typeof submissions !== "object") return false
@@ -68,32 +173,49 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params
-  const { projects, teams, templates } = await getStoreData()
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
-  const visibleProjects = filterProjectsForIdentity(projects, teams, identity)
-  const project = visibleProjects.find((item) => item.slug === slug)
+  const admin = createAdminClient()
+  if (!admin) {
+    return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
+  }
 
-  if (!project) {
+  const { data: projectRow } = await admin.from("projects").select("*").eq("slug", slug).maybeSingle()
+  if (!projectRow) {
+    return NextResponse.json({ message: "Project not found" }, { status: 404 })
+  }
+
+  const teamIds = Array.isArray(projectRow.team_ids) ? projectRow.team_ids : []
+  const [{ data: teamRows }, { data: templateRows }] = await Promise.all([
+    teamIds.length > 0 ? admin.from("teams").select("*").in("id", teamIds) : Promise.resolve({ data: [] }),
+    admin
+      .from("templates")
+      .select("*")
+      .or(`id.eq.${projectRow.template_id},template_key.eq.${projectRow.template_id}`),
+  ])
+
+  const teams = (Array.isArray(teamRows) ? teamRows : []).map(normalizeTeam)
+  const templates = Array.isArray(templateRows) ? templateRows.map(normalizeTemplateKey) : []
+  const project = normalizeProject(projectRow as ProjectRow)
+
+  const visibleProjects = filterProjectsForIdentity([project], teams, identity)
+  if (visibleProjects.length === 0) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })
   }
 
   let nextProject = project
-  const admin = createAdminClient()
   let tokenExpiresAt: string | null = null
-  if (admin) {
-    const { data } = await admin
-      .from("onboarding_tokens")
-      .select("expires_at")
-      .eq("project_slug", slug)
-      .order("created_at", { ascending: false })
-      .limit(1)
-    tokenExpiresAt = data?.[0]?.expires_at ?? null
-  }
+  const { data } = await admin
+    .from("onboarding_tokens")
+    .select("expires_at")
+    .eq("project_slug", slug)
+    .order("created_at", { ascending: false })
+    .limit(1)
+  tokenExpiresAt = data?.[0]?.expires_at ?? null
 
-  if (hasIncompleteSections(project.submissions) && admin && project.status === "completed") {
+  if (hasIncompleteSections(project.submissions) && project.status === "completed") {
     const { error } = await admin
       .from("projects")
       .update({ status: "ongoing", updated_at: new Date().toISOString() })
@@ -101,7 +223,7 @@ export async function GET(
     if (!error) {
       nextProject = { ...project, status: "ongoing" }
     }
-  } else if (shouldMarkOverdue(project, tokenExpiresAt) && admin) {
+  } else if (shouldMarkOverdue(project, tokenExpiresAt)) {
     const { error } = await admin
       .from("projects")
       .update({ status: "overdue", updated_at: new Date().toISOString() })
@@ -109,7 +231,7 @@ export async function GET(
     if (!error) {
       nextProject = { ...project, status: "overdue" }
     }
-  } else if (shouldMarkOngoing(project) && admin) {
+  } else if (shouldMarkOngoing(project)) {
     const { error } = await admin
       .from("projects")
       .update({ status: "ongoing", updated_at: new Date().toISOString() })
@@ -148,15 +270,25 @@ export async function PUT(
     return NextResponse.json({ message: "Invalid project payload" }, { status: 400 })
   }
 
-  const { projects, teams } = await getStoreData()
-  const currentProject = projects.find((item) => item.slug === slug)
+  const admin = createAdminClient()
 
-  if (!currentProject) {
+  if (!admin) {
+    return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
+  }
+
+  const { data: projectRow } = await admin.from("projects").select("*").eq("slug", slug).maybeSingle()
+  if (!projectRow) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })
   }
 
-  const visibleProjects = filterProjectsForIdentity(projects, teams, identity)
-  if (!visibleProjects.some((item) => item.slug === slug)) {
+  const teamIds = Array.isArray(projectRow.team_ids) ? projectRow.team_ids : []
+  const { data: teamRows } =
+    teamIds.length > 0 ? await admin.from("teams").select("*").in("id", teamIds) : { data: [] }
+  const teams = (Array.isArray(teamRows) ? teamRows : []).map(normalizeTeam)
+  const currentProject = normalizeProject(projectRow as ProjectRow)
+
+  const visibleProjects = filterProjectsForIdentity([currentProject], teams, identity)
+  if (visibleProjects.length === 0) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 })
   }
 
@@ -168,12 +300,6 @@ export async function PUT(
 
   if (!ownerAccess && !adminRole && (!leadAccess || !onlySubmissionsUpdate)) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 })
-  }
-
-  const admin = createAdminClient()
-
-  if (!admin) {
-    return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
   }
 
   const updatePayload: {
@@ -238,12 +364,25 @@ export async function PUT(
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
 
-  const { projects: refreshedProjects, teams: refreshedTeams, templates } = await getStoreData()
-  const updatedProject = refreshedProjects.find((item) => item.slug === slug)
-
-  if (!updatedProject) {
+  const { data: updatedRow } = await admin.from("projects").select("*").eq("slug", slug).maybeSingle()
+  if (!updatedRow) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })
   }
+
+  const updatedTeamIds = Array.isArray(updatedRow.team_ids) ? updatedRow.team_ids : []
+  const [{ data: updatedTeamRows }, { data: templateRows }] = await Promise.all([
+    updatedTeamIds.length > 0
+      ? admin.from("teams").select("*").in("id", updatedTeamIds)
+      : Promise.resolve({ data: [] }),
+    admin
+      .from("templates")
+      .select("*")
+      .or(`id.eq.${updatedRow.template_id},template_key.eq.${updatedRow.template_id}`),
+  ])
+
+  const updatedProject = normalizeProject(updatedRow as ProjectRow)
+  const refreshedTeams = (Array.isArray(updatedTeamRows) ? updatedTeamRows : []).map(normalizeTeam)
+  const templates = Array.isArray(templateRows) ? templateRows.map(normalizeTemplateKey) : []
 
   return NextResponse.json({ project: attachRelations(updatedProject, refreshedTeams, templates) })
 }
@@ -258,19 +397,18 @@ export async function DELETE(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
 
-  const { projects } = await getStoreData()
-  const currentProject = projects.find((item) => item.slug === slug)
-  if (!currentProject) {
-    return NextResponse.json({ message: "Project not found" }, { status: 404 })
-  }
-  if (currentProject.createdBy !== identity.userId) {
-    return NextResponse.json({ message: "Forbidden" }, { status: 403 })
-  }
-
   const admin = createAdminClient()
 
   if (!admin) {
     return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
+  }
+
+  const { data: currentRow } = await admin.from("projects").select("slug, created_by").eq("slug", slug).maybeSingle()
+  if (!currentRow) {
+    return NextResponse.json({ message: "Project not found" }, { status: 404 })
+  }
+  if (currentRow.created_by !== identity.userId) {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 })
   }
 
   const { error } = await admin.from("projects").delete().eq("slug", slug)

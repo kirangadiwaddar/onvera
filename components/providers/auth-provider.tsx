@@ -65,13 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    const loadingTimeout = window.setTimeout(() => {
-      setLoading(false)
-    }, 3000)
-
     if (!hasSupabaseEnv()) {
       setLoading(false)
-      window.clearTimeout(loadingTimeout)
       return
     }
 
@@ -86,7 +81,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(initialSession ?? null)
         setUser(initialSession?.user ?? null)
         setLoading(false)
-        window.clearTimeout(loadingTimeout)
 
         if (initialSession?.user?.id) {
           const data = await loadProfile(initialSession.user.id)
@@ -100,7 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null)
         setProfile(null)
         setLoading(false)
-        window.clearTimeout(loadingTimeout)
       }
     }
 
@@ -129,7 +122,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     return () => {
-      window.clearTimeout(loadingTimeout)
       subscription.unsubscribe()
     }
   }, [])

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Sora } from "next/font/google";
 import "./globals.css";
+import "@uppy/core/css/style.css";
+import "@uppy/drag-drop/css/style.css";
 import { AuthProvider } from "@/components/providers/auth-provider"
 import { Toaster } from "sonner";
 import { BadgeCheck, BadgeX } from "lucide-react";
@@ -55,8 +57,9 @@ export default function RootLayout({
           toastOptions={{
             classNames: {
               toast:
-                "bg-white text-zinc-900 border border-zinc-200 shadow-xl rounded-xl! dark:bg-white dark:text-zinc-900",
+                "bg-white text-zinc-900 border border-zinc-200 shadow-xl rounded-xl! dark:bg-white dark:text-zinc-900 flex items-start",
               description: "text-zinc-600",
+              icon: "mt-[4px]",
             },
           }}
         />

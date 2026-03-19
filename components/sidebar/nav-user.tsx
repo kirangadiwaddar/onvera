@@ -263,15 +263,6 @@ export function NavUser({
                   </Link>
                 </DropdownMenuItem> */}
                 <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    setShowNotifications(true)
-                  }}
-                >
-                  <Bell />
-                  Notifications
-                </DropdownMenuItem>
-                <DropdownMenuItem
                   variant="destructive"
                   onSelect={(event) => {
                     event.preventDefault()

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import AttentionTable from "@/components/dashboard/attentionTable"
 import { CompletedProjectsChart } from "@/components/dashboard/completedProjectsChart"
 import { SectionCards } from "@/components/dashboard/section-cards"
-import { AlarmClockMinus, CalendarCheck, ClipboardClock, GalleryVerticalEnd, Timer } from "lucide-react"
+import { AlarmClockMinus, CalendarCheck, ClipboardClock, GalleryVerticalEnd, Pause, Timer } from "lucide-react"
 import { LoadingState } from "@/components/loadingState"
 import { RecentActivity } from "@/components/dashboard/recentActivity"
 import type { Project } from "@/types/project"
@@ -115,7 +115,10 @@ export default function Page() {
 
   useEffect(() => {
     if (authLoading) return
-    if (!user?.id) return
+    if (!user?.id) {
+      setLoading(false)
+      return
+    }
     void load()
   }, [load, user?.id, authLoading])
 
@@ -170,10 +173,10 @@ export default function Page() {
       color: "text-destructive",
     },
     {
-      title: "Pending Projects",
+      title: "Onhold Projects",
       value: data.stats.overdue,
-      icon: ClipboardClock,
-      color: "text-orange-500",
+      icon: Pause,
+      color: "text-pink-500",
     },
   ]
 

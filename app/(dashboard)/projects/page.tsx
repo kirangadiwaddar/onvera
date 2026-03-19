@@ -72,7 +72,7 @@ type ProjectItem = {
 }
 
 export default function Page() {
-  const { profile } = useAuth()
+  const { profile, user, loading: authLoading } = useAuth()
   const [projects, setProjects] = useState<ProjectItem[]>([])
   const [templates, setTemplates] = useState<TemplateOption[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,7 +92,6 @@ export default function Page() {
   const loadProjects = async () => {
     let res = await fetchWithAuth("/api/projects", { cache: "no-store" })
     if (res.status === 401) {
-      await new Promise((resolve) => setTimeout(resolve, 300))
       res = await fetchWithAuth("/api/projects", { cache: "no-store" })
     }
     if (!res.ok) {
@@ -122,6 +121,14 @@ export default function Page() {
   }
 
   useEffect(() => {
+    if (authLoading) return
+    if (!user?.id) {
+      setProjects([])
+      setTemplates([])
+      setLoading(false)
+      return
+    }
+
     const loadInitial = async () => {
       try {
         await Promise.all([loadProjects(), loadTemplates()])
@@ -133,7 +140,7 @@ export default function Page() {
     }
 
     void loadInitial()
-  }, [])
+  }, [authLoading, user?.id])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -199,12 +206,20 @@ export default function Page() {
         }),
       })
 
+      const payload = await res.json().catch(() => null) as { message?: string } | null
+
       if (!res.ok) {
-        const payload = await res.json().catch(() => null) as { message?: string } | null
         throw new Error(payload?.message || "Failed to create project")
       }
 
-      await loadProjects()
+      if (payload && typeof payload === "object" && "slug" in payload) {
+        setProjects((prev) => {
+          const without = prev.filter((item) => item.slug !== (payload as { slug: string }).slug)
+          return [payload as ProjectItem, ...without]
+        })
+      } else {
+        await loadProjects()
+      }
       setIsCreateOpen(false)
       toast.success("Project created")
     } catch (error) {
@@ -213,6 +228,14 @@ export default function Page() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleOpenCreate = () => {
+    if (templates.length === 0) {
+      toast.error("Create at least one template before starting a project.")
+      return
+    }
+    setIsCreateOpen(true)
   }
 
   const handleEditProject = async (values: ProjectFormValues) => {
@@ -290,7 +313,7 @@ export default function Page() {
           title="No Projects Yet"
           description="You haven't created any projects yet."
           buttonText={isReadOnlyRole ? undefined : "Create Project"}
-          onClick={isReadOnlyRole ? undefined : () => setIsCreateOpen(true)}
+          onClick={isReadOnlyRole ? undefined : handleOpenCreate}
           icon={<FolderOpenDot />}
         />
       ) : (
@@ -386,7 +409,7 @@ export default function Page() {
                 </DropdownMenu>
               </div>
               {!isReadOnlyRole && (
-                <Button variant="gradient" onClick={() => setIsCreateOpen(true)}>
+                <Button variant="gradient" onClick={handleOpenCreate}>
                   <Plus strokeWidth={2} /> Create New
                 </Button>
               )}
@@ -454,7 +477,6 @@ export default function Page() {
                               </Avatar>
                               <div>
                                 <div className="text-sm font-medium">{project.title}</div>
-                                <div className="text-xs text-muted-foreground">{project.slug}</div>
                               </div>
                             </div>
                           </TableCell>
