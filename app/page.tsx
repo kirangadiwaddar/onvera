@@ -15,6 +15,7 @@ import {
   Sparkles,
   Sun,
   TvMinimalPlay,
+  User,
   Users,
   Workflow,
 } from "lucide-react"
@@ -204,19 +205,19 @@ export default function OnveraLandingV2Page() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.22),transparent_32%),radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.18),transparent_22%),radial-gradient(circle_at_50%_100%,rgba(16,185,129,0.12),transparent_28%)]" />
         <Grain />
 
-        <header className="sticky top-0 z-50 border-b border-black/10 dark:border-white/10 bg-white/80 dark:bg-black/35 backdrop-blur-xl">
-          <div className="mx-auto grid grid-cols-3 w-full items-center justify-between px-5 lg:px-20 py-4">
+        <header className="fixed top-0 right-0 left-0 z-50 border-b border-black/10 dark:border-white/10 bg-white/80 dark:bg-black/35 backdrop-blur-xl">
+          <div className="mx-auto grid grid-cols-2 lg:grid-cols-3 w-full items-center justify-between px-5 lg:px-20 py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center text-black shadow-[0_0_40px_rgba(255,255,255,0.12)]">
                 <Logo width={40} height={40} />
               </div>
               <div>
                 <p className="text-sm font-semibold tracking-wide">Onvera</p>
-                <p className="text-xs text-zinc-600 dark:text-white/70">Client onboarding OS</p>
+                <p className="text-xs text-zinc-600 dark:text-white/70">Client OS</p>
               </div>
             </div>
 
-            <nav className="hidden items-center justify-center gap-8 text-sm text-zinc-600 dark:text-white/70 md:flex">
+            <nav className="hidden items-center justify-center gap-8 text-sm text-zinc-600 dark:text-white/70 lg:flex">
               <a href="#features" className="transition hover:text-zinc-900 dark:text-white">Features</a>
               <a href="#experience" className="transition hover:text-zinc-900 dark:text-white">Experience</a>
               <a href="#pricing" className="transition hover:text-zinc-900 dark:text-white">Pricing</a>
@@ -232,6 +233,15 @@ export default function OnveraLandingV2Page() {
               >
                 {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
               </button>
+              {!user && (
+                <Link
+                  href="/login"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-violet-500 text-sm font-medium text-white shadow-[0_8px_20px_rgba(99,102,241,0.25)] transition hover:scale-[1.02] sm:h-auto sm:w-auto sm:px-4 sm:py-2"
+                >
+                  <span className="hidden sm:inline">Sign In</span>
+                  <User className="h-4 w-4 sm:hidden" />
+                </Link>
+              )}
               {/* <a
                 href="/login"
                 className="hidden rounded-full border border-black/10 dark:border-white/10 px-4 py-2 text-sm text-zinc-600 dark:text-white/70 transition hover:border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 sm:inline-flex"
@@ -250,7 +260,7 @@ export default function OnveraLandingV2Page() {
           </div>
         </header>
 
-        <section className="relative mx-auto grid w-full items-center gap-16 px-5 lg:px-20 pb-20 pt-16 lg:grid-cols-[1.05fr_.95fr] lg:pb-28 lg:pt-24">
+        <section className="mt-10 relative mx-auto grid w-full items-center gap-16 px-5 lg:px-20 pb-20 pt-24 lg:grid-cols-[1.05fr_.95fr] lg:pb-28 lg:pt-28">
           <div>
             <SectionBadge>Premium onboarding workspace</SectionBadge>
 
@@ -277,7 +287,7 @@ export default function OnveraLandingV2Page() {
                         profile?.role ||
                           (typeof user.user_metadata?.role === "string" ? user.user_metadata.role : null)
                       )
-                    : "/register"
+                    : "/login"
                 }
               >
                 <Button
@@ -285,7 +295,7 @@ export default function OnveraLandingV2Page() {
                   size="lg"
                   className="rounded-full transition hover:scale-[1.02]"
                 >
-                  {user ? "Go to dashboard" : "Launch your workspace"}
+                  {user ? "Smart Dashboard" : "Start your client OS"}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
@@ -391,7 +401,7 @@ export default function OnveraLandingV2Page() {
       </div>
 
 
-      <section id="stats" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16">
+      <section id="stats" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16 scroll-mt-24">
         <motion.div>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
 
@@ -423,7 +433,7 @@ export default function OnveraLandingV2Page() {
         </motion.div>
       </section>
 
-      <section id="demo" className="mx-auto w-full px-5 lg:px-20 py-8  lg:py-16">
+      <section id="demo" className="mx-auto w-full px-5 lg:px-20 py-8  lg:py-16 scroll-mt-24">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
           <div
             className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl"
@@ -483,7 +493,7 @@ export default function OnveraLandingV2Page() {
                       className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/[0.04] p-4"
                     >
                       <div className="text-sm text-zinc-600 dark:text-white/70">Milestone timeline</div>
-                      <div className="mt-4 grid grid-cols-4 gap-2">
+                      <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-2">
                         {["Brief", "Assets", "Review", "Launch"].map((step, i) => (
                           <div
                             key={step}
@@ -539,7 +549,7 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section id="features" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16">
+      <section id="features" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16 scroll-mt-24">
         <div className="grid gap-6 lg:grid-cols-3">
           <div
             className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-8 lg:col-span-2"
@@ -612,7 +622,7 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section id="experience" className="mx-auto w-full px-5 lg:px-20 py-8  lg:py-16">
+      <section id="experience" className="mx-auto w-full px-5 lg:px-20 py-8  lg:py-16 scroll-mt-24">
         <div
           className="overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04]"
         >
@@ -638,9 +648,9 @@ export default function OnveraLandingV2Page() {
               <tbody>
                 {roles.map(([role, scope, action]) => (
                   <tr key={role} className="border-t border-black/10 dark:border-white/10">
-                    <td className="px-6 py-4 font-medium text-zinc-900 dark:text-white">{role}</td>
-                    <td className="px-6 py-4 text-zinc-600 dark:text-white/70">{scope}</td>
-                    <td className="px-6 py-4 text-zinc-600 dark:text-white/70">{action}</td>
+                    <td className="px-6 py-4 font-medium text-zinc-900 dark:text-white min-w-42">{role}</td>
+                    <td className="px-6 py-4 text-zinc-600 dark:text-white/70 min-w-52">{scope}</td>
+                    <td className="px-6 py-4 text-zinc-600 dark:text-white/70 min-w-xs">{action}</td>
                   </tr>
                 ))}
               </tbody>
@@ -649,7 +659,7 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section id="pricing" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16">
+      <section id="pricing" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16 scroll-mt-24">
         <div className="lg:grid lg:grid-cols-3 space-y-5 lg:space-y-0 gap-6">
           <div
             className="relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/4 p-8 shrink-0"
@@ -677,12 +687,12 @@ export default function OnveraLandingV2Page() {
                   Choose the workflow that matches how you deliver projects, from solo studios to full teams.
                 </p>
               </div>
-              <div className="mt-5 flex items-center gap-2 rounded-full border border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/5 p-1">
+              <div className="mt-5 inline-flex items-center justify-start gap-2 rounded-full border border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/5 p-1">
                 <button
                   type="button"
                   onClick={() => setBillingCycle("monthly")}
                   className={`rounded-full px-4 py-1.5 text-xs transition cursor-pointer ${billingCycle === "monthly"
-                      ? "bg-black text-white"
+                      ? "bg-violet-500 text-white"
                       : "text-zinc-600 dark:text-white/70"
                     }`}
                 >
@@ -692,7 +702,7 @@ export default function OnveraLandingV2Page() {
                   type="button"
                   onClick={() => setBillingCycle("annual")}
                   className={`rounded-full px-4 py-1.5 text-xs transition cursor-pointer ${billingCycle === "annual"
-                      ? "bg-black text-white"
+                      ? "bg-violet-500 text-white"
                       : "text-zinc-600 dark:text-white/70"
                     }`}
                 >
@@ -740,7 +750,7 @@ export default function OnveraLandingV2Page() {
 
                     <a
                       href="/register"
-                      className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:scale-[1.02]"
+                      className="mt-6 inline-flex items-center gap-2 rounded-full bg-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"
                     >
                       {plan.cta}
                       <ArrowRight className="h-4 w-4" />
@@ -753,7 +763,7 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section id="faq" className="mx-auto w-full max-w-3xl px-5 py-10 lg:py-14">
+      <section id="faq" className="mx-auto w-full max-w-3xl px-5 py-10 lg:py-14 scroll-mt-24">
         <div className="text-center">
           <SectionBadge>Frequently asked questions</SectionBadge>
           <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -805,7 +815,7 @@ export default function OnveraLandingV2Page() {
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <a
                 href="/register"
-                className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-black"
+                className="inline-flex items-center gap-2 rounded-full bg-violet-500 px-6 py-3 text-sm font-semibold text-white"
               >
                 Start now
                 <ArrowRight className="h-4 w-4" />

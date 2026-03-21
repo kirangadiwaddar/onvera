@@ -106,18 +106,41 @@ export default function Page() {
   }
 
   const loadTemplates = async () => {
-    const res = await fetchWithAuth("/api/templates", { cache: "no-store" })
-    if (!res.ok) throw new Error("Failed to load templates")
-    const data = await res.json()
+    try {
+      let res = await fetchWithAuth("/api/templates", { cache: "no-store" })
+      if (res.status === 401) {
+        res = await fetchWithAuth("/api/templates", { cache: "no-store" })
+      }
 
-    const nextTemplates: TemplateOption[] = Array.isArray(data?.templates)
-      ? data.templates.map((item: { id: string; title: string }) => ({
-          id: item.id,
-          title: item.title,
-        }))
-      : []
+      if (!res.ok) {
+        if (res.status === 401) {
+          setTemplates([])
+          return
+        }
 
-    setTemplates(nextTemplates)
+        const payload = await res.json().catch(() => null) as { message?: string } | null
+        const message = payload?.message || "Failed to load templates"
+        console.error("Failed to load templates:", message)
+        toast.error(message)
+        setTemplates([])
+        return
+      }
+
+      const data = await res.json()
+
+      const nextTemplates: TemplateOption[] = Array.isArray(data?.templates)
+        ? data.templates.map((item: { id: string; title: string }) => ({
+            id: item.id,
+            title: item.title,
+          }))
+        : []
+
+      setTemplates(nextTemplates)
+    } catch (error) {
+      console.error("Failed to load templates:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to load templates")
+      setTemplates([])
+    }
   }
 
   useEffect(() => {
@@ -134,6 +157,7 @@ export default function Page() {
         await Promise.all([loadProjects(), loadTemplates()])
       } catch (error) {
         console.error("Failed to initialize projects page:", error)
+        toast.error(error instanceof Error ? error.message : "Failed to load projects")
       } finally {
         setLoading(false)
       }
