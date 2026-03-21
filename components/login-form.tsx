@@ -60,12 +60,44 @@ export function LoginForm({
     }
     setLoading(true)
     setError(null)
+    const timeoutId = window.setTimeout(() => {
+      setLoading(false)
+      setError("Login is taking longer than expected. Check Supabase connection and try again.")
+    }, 12000)
 
     const formData = new FormData(event.currentTarget)
     const email = String(formData.get("email") ?? "")
     const password = String(formData.get("password") ?? "")
 
     try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (!supabaseUrl || !supabaseAnonKey) {
+        setError("Supabase environment variables are not configured")
+        return
+      }
+
+      const healthController = new AbortController()
+      const healthTimer = window.setTimeout(() => healthController.abort(), 5000)
+      try {
+        const health = await fetch(`${supabaseUrl}/auth/v1/health`, {
+          method: "GET",
+          headers: {
+            apikey: supabaseAnonKey,
+          },
+          signal: healthController.signal,
+        })
+        if (!health.ok) {
+          setError("Supabase auth endpoint is not reachable. Check URL/keys.")
+          return
+        }
+      } catch {
+        setError("Supabase auth endpoint is not reachable. Check URL/keys.")
+        return
+      } finally {
+        window.clearTimeout(healthTimer)
+      }
+
       const supabase = createClient()
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
@@ -83,6 +115,7 @@ export function LoginForm({
       }
 
       if (nextPath && nextPath.startsWith("/")) {
+        setLoading(false)
         window.location.assign(nextPath)
         return
       }
@@ -97,10 +130,12 @@ export function LoginForm({
         (profileResponse.data?.role as string | null) ||
         (typeof data.user.user_metadata?.role === "string" ? data.user.user_metadata.role : null)
 
+      setLoading(false)
       window.location.assign(getDefaultPathForRole(role))
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in")
     } finally {
+      window.clearTimeout(timeoutId)
       setLoading(false)
     }
   }

@@ -70,7 +70,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    const supabase = createClient()
+    let supabase: ReturnType<typeof createClient>
+    try {
+      supabase = createClient()
+    } catch (error) {
+      console.error("Supabase client initialization failed:", error)
+      setLoading(false)
+      return
+    }
+
+    const safetyTimer = window.setTimeout(() => {
+      setLoading(false)
+    }, 8000)
 
     async function init() {
       try {
@@ -94,6 +105,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null)
         setProfile(null)
         setLoading(false)
+      } finally {
+        window.clearTimeout(safetyTimer)
       }
     }
 
@@ -122,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     return () => {
+      window.clearTimeout(safetyTimer)
       subscription.unsubscribe()
     }
   }, [])

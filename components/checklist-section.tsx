@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Section } from "@/lib/types"
 import { CheckCircle2, ChevronDownIcon, XCircle } from "lucide-react"
 import { BrandingUploader } from "@/components/branding-uploader"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Tooltip,
   TooltipContent,
@@ -45,6 +46,7 @@ type Props = {
   onSubmissionsChange?: (next: Submissions) => void
   showCompletionControl?: boolean
   className?: string
+  isSaving?: boolean
 }
 
 function getStatusBadgeClass(status?: string) {
@@ -67,6 +69,7 @@ export default function ChecklistSection({
   onSubmissionsChange,
   showCompletionControl = true,
   className,
+  isSaving = false,
 }: Props) {
   const [editMode, setEditMode] = useState<Record<string, boolean>>({})
   const [brandingEdit, setBrandingEdit] = useState(false)
@@ -75,6 +78,7 @@ export default function ChecklistSection({
   const [draftPreviews, setDraftPreviews] = useState<Record<string, string>>({})
   const [localRows, setLocalRows] = useState<{ name: string; url: string }[]>([])
   const [dynamicDrafts, setDynamicDrafts] = useState<Record<string, { name: string; url: string }>>({})
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null)
   const dynamicRows = useMemo<DynamicRow[]>(() => {
     const rows = submissions[section.id]
     return Array.isArray(rows) ? (rows as DynamicRow[]) : []
@@ -123,6 +127,12 @@ export default function ChecklistSection({
   }, [completionKey, completionValue, hasContent, section.id])
 
   useEffect(() => {
+    if (!isSaving) {
+      setPendingActionId(null)
+    }
+  }, [isSaving])
+
+  useEffect(() => {
     if (section.id !== "branding") return
     setSelectedBrandingRows((prev) => {
       const next = new Set<number>()
@@ -137,6 +147,13 @@ export default function ChecklistSection({
     const next = mutate(submissions)
     onSubmissionsChange?.(next)
   }
+
+  const runAction = (actionId: string, action: () => void) => {
+    setPendingActionId(actionId)
+    action()
+  }
+
+  const isActionPending = (actionId: string) => isSaving && pendingActionId === actionId
 
   const handleBrandingFileAdded = (file: File) => {
     const canWrite = !isAgency || ((canEdit || canModerate) && brandingEdit)
@@ -391,18 +408,24 @@ export default function ChecklistSection({
                       onClick={(event) => {
                         event.preventDefault()
                         event.stopPropagation()
-                        toggleSectionComplete()
+                        runAction(`complete-${section.id}`, () => toggleSectionComplete())
                       }}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault()
                           event.stopPropagation()
-                          toggleSectionComplete()
+                          runAction(`complete-${section.id}`, () => toggleSectionComplete())
                         }
                       }}
                       aria-label={isCompleted ? "Mark as incomplete" : "Mark as complete"}
                     >
-                      {isCompleted ? <XCircle className="size-4" /> : <CheckCircle2 className="size-4" />}
+                      {isActionPending(`complete-${section.id}`) ? (
+                        <Spinner className="size-3" />
+                      ) : isCompleted ? (
+                        <XCircle className="size-4" />
+                      ) : (
+                        <CheckCircle2 className="size-4" />
+                      )}
                     </span>
                   </Button>
                 </TooltipTrigger>
@@ -459,10 +482,15 @@ export default function ChecklistSection({
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
-                          onClick={() => removeBrandingRow(index)}
+                          onClick={() => runAction(`branding-remove-${index}`, () => removeBrandingRow(index))}
                           aria-label="Remove file"
+                          disabled={isSaving}
                         >
-                          <XCircle className="size-4 text-muted-foreground" />
+                          {isActionPending(`branding-remove-${index}`) ? (
+                            <Spinner className="size-3" />
+                          ) : (
+                            <XCircle className="size-4 text-muted-foreground" />
+                          )}
                         </Button>
                       ) : null}
                     </div>
@@ -490,21 +518,35 @@ export default function ChecklistSection({
                       size="sm"
                       variant="destructiveLight"
                       className="text-xs h-7 px-2"
-                      onClick={() => applyBrandingStatusToSelection("rejected")}
+                      onClick={() => runAction("branding-reject", () => applyBrandingStatusToSelection("rejected"))}
                       aria-label="Reject"
-                      disabled={dynamicRows.length === 0 || allBrandingRejected}
+                      disabled={dynamicRows.length === 0 || allBrandingRejected || isSaving}
                     >
-                      Reject
+                      {isActionPending("branding-reject") ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Spinner className="size-3" />
+                          Reject
+                        </span>
+                      ) : (
+                        "Reject"
+                      )}
                     </Button>
                     <Button
                       variant="gradient"
                       size="sm"
                       className="text-xs h-7 px-2"
-                      onClick={() => applyBrandingStatusToSelection("approved")}
+                      onClick={() => runAction("branding-approve", () => applyBrandingStatusToSelection("approved"))}
                       aria-label="Approve"
-                      disabled={dynamicRows.length === 0 || allBrandingApproved}
+                      disabled={dynamicRows.length === 0 || allBrandingApproved || isSaving}
                     >
-                      Approve
+                      {isActionPending("branding-approve") ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Spinner className="size-3" />
+                          Approve
+                        </span>
+                      ) : (
+                        "Approve"
+                      )}
                     </Button>
                   </>
                 ) : null}
@@ -609,10 +651,17 @@ export default function ChecklistSection({
                 <Button
                   size="sm"
                   variant="default"
-                  disabled={!value}
-                  onClick={() => submitItem(item.id, value, "submitted")}
+                  disabled={!value || isSaving}
+                  onClick={() => runAction(`submit-${item.id}`, () => submitItem(item.id, value, "submitted"))}
                 >
-                  Submit Data
+                  {isActionPending(`submit-${item.id}`) ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Spinner className="size-3" />
+                      Submit Data
+                    </span>
+                  ) : (
+                    "Submit Data"
+                  )}
                 </Button>
               )}
 
@@ -649,14 +698,22 @@ export default function ChecklistSection({
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
-                                size="sm"
-                                className="text-xs h-7 px-2"
-                                variant="default"
-                                onClick={() => saveAgencyEdit(item.id)}
-                                aria-label="Save"
-                              >
-                                Save
-                              </Button>
+                              size="sm"
+                              className="text-xs h-7 px-2"
+                              variant="default"
+                              onClick={() => runAction(`save-${item.id}`, () => saveAgencyEdit(item.id))}
+                              aria-label="Save"
+                              disabled={isSaving}
+                            >
+                              {isActionPending(`save-${item.id}`) ? (
+                                <span className="inline-flex items-center gap-2">
+                                  <Spinner className="size-3" />
+                                  Save
+                                </span>
+                              ) : (
+                                "Save"
+                              )}
+                            </Button>
                             </TooltipTrigger>
                             <TooltipContent>Save</TooltipContent>
                           </Tooltip>
@@ -672,10 +729,18 @@ export default function ChecklistSection({
                               size="sm"
                               variant="destructiveLight"
                               className="text-xs h-7 px-2"
-                              onClick={() => setItemStatus(item.id, "rejected")}
+                              onClick={() => runAction(`reject-${item.id}`, () => setItemStatus(item.id, "rejected"))}
                               aria-label="Reject"
+                              disabled={isSaving}
                             >
-                              Reject
+                              {isActionPending(`reject-${item.id}`) ? (
+                                <span className="inline-flex items-center gap-2">
+                                  <Spinner className="size-3" />
+                                  Reject
+                                </span>
+                              ) : (
+                                "Reject"
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Reject</TooltipContent>
@@ -686,11 +751,18 @@ export default function ChecklistSection({
                               variant="gradient"
                               size="sm"
                               className="text-xs h-7 px-2"
-                              onClick={() => setItemStatus(item.id, "approved")}
-                              disabled={submission.status === "approved"}
+                              onClick={() => runAction(`approve-${item.id}`, () => setItemStatus(item.id, "approved"))}
+                              disabled={submission.status === "approved" || isSaving}
                               aria-label="Approve"
                             >
-                              Approve
+                              {isActionPending(`approve-${item.id}`) ? (
+                                <span className="inline-flex items-center gap-2">
+                                  <Spinner className="size-3" />
+                                  Approve
+                                </span>
+                              ) : (
+                                "Approve"
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Approve</TooltipContent>
@@ -770,10 +842,18 @@ export default function ChecklistSection({
                               size="sm"
                               variant="destructiveLight"
                               className="text-xs h-7 px-2"
-                              onClick={() => removeDynamicRow(index)}
+                              onClick={() => runAction(`dynamic-remove-${dynamicId}`, () => removeDynamicRow(index))}
                               aria-label="Remove"
+                              disabled={isSaving}
                             >
-                              Remove
+                              {isActionPending(`dynamic-remove-${dynamicId}`) ? (
+                                <span className="inline-flex items-center gap-2">
+                                  <Spinner className="size-3" />
+                                  Remove
+                                </span>
+                              ) : (
+                                "Remove"
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Remove</TooltipContent>
@@ -805,11 +885,18 @@ export default function ChecklistSection({
                               size="sm"
                               className="text-xs h-7 px-2"
                               variant="default"
-                              onClick={() => saveDynamicRow(index)}
-                              disabled={!draft.name.trim() || !draft.url.trim()}
+                              onClick={() => runAction(`dynamic-save-${dynamicId}`, () => saveDynamicRow(index))}
+                              disabled={!draft.name.trim() || !draft.url.trim() || isSaving}
                               aria-label="Save"
                             >
-                              Save
+                              {isActionPending(`dynamic-save-${dynamicId}`) ? (
+                                <span className="inline-flex items-center gap-2">
+                                  <Spinner className="size-3" />
+                                  Save
+                                </span>
+                              ) : (
+                                "Save"
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Save</TooltipContent>
@@ -821,29 +908,44 @@ export default function ChecklistSection({
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
-                                size="sm"
-                                variant="destructiveLight"
-                                className="text-xs h-7 px-2"
-                                onClick={() => updateDynamicRow(index, { status: "rejected" })}
-                                aria-label="Reject"
-                              >
-                                Reject
-                              </Button>
+                              size="sm"
+                              variant="destructiveLight"
+                              className="text-xs h-7 px-2"
+                              onClick={() => runAction(`dynamic-reject-${dynamicId}`, () => updateDynamicRow(index, { status: "rejected" }))}
+                              aria-label="Reject"
+                              disabled={isSaving}
+                            >
+                              {isActionPending(`dynamic-reject-${dynamicId}`) ? (
+                                <span className="inline-flex items-center gap-2">
+                                  <Spinner className="size-3" />
+                                  Reject
+                                </span>
+                              ) : (
+                                "Reject"
+                              )}
+                            </Button>
                             </TooltipTrigger>
                             <TooltipContent>Reject</TooltipContent>
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
-                                size="sm"
-                                className="text-xs h-7 px-2"
-                                variant="gradient"
-                                onClick={() => updateDynamicRow(index, { status: "approved" })}
-                                disabled={row.status === "approved"}
-                                aria-label="Approve"
-                              >
-                                Approve
-                              </Button>
+                              size="sm"
+                              className="text-xs h-7 px-2"
+                              variant="gradient"
+                              onClick={() => runAction(`dynamic-approve-${dynamicId}`, () => updateDynamicRow(index, { status: "approved" }))}
+                              disabled={row.status === "approved" || isSaving}
+                              aria-label="Approve"
+                            >
+                              {isActionPending(`dynamic-approve-${dynamicId}`) ? (
+                                <span className="inline-flex items-center gap-2">
+                                  <Spinner className="size-3" />
+                                  Approve
+                                </span>
+                              ) : (
+                                "Approve"
+                              )}
+                            </Button>
                             </TooltipTrigger>
                             <TooltipContent>Approve</TooltipContent>
                           </Tooltip>
@@ -885,10 +987,17 @@ export default function ChecklistSection({
                       <Button
                         size="sm"
                         variant="default"
-                        disabled={!row.name.trim() || !row.url.trim()}
-                        onClick={() => submitDynamicRow(row, index)}
+                        disabled={!row.name.trim() || !row.url.trim() || isSaving}
+                        onClick={() => runAction(`dynamic-submit-${section.id}-${index}`, () => submitDynamicRow(row, index))}
                       >
-                        {isAgency ? "Save Row" : "Submit Data"}
+                        {isActionPending(`dynamic-submit-${section.id}-${index}`) ? (
+                          <span className="inline-flex items-center gap-2">
+                            <Spinner className="size-3" />
+                            {isAgency ? "Save Row" : "Submit Data"}
+                          </span>
+                        ) : (
+                          isAgency ? "Save Row" : "Submit Data"
+                        )}
                       </Button>
                       <Button
                         size="sm"
