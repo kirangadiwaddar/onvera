@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef } from "react"
-import Uppy from "@uppy/core"
+import Uppy, { type UppyFile } from "@uppy/core"
 import DragDrop from "@uppy/drag-drop"
 
 type BrandingUploaderProps = {
@@ -19,9 +19,11 @@ export function BrandingUploader({
   const disabledRef = useRef(disabled)
   const onFileAddedRef = useRef(onFileAdded)
   const pluginId = "BrandingDragDrop"
+  type UppyMeta = Record<string, unknown>
+  type UppyBody = Record<string, never>
 
   const uppy = useMemo(() => {
-    return new Uppy({
+    return new Uppy<UppyMeta, UppyBody>({
       autoProceed: false,
       restrictions: {
         maxNumberOfFiles: 10,
@@ -38,13 +40,13 @@ export function BrandingUploader({
   }, [onFileAdded])
 
   useEffect(() => {
-    const handleFileAdded = (file: { id: string; data?: File }) => {
+    const handleFileAdded = (file: UppyFile<UppyMeta, UppyBody>) => {
       if (disabledRef.current) {
         uppy.removeFile(file.id)
         return
       }
-      const data = file.data as File | undefined
-      if (data) {
+      const data = file.data
+      if (data instanceof File) {
         onFileAddedRef.current?.(data)
       }
     }
@@ -59,7 +61,7 @@ export function BrandingUploader({
   useEffect(() => {
     if (!containerRef.current) return
 
-    const existing = uppy.getPlugin(pluginId) as DragDrop | undefined
+    const existing = uppy.getPlugin(pluginId) as DragDrop<UppyMeta, UppyBody> | undefined
     if (existing) {
       uppy.removePlugin(existing)
     }
@@ -81,7 +83,7 @@ export function BrandingUploader({
     })
 
     return () => {
-      const cleanup = uppy.getPlugin(pluginId) as DragDrop | undefined
+      const cleanup = uppy.getPlugin(pluginId) as DragDrop<UppyMeta, UppyBody> | undefined
       if (cleanup) {
         uppy.removePlugin(cleanup)
       }

@@ -6,6 +6,7 @@ import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import { templateStructure } from "@/lib/template-structure"
 import type { status } from "@/lib/project-status"
 import type { StoreData } from "@/lib/server/data-store"
+import type { Section } from "@/lib/types"
 
 const resolveTemplateKeyFromTitle = (title?: string) => {
   if (!title) return undefined
@@ -43,6 +44,33 @@ function normalizeTemplateKey(template: Record<string, unknown>) {
     ...template,
     templateKey: resolvedKey,
     ...(normalizedStructure ? { structure: normalizedStructure } : {}),
+  }
+}
+
+type Template = StoreData["templates"][number]
+
+type TemplateRow = {
+  id: string
+  title: string
+  description?: string | null
+  icon?: string | null
+  badge?: string | null
+  structure?: Section[] | null
+  template_key?: string | null
+  is_default?: boolean | null
+}
+
+function normalizeTemplate(row: TemplateRow): Template {
+  const normalized = normalizeTemplateKey(row as Record<string, unknown>) as Record<string, unknown>
+  return {
+    id: String(row.id ?? ""),
+    title: String(row.title ?? "Untitled"),
+    description: String(row.description ?? ""),
+    icon: String(row.icon ?? "Globe"),
+    badge: String(row.badge ?? "Custom"),
+    structure: Array.isArray(normalized.structure) ? (normalized.structure as Section[]) : undefined,
+    templateKey: typeof normalized.templateKey === "string" ? normalized.templateKey : undefined,
+    isDefault: typeof row.is_default === "boolean" ? row.is_default : undefined,
   }
 }
 function hasChecklistActivity(submissions?: Record<string, unknown>) {
@@ -327,7 +355,7 @@ export async function POST(request: Request) {
   }
 
   const normalizedTemplates = Array.isArray(templates)
-    ? templates.map((template) => normalizeTemplateKey(template as Record<string, unknown>))
+    ? (templates as TemplateRow[]).map(normalizeTemplate)
     : []
 
   return NextResponse.json(

@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import { templateStructure } from "@/lib/template-structure"
+import type { Section } from "@/lib/types"
 
 const slugify = (value: string) =>
   value
@@ -51,8 +52,55 @@ type TeamRow = {
   created_by?: string | null
 }
 
-type MemberLike = {
+type TemplateRow = {
+  id: string
+  title: string
+  description?: string | null
+  icon?: string | null
+  badge?: string | null
+  structure?: Section[] | null
+  template_key?: string | null
+  is_default?: boolean | null
+}
+
+type Template = {
+  id: string
+  title: string
+  description: string
+  icon: string
+  badge: string
+  structure?: Section[]
+  templateKey?: string
+  isDefault?: boolean
+}
+
+type Member = {
+  id: number
+  name: string
   email?: string
+}
+
+function normalizeMember(member: unknown, fallbackId: number): Member | null {
+  if (typeof member === "string") {
+    const email = member.trim()
+    if (!email) return null
+    const name = email.split("@")[0] || "Member"
+    return { id: fallbackId, name, email }
+  }
+  if (!member || typeof member !== "object") return null
+  const raw = member as { id?: unknown; name?: unknown; email?: unknown }
+  const email =
+    typeof raw.email === "string" && raw.email.trim()
+      ? raw.email.trim()
+      : undefined
+  const name =
+    typeof raw.name === "string" && raw.name.trim()
+      ? raw.name.trim()
+      : email
+        ? email.split("@")[0]
+        : "Member"
+  const id = typeof raw.id === "number" && Number.isFinite(raw.id) ? raw.id : fallbackId
+  return email ? { id, name, email } : { id, name }
 }
 
 function normalizeTemplateKey(template: Record<string, unknown>) {
@@ -87,17 +135,27 @@ function normalizeTemplateKey(template: Record<string, unknown>) {
   }
 }
 
+function normalizeTemplate(row: TemplateRow): Template {
+  const normalized = normalizeTemplateKey(row as Record<string, unknown>) as Record<string, unknown>
+  return {
+    id: String(row.id ?? ""),
+    title: String(row.title ?? "Untitled"),
+    description: String(row.description ?? ""),
+    icon: String(row.icon ?? "Globe"),
+    badge: String(row.badge ?? "Custom"),
+    structure: Array.isArray(normalized.structure) ? (normalized.structure as Section[]) : undefined,
+    templateKey: typeof normalized.templateKey === "string" ? normalized.templateKey : undefined,
+    isDefault: typeof row.is_default === "boolean" ? row.is_default : undefined,
+  }
+}
+
 function normalizeProject(row: ProjectRow) {
-  const extraMembers: MemberLike[] = Array.isArray(row.extra_members)
-    ? row.extra_members
-        .map((member) => {
-          if (typeof member === "string") return { email: member }
-          if (!member || typeof member !== "object") return null
-          const email = (member as { email?: unknown }).email
-          if (typeof email !== "string" || !email.trim()) return null
-          return { email }
-        })
-        .filter((member): member is MemberLike => Boolean(member))
+  const extraMembers: Member[] = Array.isArray(row.extra_members)
+    ? row.extra_members.reduce<Member[]>((acc, member, index) => {
+        const normalized = normalizeMember(member, -1000 - index)
+        if (normalized) acc.push(normalized)
+        return acc
+      }, [])
     : []
 
   return {
@@ -117,14 +175,24 @@ function normalizeProject(row: ProjectRow) {
 }
 
 function normalizeTeam(row: TeamRow) {
+  const lead = normalizeMember(row.lead, -1) ?? undefined
+
+  const members: Member[] = Array.isArray(row.members)
+    ? row.members.reduce<Member[]>((acc, member, index) => {
+        const normalized = normalizeMember(member, -2000 - index)
+        if (normalized) acc.push(normalized)
+        return acc
+      }, [])
+    : []
+
   return {
     id: row.id,
     name: row.name,
     slug: row.slug,
     description: row.description,
     status: row.status,
-    lead: row.lead ?? undefined,
-    members: row.members ?? [],
+    lead,
+    members,
     createdAt: row.created_at,
     createdBy: row.created_by ?? null,
   }
@@ -213,7 +281,9 @@ export async function GET(
   ])
 
   const teams = (Array.isArray(teamRows) ? teamRows : []).map(normalizeTeam)
-  const templates = Array.isArray(templateRows) ? templateRows.map(normalizeTemplateKey) : []
+  const templates = Array.isArray(templateRows)
+    ? (templateRows as TemplateRow[]).map(normalizeTemplate)
+    : []
   const project = normalizeProject(projectRow as ProjectRow)
 
   const visibleProjects = filterProjectsForIdentity([project], teams, identity)
@@ -398,7 +468,9 @@ export async function PUT(
 
   const updatedProject = normalizeProject(updatedRow as ProjectRow)
   const refreshedTeams = (Array.isArray(updatedTeamRows) ? updatedTeamRows : []).map(normalizeTeam)
-  const templates = Array.isArray(templateRows) ? templateRows.map(normalizeTemplateKey) : []
+  const templates = Array.isArray(templateRows)
+    ? (templateRows as TemplateRow[]).map(normalizeTemplate)
+    : []
 
   return NextResponse.json({ project: attachRelations(updatedProject, refreshedTeams, templates) })
 }
