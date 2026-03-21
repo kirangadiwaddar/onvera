@@ -18,7 +18,7 @@ import { LoadingState } from "@/components/loadingState"
 import { EmptyState } from "@/components/emptyState"
 
 export default function Page() {
-  const { profile } = useAuth()
+  const { profile, user, loading: authLoading } = useAuth()
   const [teams, setTeams] = useState<Team[]>([])
   const [loadingTeams, setLoadingTeams] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -42,9 +42,15 @@ export default function Page() {
   }
 
   useEffect(() => {
+    if (authLoading) return
+    if (!user?.id) {
+      setTeams([])
+      setLoadingTeams(false)
+      return
+    }
     if (isFreelancer) return
     void loadTeams()
-  }, [isFreelancer])
+  }, [authLoading, isFreelancer, user?.id])
 
   const handleCreateTeam = async (values: TeamFormValues) => {
     setSubmitting(true)

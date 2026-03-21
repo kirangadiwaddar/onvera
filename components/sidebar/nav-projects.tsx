@@ -11,29 +11,32 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-import { Project } from "@/types/project"
+import type { Project } from "@/types/project"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { useAuth } from "@/components/providers/auth-provider"
 
 export function NavProjects() {
-  const [projects, setProjects] = useState<Project[]>([])
+  const [projects, setProjects] = useState<
+    Array<Pick<Project, "id" | "slug" | "title" | "status" | "createdAt" | "updatedAt">>
+  >([])
   const { user, loading: authLoading } = useAuth()
 
   useEffect(() => {
     if (authLoading || !user?.id) return
     let isActive = true
     let intervalId: ReturnType<typeof setInterval> | null = null
+    const POLL_INTERVAL_MS = 30000
 
     const fetchProjects = async () => {
       try {
-        const res = await fetchWithAuth("/api/projects", {
+        const res = await fetchWithAuth("/api/projects?summary=1", {
           cache: "no-store",
         })
 
         if (!res.ok) return
 
         const data = await res.json()
-        const allProjects: Project[] = Array.isArray(data)
+        const allProjects: Array<Pick<Project, "id" | "slug" | "title" | "status" | "createdAt" | "updatedAt">> = Array.isArray(data)
           ? data
           : Array.isArray(data?.projects)
             ? data.projects
@@ -57,7 +60,7 @@ export function NavProjects() {
     }
 
     fetchProjects()
-    intervalId = setInterval(fetchProjects, 10000)
+    intervalId = setInterval(fetchProjects, POLL_INTERVAL_MS)
 
     const handleFocus = () => {
       void fetchProjects()

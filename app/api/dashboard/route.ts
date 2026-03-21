@@ -55,7 +55,7 @@ export async function GET(request: Request) {
   const latestOngoing = [...ongoing]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 6)
-    .map((project) => attachRelations(project, teams, templates))
+    .map((project) => attachRelations(project, teams, templates, { includeTemplateStructure: false }))
 
   const latestWaitingOverdue = [...visibleProjects]
     .filter((project) => project.status === "waiting" || project.status === "overdue")
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     })
     .slice(0, 6)
-    .map((project) => attachRelations(project, teams, templates))
+    .map((project) => attachRelations(project, teams, templates, { includeTemplateStructure: false }))
 
   const activities: ActivityItem[] = []
 
@@ -82,7 +82,24 @@ export async function GET(request: Request) {
       timestamp: project.createdAt,
     })
 
-    if (project.updatedAt && new Date(project.updatedAt).getTime() > new Date(project.createdAt).getTime()) {
+    const submissions = (project.submissions || {}) as Record<string, unknown>
+    const lastClientUpdate = submissions.__last_client_update
+    if (typeof lastClientUpdate === "string" && lastClientUpdate.trim()) {
+      activities.push({
+        id: `${project.slug}-client-update-${lastClientUpdate}`,
+        title: "Client updated checklist",
+        project: project.title,
+        status: "updated",
+        actor: "Client",
+        timestamp: lastClientUpdate,
+      })
+    }
+
+    if (
+      project.status !== "ongoing" &&
+      project.updatedAt &&
+      new Date(project.updatedAt).getTime() > new Date(project.createdAt).getTime()
+    ) {
       activities.push({
         id: `${project.slug}-status-${project.updatedAt}`,
         title: `Project status is ${project.status}`,
@@ -93,8 +110,8 @@ export async function GET(request: Request) {
       })
     }
 
-    const submissions = (project.submissions || {}) as Record<string, unknown>
     Object.entries(submissions).forEach(([key, raw]) => {
+      if (key === "__last_client_update") return
       if (key === "__custom_sections") return
 
       if (Array.isArray(raw)) {

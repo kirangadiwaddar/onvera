@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { NotificationBell } from "@/components/notifications/notification-bell"
 
 export function SiteHeader() {
   const pathname = usePathname()
@@ -28,7 +29,11 @@ export function SiteHeader() {
     const year = now.getFullYear()
     return `${day} ${month}, ${year}`
   }, [])
-  const [dynamicTitle, setDynamicTitle] = useState<{ id: string; title: string } | null>(null)
+  const [dynamicTitle, setDynamicTitle] = useState<{
+    id: string
+    title: string
+    kind: "template" | "project" | "team"
+  } | null>(null)
 
   const segments = pathname.split("/").filter(Boolean)
 
@@ -56,8 +61,16 @@ export function SiteHeader() {
 
     const segments = pathname.split("/").filter(Boolean)
 
-    if (dynamicTitle && segments[0] === "templates" && segments[1] === dynamicTitle.id) {
-      return dynamicTitle.title
+    if (dynamicTitle) {
+      if (dynamicTitle.kind === "template" && segments[0] === "templates" && segments[1] === dynamicTitle.id) {
+        return dynamicTitle.title
+      }
+      if (dynamicTitle.kind === "project" && segments[0] === "projects" && segments[1] === dynamicTitle.id) {
+        return dynamicTitle.title
+      }
+      if (dynamicTitle.kind === "team" && segments[0] === "teams" && segments[1] === dynamicTitle.id) {
+        return dynamicTitle.title
+      }
     }
 
     // fallback formatting
@@ -103,20 +116,64 @@ export function SiteHeader() {
 
   useEffect(() => {
     const segments = pathname.split("/").filter(Boolean)
-    const isTemplateDetail = segments[0] === "templates" && Boolean(segments[1])
-    if (!isTemplateDetail) return
+    const section = segments[0]
+    const id = segments[1]
 
-    const templateId = segments[1]
-    fetchWithAuth("/api/templates", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        const templates = Array.isArray(data?.templates) ? data.templates : []
-        const found = templates.find((template: { id?: string; title?: string }) => template.id === templateId)
-        if (found?.title) {
-          setDynamicTitle({ id: templateId, title: found.title })
+    if (!section || !id) {
+      setDynamicTitle(null)
+      return
+    }
+
+    const abort = new AbortController()
+
+    const loadDynamicTitle = async () => {
+      try {
+        if (section === "templates") {
+          const res = await fetchWithAuth("/api/templates", { cache: "no-store", signal: abort.signal })
+          const data = await res.json()
+          const templates = Array.isArray(data?.templates) ? data.templates : []
+          const found = templates.find((template: { id?: string; title?: string }) => template.id === id)
+          if (found?.title) {
+            setDynamicTitle({ id, title: found.title, kind: "template" })
+          } else {
+            setDynamicTitle(null)
+          }
+          return
         }
-      })
-      .catch(() => null)
+
+        if (section === "projects") {
+          const res = await fetchWithAuth(`/api/projects/${id}`, { cache: "no-store", signal: abort.signal })
+          const data = await res.json()
+          const title = data?.project?.title
+          if (typeof title === "string" && title.trim()) {
+            setDynamicTitle({ id, title, kind: "project" })
+          } else {
+            setDynamicTitle(null)
+          }
+          return
+        }
+
+        if (section === "teams") {
+          const res = await fetchWithAuth(`/api/teams/${id}`, { cache: "no-store", signal: abort.signal })
+          const data = await res.json()
+          const title = data?.team?.name
+          if (typeof title === "string" && title.trim()) {
+            setDynamicTitle({ id, title, kind: "team" })
+          } else {
+            setDynamicTitle(null)
+          }
+          return
+        }
+
+        setDynamicTitle(null)
+      } catch {
+        setDynamicTitle(null)
+      }
+    }
+
+    void loadDynamicTitle()
+
+    return () => abort.abort()
   }, [pathname])
 
 
@@ -155,7 +212,9 @@ export function SiteHeader() {
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-white/5 dark:text-violet-200">
               <CalendarDays size={16} />
             </span>
-            <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-6" />
+            <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />
+             <NotificationBell />
+            <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button

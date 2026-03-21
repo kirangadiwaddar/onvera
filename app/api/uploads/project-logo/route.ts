@@ -12,6 +12,41 @@ function sanitizeFileName(fileName: string) {
     .replace(/-+/g, "-")
 }
 
+async function ensureBucketExists(bucketName: string) {
+  const admin = createAdminClient()
+  if (!admin) {
+    return { ok: false, message: "Supabase is not configured" }
+  }
+
+  const { data: existing, error: getBucketError } = await admin.storage.getBucket(bucketName)
+
+  if (existing && !getBucketError) {
+    return { ok: true, message: null as string | null }
+  }
+
+  const message = (getBucketError?.message || "").toLowerCase()
+  const isMissingBucket =
+    getBucketError?.statusCode === "404" ||
+    message.includes("not found") ||
+    message.includes("does not exist")
+
+  if (!isMissingBucket) {
+    return { ok: false, message: getBucketError?.message || "Unable to access logo bucket" }
+  }
+
+  const { error: createBucketError } = await admin.storage.createBucket(bucketName, {
+    public: true,
+    allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"],
+    fileSizeLimit: `${MAX_LOGO_BYTES}`,
+  })
+
+  if (createBucketError) {
+    return { ok: false, message: createBucketError.message }
+  }
+
+  return { ok: true, message: null as string | null }
+}
+
 export async function POST(request: Request) {
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
@@ -39,6 +74,12 @@ export async function POST(request: Request) {
   }
 
   const bucketName = process.env.SUPABASE_PROJECT_LOGO_BUCKET || DEFAULT_BUCKET
+  const ensuredBucket = await ensureBucketExists(bucketName)
+
+  if (!ensuredBucket.ok) {
+    return NextResponse.json({ message: ensuredBucket.message }, { status: 500 })
+  }
+
   const fileName = `${Date.now()}-${sanitizeFileName(file.name || "logo.png")}`
   const filePath = `logos/${fileName}`
 

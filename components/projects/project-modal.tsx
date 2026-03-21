@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -68,6 +68,15 @@ export function ProjectModal({
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [logoPreviewSrc, setLogoPreviewSrc] = useState(initialValues?.avatarSrc ?? "")
 
+  useEffect(() => {
+    if (!open) return
+    const nextValues = initialValues ?? emptyValues
+    setValues(nextValues)
+    setErrors({})
+    setLogoUploadError(null)
+    setLogoPreviewSrc(nextValues.avatarSrc ?? "")
+  }, [open, initialValues])
+
   const modalTitle = mode === "create" ? "Create Project" : "Edit Project"
   const modalDescription =
     mode === "create"
@@ -77,6 +86,7 @@ export function ProjectModal({
   const submitLabel = mode === "create" ? "Create Project" : "Save Changes"
 
   const selectedTemplateId = fixedTemplateId ?? values.templateId
+  const hasTemplateChoices = Boolean(fixedTemplateId || templates.length > 0)
 
   const selectedTemplateExists = useMemo(
     () => templates.some((template) => template.id === selectedTemplateId),
@@ -149,12 +159,16 @@ export function ProjectModal({
       nextErrors.title = "Project name is required"
     }
 
-    if (!selectedTemplateId) {
-      nextErrors.templateId = "Template type is required"
-    }
+    if (!hasTemplateChoices) {
+      nextErrors.templateId = "Create at least one template before starting a project"
+    } else {
+      if (!selectedTemplateId) {
+        nextErrors.templateId = "Template type is required"
+      }
 
-    if (!selectedTemplateExists) {
-      nextErrors.templateId = "Please select a valid template"
+      if (!selectedTemplateExists) {
+        nextErrors.templateId = "Please select a valid template"
+      }
     }
 
     if (Object.keys(nextErrors).length > 0) {
@@ -250,7 +264,7 @@ export function ProjectModal({
                   setValues((prev) => ({ ...prev, templateId }))
                   setErrors((prev) => ({ ...prev, templateId: undefined }))
                 }}
-                disabled={loading || uploadingLogo}
+                disabled={loading || uploadingLogo || templates.length === 0}
               >
                 <SelectTrigger id="project-template" className="w-full">
                   <SelectValue placeholder="Select template type" />
@@ -264,6 +278,11 @@ export function ProjectModal({
                 </SelectContent>
               </Select>
             )}
+            {!fixedTemplateId && templates.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                You need at least one template before creating a project. Create a template first.
+              </p>
+            ) : null}
             {errors.templateId ? <p className="text-xs text-destructive">{errors.templateId}</p> : null}
           </div>
 
@@ -276,7 +295,7 @@ export function ProjectModal({
             >
               Cancel
             </Button>
-            <Button type="submit" variant="gradient" disabled={loading || uploadingLogo}>
+            <Button type="submit" variant="gradient" disabled={loading || uploadingLogo || !hasTemplateChoices}>
               {loading ? "Saving..." : submitLabel}
             </Button>
           </DialogFooter>

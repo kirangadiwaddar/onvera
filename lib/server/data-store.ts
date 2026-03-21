@@ -2,6 +2,20 @@ import projectsData from "@/src/mocks/data/projects.json"
 import teamsData from "@/src/mocks/data/teams.json"
 import templatesData from "@/src/mocks/data/templates.json"
 import { templateStructure } from "@/lib/template-structure"
+
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+
+const resolveTemplateKeyFromTitle = (title?: string) => {
+  if (!title) return undefined
+  const normalizedTitle = slugify(title)
+  if (!normalizedTitle) return undefined
+  return Object.keys(templateStructure).find((key) => slugify(key) === normalizedTitle)
+}
 import type { Section } from "@/lib/types"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { status } from "@/lib/project-status"
@@ -89,6 +103,22 @@ export type StoreData = {
   templates: Template[]
 }
 
+function normalizeBrandingSection(sections: Section[], templateKey?: string) {
+  const filtered = sections.filter((section) => section.id !== "branding")
+  if (templateKey === "branding") {
+    return filtered
+  }
+  return [
+    {
+      id: "branding",
+      title: "Branding",
+      items: [],
+      dynamic: true,
+    },
+    ...filtered,
+  ]
+}
+
 const USE_MOCK_DATA = process.env.USE_MOCK_DATA === "true"
 
 function fromMock(): StoreData {
@@ -143,9 +173,37 @@ function normalizeTeam(row: TeamRow): Team {
   }
 }
 
-export async function getStoreData(): Promise<StoreData> {
+type StoreDataOptions = {
+  includeRegisteredEmails?: boolean
+  bypassCache?: boolean
+}
+
+type StoreCacheEntry = {
+  data: StoreData
+  expiresAt: number
+}
+
+const STORE_CACHE_TTL_MS = 10_000
+const storeCache = new Map<string, StoreCacheEntry>()
+
+function getStoreCacheKey(options: StoreDataOptions) {
+  return options.includeRegisteredEmails ? "with-registered" : "base"
+}
+
+export async function getStoreData(options: StoreDataOptions = {}): Promise<StoreData> {
+  const includeRegisteredEmails = options.includeRegisteredEmails ?? false
+  const bypassCache = options.bypassCache ?? false
+
+  const cacheKey = getStoreCacheKey({ includeRegisteredEmails })
+  const cached = storeCache.get(cacheKey)
+  if (!bypassCache && cached && cached.expiresAt > Date.now()) {
+    return cached.data
+  }
+
   if (USE_MOCK_DATA) {
-    return fromMock()
+    const data = fromMock()
+    storeCache.set(cacheKey, { data, expiresAt: Date.now() + STORE_CACHE_TTL_MS })
+    return data
   }
 
   const admin = createAdminClient()
@@ -192,86 +250,108 @@ export async function getStoreData(): Promise<StoreData> {
   const normalizedProjects = (projects as ProjectRow[]).map(normalizeProject)
   const normalizedTeams = (teams as TeamRow[]).map(normalizeTeam)
 
-  const candidateEmails = new Set<string>()
-
-  const collectEmail = (email?: string | null) => {
-    if (!email) return
-    candidateEmails.add(email.toLowerCase())
-  }
-
-  normalizedTeams.forEach((team) => {
-    collectEmail(team.lead?.email)
-    team.members.forEach((member) => collectEmail(member.email))
-  })
-
-  normalizedProjects.forEach((project) => {
-    project.extraMembers?.forEach((member) => collectEmail(member.email))
-  })
-
   let registeredEmails: Set<string> | null = null
-  if (candidateEmails.size > 0) {
-    registeredEmails = new Set<string>()
-    let page = 1
-    const perPage = 1000
 
-    while (true) {
-      const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
-      if (error) {
-        console.error("Supabase listUsers failed:", error.message)
-        break
-      }
+  if (includeRegisteredEmails) {
+    const candidateEmails = new Set<string>()
 
-      const users = Array.isArray((data as { users?: unknown })?.users)
-        ? (data as { users: Array<{ email?: string | null }> }).users
-        : Array.isArray(data)
-          ? (data as Array<{ email?: string | null }>)
-          : []
+    const collectEmail = (email?: string | null) => {
+      if (!email) return
+      candidateEmails.add(email.toLowerCase())
+    }
 
-      users.forEach((user) => {
-        const email = user.email?.toLowerCase()
-        if (email && candidateEmails.has(email)) {
-          registeredEmails!.add(email)
+    normalizedTeams.forEach((team) => {
+      collectEmail(team.lead?.email)
+      team.members.forEach((member) => collectEmail(member.email))
+    })
+
+    normalizedProjects.forEach((project) => {
+      project.extraMembers?.forEach((member) => collectEmail(member.email))
+    })
+
+    if (candidateEmails.size > 0) {
+      registeredEmails = new Set<string>()
+      let page = 1
+      const perPage = 1000
+
+      while (true) {
+        const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
+        if (error) {
+          console.error("Supabase listUsers failed:", error.message)
+          break
         }
-      })
 
-      const nextPage = (data as { nextPage?: number | null } | null)?.nextPage
-      if (!nextPage) break
-      page = nextPage
+        const users = Array.isArray((data as { users?: unknown })?.users)
+          ? (data as { users: Array<{ email?: string | null }> }).users
+          : Array.isArray(data)
+            ? (data as Array<{ email?: string | null }>)
+            : []
+
+        users.forEach((user) => {
+          const email = user.email?.toLowerCase()
+          if (email && candidateEmails.has(email)) {
+            registeredEmails!.add(email)
+          }
+        })
+
+        const nextPage = (data as { nextPage?: number | null } | null)?.nextPage
+        if (!nextPage) break
+        page = nextPage
+      }
     }
   }
 
   const isRegisteredEmail = (email?: string | null) =>
     !!(registeredEmails && email && registeredEmails.has(email.toLowerCase()))
 
-  const sanitizedTeams = normalizedTeams.map((team) => ({
-    ...team,
-    lead: team.lead
-      ? {
-          ...team.lead,
-          isRegistered: isRegisteredEmail(team.lead.email),
-        }
-      : undefined,
-    members: team.members.map((member) => ({
-      ...member,
-      isRegistered: isRegisteredEmail(member.email),
-    })),
-  }))
+  const sanitizedTeams = normalizedTeams.map((team) => {
+    if (!includeRegisteredEmails) {
+      return team
+    }
+    return {
+      ...team,
+      lead: team.lead
+        ? {
+            ...team.lead,
+            isRegistered: isRegisteredEmail(team.lead.email),
+          }
+        : undefined,
+      members: team.members.map((member) => ({
+        ...member,
+        isRegistered: isRegisteredEmail(member.email),
+      })),
+    }
+  })
 
-  const sanitizedProjects = normalizedProjects.map((project) => ({
-    ...project,
-    extraMembers: project.extraMembers?.map((member) => ({
-      ...member,
-      isRegistered: isRegisteredEmail(member.email),
-    })),
-  }))
+  const sanitizedProjects = normalizedProjects.map((project) => {
+    if (!includeRegisteredEmails) {
+      return project
+    }
+    return {
+      ...project,
+      extraMembers: project.extraMembers?.map((member) => ({
+        ...member,
+        isRegistered: isRegisteredEmail(member.email),
+      })),
+    }
+  })
 
   const normalizedTemplates = (templates as Template[]).map((template) => {
-    const templateKey =
+    const explicitKey =
       (template as Template & { template_key?: string }).template_key ??
       template.templateKey ??
       template.id
+    const resolvedKey =
+      templateStructure[explicitKey] ||
+      !template.title
+        ? explicitKey
+        : resolveTemplateKeyFromTitle(template.title) ?? explicitKey
+    const templateKey = resolvedKey
     const hasStructureArray =
       Array.isArray(template.structure) && (template.structure as Section[]).length > 0
+    const baseStructure = hasStructureArray
+      ? (template.structure as Section[])
+      : templateStructure[templateKey] ?? templateStructure[template.id] ?? []
     return {
       ...template,
       templateKey,
@@ -279,21 +359,34 @@ export async function getStoreData(): Promise<StoreData> {
         typeof (template as Template & { is_default?: boolean }).is_default === "boolean"
           ? (template as Template & { is_default?: boolean }).is_default
           : template.isDefault,
-      structure: hasStructureArray
-        ? (template.structure as Section[])
-        : templateStructure[templateKey] ?? templateStructure[template.id] ?? [],
+      structure: normalizeBrandingSection(baseStructure, templateKey),
     }
   })
 
-  return {
+  const payload = {
     projects: sanitizedProjects,
     teams: sanitizedTeams,
     templates: normalizedTemplates,
   }
+
+  storeCache.set(cacheKey, { data: payload, expiresAt: Date.now() + STORE_CACHE_TTL_MS })
+
+  return payload
 }
 
-export function attachRelations(project: Project, teams: Team[], templates: Template[]) {
-  const template = templates.find((t) => t.id === project.templateId || t.templateKey === project.templateId)
+export function attachRelations(
+  project: Project,
+  teams: Team[],
+  templates: Template[],
+  options: { includeTemplateStructure?: boolean } = {},
+) {
+  const includeTemplateStructure = options.includeTemplateStructure ?? true
+  const template =
+    templates.find((t) => t.id === project.templateId || t.templateKey === project.templateId) ??
+    templates.find((t) => {
+      if (!project.templateId || !t.title) return false
+      return slugify(t.title) === slugify(project.templateId)
+    })
 
   const assignedTeams = teams.filter((team) => project.teamIds.includes(team.id))
 
@@ -317,12 +410,16 @@ export function attachRelations(project: Project, teams: Team[], templates: Temp
   return {
     ...project,
     templateTitle: template?.title ?? "Unknown",
-    templateStructure:
-      template?.structure && template.structure.length > 0
-        ? template.structure
-        : templateStructure[template?.templateKey ?? project.templateId] ??
-          templateStructure[project.templateId] ??
-          [],
+    ...(includeTemplateStructure
+      ? {
+          templateStructure:
+            template?.structure && template.structure.length > 0
+              ? template.structure
+              : templateStructure[template?.templateKey ?? project.templateId] ??
+                templateStructure[project.templateId] ??
+                [],
+        }
+      : {}),
     teams: assignedTeams,
     members: uniqueMembers,
   }

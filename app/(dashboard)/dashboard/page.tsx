@@ -5,8 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import AttentionTable from "@/components/dashboard/attentionTable"
 import { CompletedProjectsChart } from "@/components/dashboard/completedProjectsChart"
 import { SectionCards } from "@/components/dashboard/section-cards"
-import { AlarmClockMinus, CalendarCheck, ClipboardClock, GalleryVerticalEnd, Timer } from "lucide-react"
+import { AlarmClockMinus, CalendarCheck, GalleryVerticalEnd, Pause, Timer, TriangleAlert } from "lucide-react"
 import { LoadingState } from "@/components/loadingState"
+import { EmptyState } from "@/components/emptyState"
 import { RecentActivity } from "@/components/dashboard/recentActivity"
 import type { Project } from "@/types/project"
 
@@ -47,7 +48,10 @@ export default function Page() {
   const load = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true)
-      const res = await fetchWithAuth("/api/dashboard?limit=50", { cache: "no-store" })
+      let res = await fetchWithAuth("/api/dashboard?limit=50", { cache: "no-store" })
+      if (res.status === 401) {
+        res = await fetchWithAuth("/api/dashboard?limit=50", { cache: "no-store" })
+      }
       const payload = await res.json().catch(() => null)
 
       if (!res.ok) {
@@ -115,7 +119,10 @@ export default function Page() {
 
   useEffect(() => {
     if (authLoading) return
-    if (!user?.id) return
+    if (!user?.id) {
+      setLoading(false)
+      return
+    }
     void load()
   }, [load, user?.id, authLoading])
 
@@ -141,8 +148,32 @@ export default function Page() {
   }, [load, supabase])
 
   if (loading) return <div><LoadingState title="Loading dashboard..." /></div>
-  if (error) return <div><LoadingState title="Dashboard unavailable" description={error} /></div>
-  if (!data) return <div><LoadingState title="No Data Found" /></div>
+  if (error) {
+    return (
+      <div className="py-8">
+        <EmptyState
+          title="Dashboard unavailable"
+          description={error}
+          buttonText="Retry"
+          onClick={() => void load()}
+          icon={<TriangleAlert />}
+        />
+      </div>
+    )
+  }
+  if (!data) {
+    return (
+      <div className="py-8">
+        <EmptyState
+          title="No data found"
+          description="We couldn't find dashboard data for this workspace yet."
+          buttonText="Retry"
+          onClick={() => void load()}
+          icon={<TriangleAlert />}
+        />
+      </div>
+    )
+  }
 
   const stats = [
     {
@@ -170,10 +201,10 @@ export default function Page() {
       color: "text-destructive",
     },
     {
-      title: "Pending Projects",
+      title: "Onhold Projects",
       value: data.stats.overdue,
-      icon: ClipboardClock,
-      color: "text-orange-500",
+      icon: Pause,
+      color: "text-pink-500",
     },
   ]
 
