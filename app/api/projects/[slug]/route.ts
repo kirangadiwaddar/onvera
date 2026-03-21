@@ -51,6 +51,10 @@ type TeamRow = {
   created_by?: string | null
 }
 
+type MemberLike = {
+  email?: string
+}
+
 function normalizeTemplateKey(template: Record<string, unknown>) {
   const rawKey =
     (template as { templateKey?: string }).templateKey ??
@@ -84,6 +88,18 @@ function normalizeTemplateKey(template: Record<string, unknown>) {
 }
 
 function normalizeProject(row: ProjectRow) {
+  const extraMembers: MemberLike[] = Array.isArray(row.extra_members)
+    ? row.extra_members
+        .map((member) => {
+          if (typeof member === "string") return { email: member }
+          if (!member || typeof member !== "object") return null
+          const email = (member as { email?: unknown }).email
+          if (typeof email !== "string" || !email.trim()) return null
+          return { email }
+        })
+        .filter((member): member is MemberLike => Boolean(member))
+    : []
+
   return {
     id: row.id,
     slug: row.slug,
@@ -94,7 +110,7 @@ function normalizeProject(row: ProjectRow) {
     updatedAt: row.updated_at ?? undefined,
     avatarSrc: row.avatar_src ?? undefined,
     teamIds: row.team_ids ?? [],
-    extraMembers: row.extra_members ?? [],
+    extraMembers,
     submissions: row.submissions ?? {},
     createdBy: row.created_by ?? null,
   }
