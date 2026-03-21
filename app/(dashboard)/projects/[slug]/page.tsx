@@ -260,7 +260,7 @@ export default function ProjectDetailPage() {
   const [selectedTeamId, setSelectedTeamId] = useState("")
   const [teams, setTeams] = useState<Team[]>([])
   const [statusUpdating, setStatusUpdating] = useState(false)
-  const savingToastId = useRef<ReturnType<typeof toast.loading> | null>(null)
+  const [savingSubmissions, setSavingSubmissions] = useState(false)
   const [downloadingAssets, setDownloadingAssets] = useState(false)
   const [inviteSubmitting, setInviteSubmitting] = useState(false)
   const [viewTeam, setViewTeam] = useState<Team | null>(null)
@@ -713,9 +713,7 @@ export default function ProjectDetailPage() {
     if (!project) return
 
     setProject((prev) => (prev ? { ...prev, submissions: nextSubmissions } : prev))
-    if (!savingToastId.current) {
-      savingToastId.current = toast.loading("Saving checklist...")
-    }
+    setSavingSubmissions(true)
     try {
       const response = await fetchWithAuth(`/api/projects/${project.slug}`, {
         method: "PUT",
@@ -736,22 +734,13 @@ export default function ProjectDetailPage() {
       if (data.project) {
         setProject(data.project)
       }
-      if (savingToastId.current) {
-        toast.success("Checklist saved", { id: savingToastId.current })
-      } else {
-        toast.success("Checklist saved")
-      }
     } catch (error) {
       console.error("Failed to save submissions:", error)
       const message =
         error instanceof Error ? error.message : "Failed to save checklist updates"
-      if (savingToastId.current) {
-        toast.error(message, { id: savingToastId.current })
-      } else {
-        toast.error(message)
-      }
+      toast.error(message)
     } finally {
-      savingToastId.current = null
+      setSavingSubmissions(false)
     }
   }
 
@@ -1068,6 +1057,7 @@ export default function ProjectDetailPage() {
                       canModerate={canManageChecklist}
                       submissions={project.submissions}
                       onSubmissionsChange={(next) => void persistSubmissions(next)}
+                      isSaving={savingSubmissions}
                       className={isCustom ? "custom-checklist-section" : undefined}
                     />
                   </div>
