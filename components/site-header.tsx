@@ -9,6 +9,7 @@ import { CalendarDays, ArrowLeft, Monitor, Moon, Sun } from "lucide-react"
 
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { Button } from "./ui/button"
+import { NotificationBell } from "@/components/notifications/notification-bell"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -211,6 +212,8 @@ export function SiteHeader() {
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-white/5 dark:text-violet-200">
               <CalendarDays size={16} />
             </span>
+            <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />
+            <NotificationBell />
             <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

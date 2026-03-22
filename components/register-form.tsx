@@ -41,6 +41,7 @@ export function RegisterForm({
   const [resendCooldown, setResendCooldown] = useState(0)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const nextParam = searchParams.get("next")
   const [inviteToken, setInviteToken] = useState<string | null>(null)
   const inviteRoleParam = searchParams.get("role")
   const inviteRole =
@@ -51,11 +52,16 @@ export function RegisterForm({
 
   useEffect(() => {
     if (typeof window === "undefined") return
+    const queryToken = searchParams.get("inviteToken")
+    if (queryToken && queryToken.trim()) {
+      setInviteToken(queryToken.trim())
+      return
+    }
     const hash = window.location.hash?.replace(/^#/, "") || ""
     const params = new URLSearchParams(hash)
     const token = params.get("inviteToken")
     setInviteToken(token && token.trim() ? token.trim() : null)
-  }, [])
+  }, [searchParams])
 
   useEffect(() => {
     if (inviteRole) {
@@ -154,7 +160,8 @@ export function RegisterForm({
       }
       toast.success("Account verified. Redirecting to login...")
       window.setTimeout(() => {
-        router.replace("/login")
+        const next = nextParam && nextParam.startsWith("/") ? `?next=${encodeURIComponent(nextParam)}` : ""
+        router.replace(`/login${next}`)
       }, 700)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to register")

@@ -263,7 +263,6 @@ export default function ProjectDetailPage() {
   const [savingSubmissions, setSavingSubmissions] = useState(false)
   const [downloadingAssets, setDownloadingAssets] = useState(false)
   const [inviteSubmitting, setInviteSubmitting] = useState(false)
-  const [deletingMemberId, setDeletingMemberId] = useState<number | null>(null)
   const [viewTeam, setViewTeam] = useState<Team | null>(null)
   const [showCompletePrompt, setShowCompletePrompt] = useState(false)
   const [dismissedCompletePrompt, setDismissedCompletePrompt] = useState(false)
@@ -311,6 +310,12 @@ export default function ProjectDetailPage() {
         }
 
         setProject(data.project)
+        if (typeof window !== "undefined" && data.project?.slug) {
+          const storedDismissed = window.localStorage.getItem(
+            `onvera:project-complete-prompt-dismissed:${data.project.slug}`,
+          )
+          setDismissedCompletePrompt(storedDismissed === "true")
+        }
         setCustomSections(getCustomSectionsFromSubmissions(data.project.submissions))
         setLoading(false)
         hasLoadedRef.current = true
@@ -488,7 +493,9 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (shouldPromptForCompletion && !dismissedCompletePrompt) {
       setShowCompletePrompt(true)
+      return
     }
+    setShowCompletePrompt(false)
   }, [dismissedCompletePrompt, shouldPromptForCompletion])
 
   if (loading) {
@@ -513,17 +520,18 @@ export default function ProjectDetailPage() {
     ),
   )
   const canManageChecklist = canEditProject || isLeadMember
+  const isProjectCompleted = project.status === "completed"
   const canSeeAccessToken = isLeadMember || !restrictedRole
   const assignedTeams = Array.isArray(project.teams)
     ? project.teams.filter(Boolean)
     : []
   const externalMembers = project.members?.filter((member) => member && member.isExternal) ?? []
   const inviteBaseUrl =
-    typeof window !== "undefined" ? `${window.location.origin}/register` : ""
-  const buildInviteUrl = (token?: string | null, role = "project_member") => {
+    typeof window !== "undefined" ? `${window.location.origin}/invite` : ""
+  const buildInviteUrl = (token?: string | null) => {
     if (!token || !inviteBaseUrl) return ""
-    const params = new URLSearchParams({ role })
-    return `${inviteBaseUrl}?${params.toString()}#inviteToken=${encodeURIComponent(token)}`
+    const params = new URLSearchParams({ token })
+    return `${inviteBaseUrl}?${params.toString()}`
   }
 
   const addCustomSection = () => {
@@ -669,35 +677,6 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const handleDeleteMemberAccess = async (member: { id: number; email?: string | null }) => {
-    const email = member.email?.trim().toLowerCase()
-    if (!email) {
-      toast.error("Missing member email.")
-      return
-    }
-
-    try {
-      setDeletingMemberId(member.id)
-      const response = await fetchWithAuth("/api/members/delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      })
-      const payload = await response.json().catch(() => null) as { message?: string } | null
-      if (!response.ok) {
-        throw new Error(payload?.message || "Failed to delete member access")
-      }
-      await removeExternalMember(member.id)
-      toast.success("Member access deleted.")
-    } catch (error) {
-      console.error("Delete member access failed:", error)
-      toast.error(error instanceof Error ? error.message : "Failed to delete member access")
-    } finally {
-      setDeletingMemberId(null)
-    }
-  }
 
   const addTeam = async () => {
     if (!selectedTeamId) return
@@ -927,6 +906,12 @@ export default function ProjectDetailPage() {
               onClick={() => {
                 setDismissedCompletePrompt(true)
                 setShowCompletePrompt(false)
+                if (typeof window !== "undefined" && project?.slug) {
+                  window.localStorage.setItem(
+                    `onvera:project-complete-prompt-dismissed:${project.slug}`,
+                    "true",
+                  )
+                }
               }}
             >
               Not now
@@ -1048,7 +1033,7 @@ export default function ProjectDetailPage() {
                   <div key={section.id} className="relative">
 
                     {/* Remove button only for custom sections */}
-                    {isCustom && canManageChecklist && (
+                    {isCustom && canManageChecklist && !isProjectCompleted && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <button className="absolute top-1 left-3 cursor-pointer z-10 text-[10px] text-destructive hover:underline mr-10">
@@ -1086,6 +1071,7 @@ export default function ProjectDetailPage() {
                       isAgency={true}
                       canEdit={canManageChecklist}
                       canModerate={canManageChecklist}
+                      isReadOnly={isProjectCompleted}
                       submissions={project.submissions}
                       onSubmissionsChange={(next) => void persistSubmissions(next)}
                       isSaving={savingSubmissions}
@@ -1098,7 +1084,7 @@ export default function ProjectDetailPage() {
           </Accordion>
 
           {/* Add Custom Section */}
-          {canManageChecklist && <div className="mt-4 space-y-4">
+          {canManageChecklist && !isProjectCompleted && <div className="mt-4 space-y-4">
             {!showSectionForm && (
               <Button
                 variant="secondary"
@@ -1352,7 +1338,7 @@ export default function ProjectDetailPage() {
                               variant="ghost"
                               className="text-xs"
                               onClick={() => {
-                                const link = buildInviteUrl(member.accessToken, "project_member")
+                                const link = buildInviteUrl(member.accessToken)
                                 void navigator.clipboard.writeText(link || member.accessToken || "")
                                 toast.success("Access link copied")
                               }}
@@ -1378,30 +1364,21 @@ export default function ProjectDetailPage() {
                                 <AlertDialogTitle>
                                   Remove {member.name} - {member.role}
                                 </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Choose whether to remove this member from the project or delete their app access entirely.
-                                  Deleting app access removes them from all teams and projects and revokes login.
-                                </AlertDialogDescription>
+                              <AlertDialogDescription>
+                                Remove this member from the project. They can be invited again anytime.
+                              </AlertDialogDescription>
                               </AlertDialogHeader>
 
                               <AlertDialogFooter>
-                                <AlertDialogCancel disabled={deletingMemberId === member.id}>
+                                <AlertDialogCancel>
                                   Cancel
                                 </AlertDialogCancel>
-                                <Button
+                                <AlertDialogAction
                                   onClick={() => void removeExternalMember(member.id)}
-                                  variant="outline"
-                                  disabled={deletingMemberId === member.id}
+                                  variant="destructive"
                                 >
                                   Remove From Project
-                                </Button>
-                                <Button
-                                  onClick={() => void handleDeleteMemberAccess(member)}
-                                  variant="destructive"
-                                  disabled={deletingMemberId === member.id}
-                                >
-                                  {deletingMemberId === member.id ? "Deleting..." : "Delete App Access"}
-                                </Button>
+                                </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
@@ -1591,7 +1568,7 @@ export default function ProjectDetailPage() {
                               variant="ghost"
                               className="text-xs"
                               onClick={() => {
-                                const link = buildInviteUrl(member.accessToken, "project_member")
+                                const link = buildInviteUrl(member.accessToken)
                                 void navigator.clipboard.writeText(link || member.accessToken || "")
                                 toast.success("Access link copied")
                               }}

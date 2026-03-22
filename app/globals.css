@@ -255,10 +255,16 @@ html {
 .branding-drop .uppy-DragDrop-container {
   padding: 10px;
   border-radius: 12px;
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
 }
 
 .branding-drop .uppy-DragDrop-inner {
   padding: 20px;
+  border-radius: 16px;
+  border: 2px dashed #d1d5db !important;
+  background: #ffffff !important;
+  color: #111827 !important;
 }
 
 .branding-drop .uppy-DragDrop-container .uppy-DragDrop-inner {
@@ -268,13 +274,94 @@ html {
 .branding-drop .uppy-DragDrop-label {
   font-size: 12px;
   font-weight: 600;
+  color: #111827;
 }
 
 .branding-drop .uppy-DragDrop-note {
   font-size: 12px;
   margin-top: 4px;
+  color: #6b7280;
 }
 
 .branding-drop .uppy-DragDrop-arrow {
   display: none;
+}
+
+.branding-drop .uppy-DragDrop-browse {
+  color: #2563eb;
+}
+
+.branding-drop .uppy-DragDrop-browse:hover {
+  color: #1d4ed8;
+}
+
+.branding-drop .uppy-DragDrop--isDragDropSupported {
+  border: 2px dashed #d1d5db !important;
+  background: #ffffff !important;
+}
+
+.branding-drop .uppy-DragDrop--isDraggingOver {
+  background: #eef2ff !important;
+  border: 2px dashed #6366f1 !important;
+}
+
+.dark .branding-drop .uppy-DragDrop-container {
+  background: #0b0b13 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.dark .branding-drop .uppy-DragDrop-inner {
+  border: 2px dashed rgba(255, 255, 255, 0.25) !important;
+  background: #0f111a !important;
+  color: #f8fafc !important;
+}
+
+.dark .branding-drop .uppy-DragDrop-label {
+  color: #f8fafc;
+}
+
+.dark .branding-drop .uppy-DragDrop-note {
+  color: rgba(248, 250, 252, 0.7);
+}
+
+.dark .branding-drop .uppy-DragDrop-browse {
+  color: #93c5fd;
+}
+
+.dark .branding-drop .uppy-DragDrop-browse:hover {
+  color: #bfdbfe;
+}
+
+.dark .branding-drop .uppy-DragDrop--isDragDropSupported {
+  border: 2px dashed rgba(255, 255, 255, 0.25) !important;
+  background: #0f111a !important;
+}
+
+.dark .branding-drop .uppy-DragDrop--isDraggingOver {
+  background: rgba(30, 41, 59, 0.8) !important;
+  border: 2px dashed rgba(148, 163, 184, 0.7) !important;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -10%;
+  border-radius: 2px;
+  animation-name: confetti-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, -10%, 0) rotate(var(--confetti-rotation, 0deg));
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 120vh, 0) rotate(var(--confetti-rotation, 0deg));
+    opacity: 0;
+  }
 }

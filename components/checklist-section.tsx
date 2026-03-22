@@ -47,6 +47,7 @@ type Props = {
   showCompletionControl?: boolean
   className?: string
   isSaving?: boolean
+  isReadOnly?: boolean
 }
 
 function getStatusBadgeClass(status?: string) {
@@ -70,6 +71,7 @@ export default function ChecklistSection({
   showCompletionControl = true,
   className,
   isSaving = false,
+  isReadOnly = false,
 }: Props) {
   const [editMode, setEditMode] = useState<Record<string, boolean>>({})
   const [brandingEdit, setBrandingEdit] = useState(false)
@@ -113,6 +115,7 @@ export default function ChecklistSection({
     }) || dynamicRows.some((row) => row.status === "rejected")
   const canShowCompletionControl =
     showCompletionControl &&
+    !isReadOnly &&
     (canEdit || canModerate || (allStaticApproved && allDynamicApproved)) &&
     hasContent
 
@@ -447,7 +450,9 @@ export default function ChecklistSection({
               Upload your brand logo, guidelines, fonts, and related branding assets.
             </p>
             <BrandingUploader
-              disabled={isAgency ? !((canEdit || canModerate) && brandingEdit) : false}
+              disabled={
+                isReadOnly || (isAgency ? !((canEdit || canModerate) && brandingEdit) : false)
+              }
               onFileAdded={handleBrandingFileAdded}
             />
             {dynamicRows.length > 0 ? (
@@ -458,7 +463,7 @@ export default function ChecklistSection({
                     className="flex items-center justify-between gap-3 rounded-md border border-zinc-200 px-3 py-2 text-xs dark:border-white/10"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      {isAgency && canModerate && dynamicRows.length > 1 ? (
+                      {isAgency && canModerate && dynamicRows.length > 1 && !isReadOnly ? (
                         <input
                           type="checkbox"
                           checked={selectedBrandingRows.has(index)}
@@ -477,7 +482,7 @@ export default function ChecklistSection({
                       <Badge className={`py-1 px-2 text-[11px] capitalize ${getStatusBadgeClass(row.status)}`}>
                         {row.status || "submitted"}
                       </Badge>
-                      {(!isAgency || ((canEdit || canModerate) && brandingEdit)) ? (
+                      {(!isAgency || ((canEdit || canModerate) && brandingEdit)) && !isReadOnly ? (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -500,7 +505,7 @@ export default function ChecklistSection({
             ) : (
               <div className="text-xs text-muted-foreground">No branding files uploaded yet.</div>
             )}
-            {isAgency && (canEdit || canModerate) ? (
+            {isAgency && (canEdit || canModerate) && !isReadOnly ? (
               <div className="flex justify-end items-center gap-1.5">
                 {canEdit || canModerate ? (
                   <Button
@@ -574,7 +579,7 @@ export default function ChecklistSection({
               {item.fieldType === "textarea" && (
                 <Textarea
                   value={value}
-                  disabled={isAgency ? !isEditing || !canEdit : false}
+                  disabled={isReadOnly || (isAgency ? !isEditing || !canEdit : false)}
                   onChange={(event) =>
                     setDraftValues((prev) => ({
                       ...prev,
@@ -587,7 +592,7 @@ export default function ChecklistSection({
               {(item.fieldType === "text" || item.fieldType === "url") && (
                 <Input
                   value={value}
-                  disabled={isAgency ? !isEditing || !canEdit : false}
+                  disabled={isReadOnly || (isAgency ? !isEditing || !canEdit : false)}
                   onChange={(event) =>
                     setDraftValues((prev) => ({
                       ...prev,
@@ -601,7 +606,7 @@ export default function ChecklistSection({
                 <div className="space-y-1.5">
                   <Input
                     type="file"
-                    disabled={isAgency ? !isEditing || !canEdit : false}
+                    disabled={isReadOnly || (isAgency ? !isEditing || !canEdit : false)}
                     onChange={(event) => {
                       const file = event.target.files?.[0]
                       if (!file) return
@@ -647,7 +652,7 @@ export default function ChecklistSection({
                 </div>
               )}
 
-              {item.fieldType !== "upload" && !isAgency && (
+              {item.fieldType !== "upload" && !isAgency && !isReadOnly && (
                 <Button
                   size="sm"
                   variant="default"
@@ -673,7 +678,7 @@ export default function ChecklistSection({
                 </a>
               )}
 
-              {isAgency && (canEdit || canModerate) && (
+              {isAgency && (canEdit || canModerate) && !isReadOnly && (
                 <div className="flex justify-end items-center gap-1.5">
                   <TooltipProvider delayDuration={200}>
                     {canEdit && (
@@ -784,7 +789,11 @@ export default function ChecklistSection({
 
             {dynamicRows.map((row, index: number) => {
               const dynamicId = `${section.id}-${index}`
-              const isEditing = isAgency ? (canEdit ? editMode[dynamicId] || false : false) : true
+              const isEditing = isReadOnly
+                ? false
+                : isAgency
+                  ? (canEdit ? editMode[dynamicId] || false : false)
+                  : true
               const draft = dynamicDrafts[dynamicId] || {
                 name: row.name || "",
                 url: row.url || "",
@@ -802,7 +811,7 @@ export default function ChecklistSection({
 
                   <Input
                     value={draft.name}
-                    disabled={!isEditing}
+                    disabled={isReadOnly || !isEditing}
                     onChange={(event) =>
                       setDynamicDrafts((prev) => ({
                         ...prev,
@@ -815,7 +824,7 @@ export default function ChecklistSection({
                   />
                   <Input
                     value={draft.url}
-                    disabled={!isEditing}
+                    disabled={isReadOnly || !isEditing}
                     onChange={(event) =>
                       setDynamicDrafts((prev) => ({
                         ...prev,
@@ -835,7 +844,7 @@ export default function ChecklistSection({
 
                   <div className="flex justify-end items-center gap-2">
                     <TooltipProvider delayDuration={200}>
-                      {(canEdit || !isAgency) && (
+                      {(canEdit || !isAgency) && !isReadOnly && (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -859,7 +868,7 @@ export default function ChecklistSection({
                           <TooltipContent>Remove</TooltipContent>
                         </Tooltip>
                       )}
-                      {isAgency && canEdit && (
+                      {isAgency && canEdit && !isReadOnly && (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -878,7 +887,7 @@ export default function ChecklistSection({
                         </Tooltip>
                       )}
 
-                      {isEditing && isAgency && canEdit && (
+                      {isEditing && isAgency && canEdit && !isReadOnly && (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -903,7 +912,7 @@ export default function ChecklistSection({
                         </Tooltip>
                       )}
 
-                      {isAgency && canModerate && (
+                      {isAgency && canModerate && !isReadOnly && (
                         <>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -957,7 +966,7 @@ export default function ChecklistSection({
               )
             })}
 
-            {(!isAgency || (isAgency && canEdit)) && (
+            {(!isAgency || (isAgency && canEdit)) && !isReadOnly && (
               <div className="border-b border-zinc-200 bg-white p-3 space-y-2 last-of-type:border-b-0 dark:border-white/10 dark:bg-white/5">
                 {localRows.map((row, index) => (
                   <div key={index} className="rounded-lg border border-zinc-200 bg-white overflow-hidden dark:border-white/10 dark:bg-white/5">

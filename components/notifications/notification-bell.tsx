@@ -42,6 +42,7 @@ export function NotificationBell() {
   const storageBase = user?.email ? `notifications:${user.email}` : "notifications:anonymous"
   const hiddenKey = `${storageBase}:hidden`
   const seenKey = `${storageBase}:seen_at`
+  const realtimeChannel = user?.id ? `notifications-${user.id}` : "notifications-anonymous"
 
   const supabase = useMemo(() => {
     try {
@@ -86,9 +87,16 @@ export function NotificationBell() {
   }, [authLoading, user?.id])
 
   useEffect(() => {
+    if (!open) return
+    if (authLoading) return
+    if (!user?.id) return
+    void loadActivities()
+  }, [open, authLoading, user?.id])
+
+  useEffect(() => {
     if (authLoading || !user?.id || !supabase) return
     const channel = supabase
-      .channel(`notifications-${storageBase}`)
+      .channel(realtimeChannel)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "projects" },
@@ -104,7 +112,7 @@ export function NotificationBell() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [authLoading, storageBase, supabase, user?.id])
+  }, [authLoading, realtimeChannel, supabase, user?.id])
 
   const visibleActivities = activities.filter((activity) => !hiddenIds.includes(activity.id))
 

@@ -55,15 +55,20 @@ export function filterProjectsForIdentity<T extends ProjectLike, U extends TeamL
 ) {
   if (!identity) return [] as T[]
   const ownedProjects = projects.filter((project) => project.createdBy === identity.userId)
-  if (isAdminRole(identity.role)) {
-    return ownedProjects
-  }
 
   const email = identity.email
   if (!email) return [] as T[]
 
+  const memberProjects = projects.filter((project) => isMemberInProject(project, teams, email))
+
+  if (isAdminRole(identity.role)) {
+    const combined = new Map<number, T>()
+    ownedProjects.forEach((project) => combined.set(project.id, project))
+    memberProjects.forEach((project) => combined.set(project.id, project))
+    return Array.from(combined.values())
+  }
+
   if (identity.role === "project_member" || identity.role === "team_member") {
-    const memberProjects = projects.filter((project) => isMemberInProject(project, teams, email))
     const combined = new Map<number, T>()
     ownedProjects.forEach((project) => combined.set(project.id, project))
     memberProjects.forEach((project) => combined.set(project.id, project))
@@ -76,15 +81,20 @@ export function filterProjectsForIdentity<T extends ProjectLike, U extends TeamL
 export function filterTeamsForIdentity<T extends TeamLike>(teams: T[], identity: RequestIdentity | null) {
   if (!identity) return [] as T[]
   const ownedTeams = teams.filter((team) => team.createdBy === identity.userId)
-  if (isAdminRole(identity.role)) {
-    return ownedTeams
-  }
 
   const email = identity.email
   if (!email) return [] as T[]
 
+  const memberTeams = teams.filter((team) => isTeamMemberInTeam(team, email))
+
+  if (isAdminRole(identity.role)) {
+    const combined = new Map<number, T>()
+    ownedTeams.forEach((team) => combined.set(team.id, team))
+    memberTeams.forEach((team) => combined.set(team.id, team))
+    return Array.from(combined.values())
+  }
+
   if (identity.role === "project_member" || identity.role === "team_member") {
-    const memberTeams = teams.filter((team) => isTeamMemberInTeam(team, email))
     const combined = new Map<number, T>()
     ownedTeams.forEach((team) => combined.set(team.id, team))
     memberTeams.forEach((team) => combined.set(team.id, team))
