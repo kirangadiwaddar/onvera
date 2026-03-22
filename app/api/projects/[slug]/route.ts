@@ -78,6 +78,62 @@ type Member = {
   id: number
   name: string
   email?: string
+  role?: string
+  image?: string
+  accessToken?: string
+  memberType?: "agency" | "freelancer"
+  isLead?: boolean
+  isExternal?: boolean
+  isRegistered?: boolean
+}
+
+type SupabaseUser = {
+  email?: string | null
+}
+
+async function getRegisteredEmailSet(
+  admin: ReturnType<typeof createAdminClient>,
+  candidateEmails: Set<string>,
+) {
+  if (!admin || candidateEmails.size === 0) return new Set<string>()
+  const registered = new Set<string>()
+  let page = 1
+  const perPage = 1000
+
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
+    if (error) {
+      console.error("Supabase listUsers failed:", error.message)
+      break
+    }
+
+    const users = Array.isArray((data as { users?: unknown })?.users)
+      ? (data as { users: SupabaseUser[] }).users
+      : Array.isArray(data)
+        ? (data as SupabaseUser[])
+        : []
+
+    users.forEach((user) => {
+      const email = user.email?.toLowerCase()
+      if (email && candidateEmails.has(email)) {
+        registered.add(email)
+      }
+    })
+
+    const nextPage = (data as { nextPage?: number | null } | null)?.nextPage
+    if (!nextPage) break
+    page = nextPage
+  }
+
+  return registered
+}
+
+function applyRegisteredFlag(member: Member, registeredEmails: Set<string>) {
+  const email = member.email?.toLowerCase()
+  return {
+    ...member,
+    ...(email ? { isRegistered: registeredEmails.has(email) } : {}),
+  }
 }
 
 function normalizeMember(member: unknown, fallbackId: number): Member | null {
@@ -88,7 +144,17 @@ function normalizeMember(member: unknown, fallbackId: number): Member | null {
     return { id: fallbackId, name, email }
   }
   if (!member || typeof member !== "object") return null
-  const raw = member as { id?: unknown; name?: unknown; email?: unknown }
+  const raw = member as {
+    id?: unknown
+    name?: unknown
+    email?: unknown
+    role?: unknown
+    image?: unknown
+    accessToken?: unknown
+    memberType?: unknown
+    isLead?: unknown
+    isExternal?: unknown
+  }
   const email =
     typeof raw.email === "string" && raw.email.trim()
       ? raw.email.trim()
@@ -100,7 +166,32 @@ function normalizeMember(member: unknown, fallbackId: number): Member | null {
         ? email.split("@")[0]
         : "Member"
   const id = typeof raw.id === "number" && Number.isFinite(raw.id) ? raw.id : fallbackId
-  return email ? { id, name, email } : { id, name }
+  const role =
+    typeof raw.role === "string" && raw.role.trim() ? raw.role.trim() : undefined
+  const image =
+    typeof raw.image === "string" && raw.image.trim() ? raw.image.trim() : undefined
+  const accessToken =
+    typeof raw.accessToken === "string" && raw.accessToken.trim()
+      ? raw.accessToken.trim()
+      : undefined
+  const memberType: Member["memberType"] =
+    raw.memberType === "agency" || raw.memberType === "freelancer"
+      ? raw.memberType
+      : undefined
+  const isLead = typeof raw.isLead === "boolean" ? raw.isLead : undefined
+  const isExternal = typeof raw.isExternal === "boolean" ? raw.isExternal : undefined
+  const base: Member = {
+    id,
+    name,
+    ...(email ? { email } : {}),
+    ...(role ? { role } : {}),
+    ...(image ? { image } : {}),
+    ...(accessToken ? { accessToken } : {}),
+    ...(memberType ? { memberType } : {}),
+    ...(isLead !== undefined ? { isLead } : {}),
+    ...(isExternal !== undefined ? { isExternal } : {}),
+  }
+  return base
 }
 
 function normalizeTemplateKey(template: Record<string, unknown>) {
@@ -286,12 +377,33 @@ export async function GET(
     : []
   const project = normalizeProject(projectRow as ProjectRow)
 
-  const visibleProjects = filterProjectsForIdentity([project], teams, identity)
+  const candidateEmails = new Set<string>()
+  teams.forEach((team) => {
+    if (team.lead?.email) candidateEmails.add(team.lead.email.toLowerCase())
+    team.members.forEach((member) => {
+      if (member.email) candidateEmails.add(member.email.toLowerCase())
+    })
+  })
+  project.extraMembers?.forEach((member) => {
+    if (member.email) candidateEmails.add(member.email.toLowerCase())
+  })
+  const registeredEmails = await getRegisteredEmailSet(admin, candidateEmails)
+  const enrichedTeams = teams.map((team) => ({
+    ...team,
+    lead: team.lead ? applyRegisteredFlag(team.lead, registeredEmails) : undefined,
+    members: team.members.map((member) => applyRegisteredFlag(member, registeredEmails)),
+  }))
+  const enrichedProject = {
+    ...project,
+    extraMembers: project.extraMembers?.map((member) => applyRegisteredFlag(member, registeredEmails)),
+  }
+
+  const visibleProjects = filterProjectsForIdentity([enrichedProject], enrichedTeams, identity)
   if (visibleProjects.length === 0) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })
   }
 
-  let nextProject = project
+  let nextProject = enrichedProject
   let tokenExpiresAt: string | null = null
   const { data } = await admin
     .from("onboarding_tokens")
@@ -327,7 +439,7 @@ export async function GET(
     }
   }
 
-  return NextResponse.json({ project: attachRelations(nextProject, teams, templates) })
+  return NextResponse.json({ project: attachRelations(nextProject, enrichedTeams, templates) })
 }
 
 export async function PUT(
@@ -472,7 +584,28 @@ export async function PUT(
     ? (templateRows as TemplateRow[]).map(normalizeTemplate)
     : []
 
-  return NextResponse.json({ project: attachRelations(updatedProject, refreshedTeams, templates) })
+  const candidateEmails = new Set<string>()
+  refreshedTeams.forEach((team) => {
+    if (team.lead?.email) candidateEmails.add(team.lead.email.toLowerCase())
+    team.members.forEach((member) => {
+      if (member.email) candidateEmails.add(member.email.toLowerCase())
+    })
+  })
+  updatedProject.extraMembers?.forEach((member) => {
+    if (member.email) candidateEmails.add(member.email.toLowerCase())
+  })
+  const registeredEmails = await getRegisteredEmailSet(admin, candidateEmails)
+  const enrichedTeams = refreshedTeams.map((team) => ({
+    ...team,
+    lead: team.lead ? applyRegisteredFlag(team.lead, registeredEmails) : undefined,
+    members: team.members.map((member) => applyRegisteredFlag(member, registeredEmails)),
+  }))
+  const enrichedProject = {
+    ...updatedProject,
+    extraMembers: updatedProject.extraMembers?.map((member) => applyRegisteredFlag(member, registeredEmails)),
+  }
+
+  return NextResponse.json({ project: attachRelations(enrichedProject, enrichedTeams, templates) })
 }
 
 export async function DELETE(
