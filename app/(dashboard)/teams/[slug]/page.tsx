@@ -10,8 +10,9 @@ import { LoadingState } from "@/components/loadingState"
 import { EmptyState } from "@/components/emptyState"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getAvatarColor } from "@/lib/get-avatar-colors"
-import { CalendarDays, Copy, Crown, LayoutGrid, List, Plus, Trash2, UserRoundCheck } from "lucide-react"
+import { CalendarDays, Copy, Crown, LayoutGrid, List, Plus, Trash2, UserRoundCheck, TriangleAlert } from "lucide-react"
 import { ProjectCard } from "@/components/project-card"
+import { toast } from "sonner"
 
 import {
   Table,
@@ -96,7 +97,7 @@ export default function TeamDetailPage() {
   const [openAssignProject, setOpenAssignProject] = useState(false)
   const [selectedProjectSlug, setSelectedProjectSlug] = useState("")
   const [assignSearch, setAssignSearch] = useState("")
-  const [pendingMemberDelete, setPendingMemberDelete] = useState<{ id: number; name: string; isLead: boolean } | null>(null)
+  const [pendingMemberDelete, setPendingMemberDelete] = useState<{ id: number; name: string; email?: string | null; isLead: boolean } | null>(null)
   const [pendingProjectUnassign, setPendingProjectUnassign] = useState<Project | null>(null)
   const [confirmDemoteLead, setConfirmDemoteLead] = useState(false)
   const [unassigningProject, setUnassigningProject] = useState(false)
@@ -104,8 +105,10 @@ export default function TeamDetailPage() {
   const [projectsPage, setProjectsPage] = useState(1)
   const [membersPage, setMembersPage] = useState(1)
   const [is2xl, setIs2xl] = useState(false)
+  const [deletingMemberAccess, setDeletingMemberAccess] = useState(false)
   const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
   const isFreelancer = profile?.role === "freelancer"
+  const isProjectMember = profile?.role === "project_member"
 
   const loadTeam = useCallback(async () => {
     if (!slug) return
@@ -291,6 +294,36 @@ export default function TeamDetailPage() {
     await persistTeamMembers(team.lead ?? null, nextMembers)
   }
 
+  const handleDeleteMemberAccess = async (member: { id: number; email?: string | null; isLead: boolean }) => {
+    const email = member.email?.trim().toLowerCase()
+    if (!email) {
+      toast.error("Missing member email.")
+      return
+    }
+
+    try {
+      setDeletingMemberAccess(true)
+      const response = await fetchWithAuth("/api/members/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      })
+      const payload = await response.json().catch(() => null) as { message?: string } | null
+      if (!response.ok) {
+        throw new Error(payload?.message || "Failed to delete member access")
+      }
+      await handleRemoveMember(member.id, member.isLead)
+      toast.success("Member access deleted.")
+    } catch (error) {
+      console.error("Delete member access failed:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to delete member access")
+    } finally {
+      setDeletingMemberAccess(false)
+    }
+  }
+
   const handleSetLead = async (member: TeamMember) => {
     if (!team) return
     if (team.lead) return
@@ -366,6 +399,25 @@ export default function TeamDetailPage() {
     }
   }
 
+  if (authLoading) {
+    return (
+      <LoadingState
+        title="Loading Team"
+        description="Checking your access permissions."
+      />
+    )
+  }
+
+  if (isProjectMember) {
+    return (
+      <EmptyState
+        icon={<TriangleAlert className="text-destructive" />}
+        title="Teams Unavailable"
+        description="Teams are available only to admins and team members."
+      />
+    )
+  }
+
   if (isFreelancer) {
     return (
       <EmptyState
@@ -430,8 +482,8 @@ export default function TeamDetailPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Designation</TableHead>
                 <TableHead>Position</TableHead>
-                <TableHead>Access Token</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {!isReadOnlyRole && <TableHead>Access Token</TableHead>}
+                {!isReadOnlyRole && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
 
@@ -460,8 +512,10 @@ export default function TeamDetailPage() {
                 <TableCell>
                   <Badge className="bg-zinc-900 text-white border border-zinc-800">Admin</Badge>
                 </TableCell>
-                <TableCell>-</TableCell>
-                <TableCell className="text-right text-xs text-muted-foreground">Owner Access</TableCell>
+                {!isReadOnlyRole && <TableCell>-</TableCell>}
+                {!isReadOnlyRole && (
+                  <TableCell className="text-right text-xs text-muted-foreground">Owner Access</TableCell>
+                )}
               </TableRow>
               )}
 
@@ -491,44 +545,49 @@ export default function TeamDetailPage() {
                       <Crown className="size-3.5" /> Lead
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    {team.lead.accessToken ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-xs"
-                        onClick={() => navigator.clipboard.writeText(team.lead?.accessToken || "")}
-                      >
-                        <Copy className="size-3.5" /> Copy
-                      </Button>
-                    ) : "-"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {!isReadOnlyRole && <div className="flex items-center justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={savingTeam}
-                        onClick={() => setConfirmDemoteLead(true)}
-                      >
-                        Make Member
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructiveLight"
-                        disabled={savingTeam}
-                        onClick={() =>
-                          setPendingMemberDelete({
-                            id: team.lead!.id,
-                            name: team.lead!.name,
-                            isLead: true,
-                          })
-                        }
-                      >
-                        <Trash2 className="dark:text-white" />
-                      </Button>
-                    </div>}
-                  </TableCell>
+                  {!isReadOnlyRole && (
+                    <TableCell>
+                      {team.lead.accessToken ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs"
+                          onClick={() => navigator.clipboard.writeText(team.lead?.accessToken || "")}
+                        >
+                          <Copy className="size-3.5" /> Copy
+                        </Button>
+                      ) : "-"}
+                    </TableCell>
+                  )}
+                  {!isReadOnlyRole && (
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={savingTeam}
+                          onClick={() => setConfirmDemoteLead(true)}
+                        >
+                          Make Member
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructiveLight"
+                          disabled={savingTeam}
+                          onClick={() =>
+                            setPendingMemberDelete({
+                              id: team.lead!.id,
+                              name: team.lead!.name,
+                              email: team.lead!.email,
+                              isLead: true,
+                            })
+                          }
+                        >
+                          <Trash2 className="dark:text-white" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ) : null}
 
@@ -557,49 +616,54 @@ export default function TeamDetailPage() {
                     <TableCell>
                       <Badge variant="secondary">Member</Badge>
                     </TableCell>
-                    <TableCell>
-                      {member.accessToken ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-xs"
-                          onClick={() => navigator.clipboard.writeText(member.accessToken || "")}
-                        >
-                          <Copy className="size-3.5" /> Copy
-                        </Button>
-                      ) : "-"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {!isReadOnlyRole && <div className="flex items-center justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={savingTeam || !!team.lead}
-                          onClick={() => void handleSetLead(member)}
-                        >
-                          <UserRoundCheck /> Set Lead
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructiveLight"
-                          disabled={savingTeam}
-                          onClick={() =>
-                            setPendingMemberDelete({
-                              id: member.id,
-                              name: member.name,
-                              isLead: false,
-                            })
-                          }
-                        >
-                          <Trash2 className="dark:text-white" />
-                        </Button>
-                      </div>}
-                    </TableCell>
+                    {!isReadOnlyRole && (
+                      <TableCell>
+                        {member.accessToken ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-xs"
+                            onClick={() => navigator.clipboard.writeText(member.accessToken || "")}
+                          >
+                            <Copy className="size-3.5" /> Copy
+                          </Button>
+                        ) : "-"}
+                      </TableCell>
+                    )}
+                    {!isReadOnlyRole && (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={savingTeam || !!team.lead}
+                            onClick={() => void handleSetLead(member)}
+                          >
+                            <UserRoundCheck /> Set Lead
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructiveLight"
+                            disabled={savingTeam}
+                            onClick={() =>
+                              setPendingMemberDelete({
+                                id: member.id,
+                                name: member.name,
+                                email: member.email,
+                                isLead: false,
+                              })
+                            }
+                          >
+                            <Trash2 className="dark:text-white" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               ) : !team.lead ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={isReadOnlyRole ? 4 : 6} className="text-center py-8 text-muted-foreground">
                     No team members added
                   </TableCell>
                 </TableRow>
@@ -954,22 +1018,34 @@ export default function TeamDetailPage() {
             <AlertDialogTitle>Remove Member?</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingMemberDelete
-                ? `Are you sure you want to remove ${pendingMemberDelete.name} from this team?`
-                : "Are you sure you want to remove this member?"}
+                ? `Choose whether to remove ${pendingMemberDelete.name} from this team or delete their app access entirely.`
+                : "Choose whether to remove this member from the team or delete their app access entirely."}{" "}
+              Deleting app access removes them from all teams and projects and revokes login.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={savingTeam}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={savingTeam || deletingMemberAccess}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              variant="destructive"
-              disabled={savingTeam}
+              variant="outline"
+              disabled={savingTeam || deletingMemberAccess}
               onClick={() => {
                 if (!pendingMemberDelete) return
                 void handleRemoveMember(pendingMemberDelete.id, pendingMemberDelete.isLead)
                 setPendingMemberDelete(null)
               }}
             >
-              {savingTeam ? "Removing..." : "Remove"}
+              {savingTeam ? "Removing..." : "Remove From Team"}
+            </AlertDialogAction>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={savingTeam || deletingMemberAccess}
+              onClick={() => {
+                if (!pendingMemberDelete) return
+                void handleDeleteMemberAccess(pendingMemberDelete)
+                setPendingMemberDelete(null)
+              }}
+            >
+              {deletingMemberAccess ? "Deleting..." : "Delete App Access"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

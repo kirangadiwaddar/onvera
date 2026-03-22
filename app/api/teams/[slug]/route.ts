@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params
-  const { projects, teams, templates } = await getStoreData()
+  const { projects, teams, templates } = await getStoreData({ includeRegisteredEmails: true })
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
@@ -105,7 +105,7 @@ export async function PUT(
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
 
-  const { projects, teams: allTeams, templates } = await getStoreData({ bypassCache: true })
+  const { projects, teams: allTeams, templates } = await getStoreData({ bypassCache: true, includeRegisteredEmails: true })
   const team = allTeams.find((item) => item.slug === slug)
 
   if (!team) {

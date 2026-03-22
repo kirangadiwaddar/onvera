@@ -162,7 +162,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         : data.navMain
     : []
 
-  const showOngoingProjects = roleReady && currentRole !== "team_member"
+  const showOngoingProjects = roleReady
 
   const handleLogout = () => {
     const supabase = createClient()

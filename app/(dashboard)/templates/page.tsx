@@ -5,6 +5,8 @@ import { EmptyState } from '@/components/emptyState'
 import { LoadingState } from '@/components/loadingState'
 import { useAuth } from '@/components/providers/auth-provider'
 import React from 'react'
+import { Spinner } from '@/components/ui/spinner'
+import { TriangleAlert } from 'lucide-react'
 
 export default function Page() {
   const { profile, user, loading } = useAuth()
@@ -26,6 +28,7 @@ export default function Page() {
   if (!canAccessTemplates) {
     return (
       <EmptyState
+      icon={<TriangleAlert className='text-destructive' />}
         title="Templates Unavailable"
         description="Templates are available only to admins."
       />

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { LayoutGrid, List, Plus, Users } from "lucide-react"
+import { LayoutGrid, List, Plus, Users, TriangleAlert } from "lucide-react"
 import Link from "next/link"
 
 import TeamCard from "@/components/teamCard"
@@ -29,6 +29,7 @@ export default function Page() {
   const [deletingTeam, setDeletingTeam] = useState<Team | null>(null)
   const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
   const isFreelancer = profile?.role === "freelancer"
+  const isProjectMember = profile?.role === "project_member"
 
   const loadTeams = async () => {
     setLoadingTeams(true)
@@ -51,6 +52,25 @@ export default function Page() {
     if (isFreelancer) return
     void loadTeams()
   }, [authLoading, isFreelancer, user?.id])
+
+  if (authLoading) {
+    return (
+      <LoadingState
+        title="Loading Teams"
+        description="Checking your access permissions."
+      />
+    )
+  }
+
+  if (isProjectMember) {
+    return (
+      <EmptyState
+        icon={<TriangleAlert className="text-destructive" />}
+        title="Teams Unavailable"
+        description="Teams are available only to admins and team members."
+      />
+    )
+  }
 
   const handleCreateTeam = async (values: TeamFormValues) => {
     setSubmitting(true)

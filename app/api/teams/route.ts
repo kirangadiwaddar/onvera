@@ -13,7 +13,7 @@ function slugify(value: string) {
 }
 
 export async function GET(request: Request) {
-  const { projects, teams } = await getStoreData()
+  const { projects, teams } = await getStoreData({ includeRegisteredEmails: true })
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
   }
 
-  const { teams, templates } = await getStoreData({ bypassCache: true })
+  const { teams, templates } = await getStoreData({ bypassCache: true, includeRegisteredEmails: true })
   const baseSlug = slugify(body.name)
 
   if (!baseSlug) {
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
 
-  const { teams: latestTeams, projects } = await getStoreData({ bypassCache: true })
+  const { teams: latestTeams, projects } = await getStoreData({ bypassCache: true, includeRegisteredEmails: true })
   const created = latestTeams.find((team) => team.slug === slug)
 
   if (!created) {

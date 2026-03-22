@@ -38,7 +38,45 @@ type DashboardResponse = {
 
 
 export default function Page() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, profile, loading: authLoading } = useAuth()
+  const [resolvedRole, setResolvedRole] = useState<string | null>(null)
+  const [roleLoading, setRoleLoading] = useState(false)
+
+  const localRole = useMemo(() => {
+    const raw =
+      profile?.role ||
+      (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null) ||
+      null
+    return raw ? raw.trim().toLowerCase().replace(/\s+/g, "_") : null
+  }, [profile?.role, user?.user_metadata?.role])
+
+  useEffect(() => {
+    if (!user || localRole || resolvedRole || roleLoading) return
+    let active = true
+    const resolve = async () => {
+      setRoleLoading(true)
+      try {
+        const res = await fetchWithAuth("/api/auth/me", { cache: "no-store" })
+        const data = await res.json().catch(() => null) as { profile?: { role?: string | null } } | null
+        if (!active) return
+        const nextRole =
+          typeof data?.profile?.role === "string"
+            ? data.profile.role.trim().toLowerCase().replace(/\s+/g, "_")
+            : null
+        setResolvedRole(nextRole)
+      } catch {
+        if (active) setResolvedRole(null)
+      } finally {
+        if (active) setRoleLoading(false)
+      }
+    }
+    void resolve()
+    return () => {
+      active = false
+    }
+  }, [user, localRole, resolvedRole, roleLoading])
+
+  const effectiveRole = localRole || resolvedRole
 
   const [data, setData] = useState<DashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -72,6 +110,9 @@ export default function Page() {
       if (!silent) setLoading(false)
     }
   }, [])
+
+  const isRestricted =
+    effectiveRole === "project_member" || effectiveRole === "team_member"
 
   const supabase = useMemo(() => {
     try {
@@ -146,6 +187,22 @@ export default function Page() {
       supabase.removeChannel(channel)
     }
   }, [load, supabase])
+
+  if (authLoading || roleLoading) {
+    return (
+      <LoadingState title="Loading dashboard..." description="Checking your access permissions." />
+    )
+  }
+
+  if (user && isRestricted) {
+    return (
+      <EmptyState
+        icon={<TriangleAlert className="text-destructive" />}
+        title="Dashboard Unavailable"
+        description="Dashboard is available only to admins."
+      />
+    )
+  }
 
   if (loading) return <div><LoadingState title="Loading dashboard..." /></div>
   if (error) {

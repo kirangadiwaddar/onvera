@@ -57,6 +57,12 @@ export function RegisterForm({
     setInviteToken(token && token.trim() ? token.trim() : null)
   }, [])
 
+  useEffect(() => {
+    if (inviteRole) {
+      setSelectedRole(inviteRole)
+    }
+  }, [inviteRole])
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!hasSupabaseEnv()) {
@@ -138,7 +144,7 @@ export function RegisterForm({
         await supabase.from("profiles").upsert({
           id: verifyData.user.id,
           full_name: fullName,
-          role: selectedRole,
+          role,
         })
       }
 

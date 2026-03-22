@@ -263,6 +263,7 @@ export default function ProjectDetailPage() {
   const [savingSubmissions, setSavingSubmissions] = useState(false)
   const [downloadingAssets, setDownloadingAssets] = useState(false)
   const [inviteSubmitting, setInviteSubmitting] = useState(false)
+  const [deletingMemberId, setDeletingMemberId] = useState<number | null>(null)
   const [viewTeam, setViewTeam] = useState<Team | null>(null)
   const [showCompletePrompt, setShowCompletePrompt] = useState(false)
   const [dismissedCompletePrompt, setDismissedCompletePrompt] = useState(false)
@@ -665,6 +666,36 @@ export default function ProjectDetailPage() {
     } catch (error) {
       console.error("Failed to remove external member:", error)
       toast.error(error instanceof Error ? error.message : "Failed to remove external member")
+    }
+  }
+
+  const handleDeleteMemberAccess = async (member: { id: number; email?: string | null }) => {
+    const email = member.email?.trim().toLowerCase()
+    if (!email) {
+      toast.error("Missing member email.")
+      return
+    }
+
+    try {
+      setDeletingMemberId(member.id)
+      const response = await fetchWithAuth("/api/members/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      })
+      const payload = await response.json().catch(() => null) as { message?: string } | null
+      if (!response.ok) {
+        throw new Error(payload?.message || "Failed to delete member access")
+      }
+      await removeExternalMember(member.id)
+      toast.success("Member access deleted.")
+    } catch (error) {
+      console.error("Delete member access failed:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to delete member access")
+    } finally {
+      setDeletingMemberId(null)
     }
   }
 
@@ -1348,19 +1379,28 @@ export default function ProjectDetailPage() {
                                   Remove {member.name} - {member.role}
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This action cannot be undone.
+                                  Choose whether to remove this member from the project or delete their app access entirely.
+                                  Deleting app access removes them from all teams and projects and revokes login.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
 
                               <AlertDialogFooter>
-                                <AlertDialogCancel>
+                                <AlertDialogCancel disabled={deletingMemberId === member.id}>
                                   Cancel
                                 </AlertDialogCancel>
                                 <Button
                                   onClick={() => void removeExternalMember(member.id)}
-                                  variant="destructive"
+                                  variant="outline"
+                                  disabled={deletingMemberId === member.id}
                                 >
-                                  Delete
+                                  Remove From Project
+                                </Button>
+                                <Button
+                                  onClick={() => void handleDeleteMemberAccess(member)}
+                                  variant="destructive"
+                                  disabled={deletingMemberId === member.id}
+                                >
+                                  {deletingMemberId === member.id ? "Deleting..." : "Delete App Access"}
                                 </Button>
                               </AlertDialogFooter>
                             </AlertDialogContent>
