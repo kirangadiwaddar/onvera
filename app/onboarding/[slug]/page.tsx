@@ -24,12 +24,20 @@ import { EmptyState } from "@/components/emptyState"
 import { Separator } from "@/components/ui/separator"
 import { LoadingState } from "@/components/loadingState"
 import { OnboardingNotificationBell } from "@/components/notifications/onboarding-notification-bell"
+import { ConfettiBackground } from "@/components/ui/confetti-background"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 
@@ -173,6 +181,8 @@ export default function ClientOnboardingPage() {
   const [submissionsDraft, setSubmissionsDraft] = useState<Record<string, unknown>>({})
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const hasUnsavedChangesRef = useRef(false)
+  const [showCompletedModal, setShowCompletedModal] = useState(false)
+  const [completedDismissed, setCompletedDismissed] = useState(false)
   const [openSectionId, setOpenSectionId] = useState<string>("")
   const [savingSubmissions, setSavingSubmissions] = useState(false)
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system")
@@ -419,6 +429,13 @@ export default function ClientOnboardingPage() {
     hasUnsavedChangesRef.current = hasUnsavedChanges
   }, [hasUnsavedChanges])
 
+  useEffect(() => {
+    if (!project) return
+    if (project.status === "completed" && !completedDismissed) {
+      setShowCompletedModal(true)
+    }
+  }, [completedDismissed, project])
+
   if (missingRequiredToken) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
@@ -559,6 +576,41 @@ export default function ClientOnboardingPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-[#0b0b13] dark:text-white">
+      <AlertDialog
+        open={showCompletedModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowCompletedModal(false)
+            setCompletedDismissed(true)
+          }
+        }}
+      >
+        <AlertDialogContent className="!fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 relative pb-0 overflow-hidden border border-violet-200 bg-white/95 text-center dark:border-white/10 dark:bg-[#0b0b13]/95">
+          <ConfettiBackground className="opacity-70 z-0" />
+          <div className="icon text-center mx-auto">
+            <BadgeCheck size={50} strokeWidth={1.5} className="text-green-500" />
+          </div>
+          <AlertDialogHeader className="relative z-10 sm:place-items-center sm:text-center">
+            <AlertDialogTitle className="w-full text-center text-2xl font-semibold">
+              Project Completed
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <p className="relative z-10 text-center text-sm text-muted-foreground">
+            This project is completed. Thanks for submitting everything.
+          </p>
+          <AlertDialogFooter className="relative z-10 mt-4 bg-zinc-100 dark:bg-black/40 -mx-6 px-5 py-4">
+            <Button
+              variant="destructiveLight"
+              onClick={() => {
+                setShowCompletedModal(false)
+                setCompletedDismissed(true)
+              }}
+            >
+              Close
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Header */}
       <header className="border-b border-zinc-200 bg-white dark:border-white/10 dark:bg-white/5">
@@ -709,6 +761,7 @@ export default function ClientOnboardingPage() {
                 key={section.id}
                 section={section}
                 isAgency={false}
+                isReadOnly={isProjectCompleted}
                 submissions={submissionsDraft || {}}
                 onSubmissionsChange={(next) => {
                   setSubmissionsDraft(next)

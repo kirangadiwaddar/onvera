@@ -202,16 +202,15 @@ export function NavUser({
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton
                 size="lg"
-                className="pl-1 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground bg-white rounded-full border border-violet-100 dark:border-white/10 dark:bg-white/5"
+                className="pl-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground bg-white rounded-full border border-violet-100 dark:border-white/10 dark:bg-white/5"
               >
-                <div className="h-10 w-10 rounded-full flex items-center justify-center border border-violet-500">
+                
                 <Avatar className="h-8 w-8 rounded-full">
                   <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg font-bold text-black bg-blue-100 dark:bg-blue-500/20 dark:text-blue-100">
+                  <AvatarFallback className="rounded-full font-bold text-black bg-blue-100 dark:bg-blue-500/20 dark:text-blue-100">
                     {user.name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
                   <span className="text-muted-foreground truncate text-xs">

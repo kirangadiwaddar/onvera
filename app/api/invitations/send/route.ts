@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   }
 
   const origin = new URL(request.url).origin
-  const registerUrl = `${origin}/register?role=${encodeURIComponent(memberRole)}#inviteToken=${encodeURIComponent(token)}`
+  const inviteUrl = `${origin}/invite?token=${encodeURIComponent(token)}`
 
   const subject = `You're invited to ${contextType === "team" ? "team" : "project"}: ${contextName}`
   const html = `
@@ -58,10 +58,9 @@ export async function POST(request: Request) {
       <h2>You are invited to Onvera</h2>
       <p>Hi ${name},</p>
       <p>You have been invited as <strong>${memberRole.replace("_", " ")}</strong> for <strong>${contextName}</strong>.</p>
-      <p>Register here:</p>
-      <p><a href="${registerUrl}">${registerUrl}</a></p>
-      <p>Your access token: <strong>${token}</strong></p>
-      <p>If the link does not open, use the token manually during registration.</p>
+      <p>Accept your invite:</p>
+      <p><a href="${inviteUrl}">${inviteUrl}</a></p>
+      <p>If you already have an account, log in and accept. If you are new, create an account to continue.</p>
     </div>
   `
 

@@ -62,16 +62,6 @@ export default function Page() {
     )
   }
 
-  if (isProjectMember) {
-    return (
-      <EmptyState
-        icon={<TriangleAlert className="text-destructive" />}
-        title="Teams Unavailable"
-        description="Teams are available only to admins and team members."
-      />
-    )
-  }
-
   const handleCreateTeam = async (values: TeamFormValues) => {
     setSubmitting(true)
     try {
@@ -167,6 +157,16 @@ export default function Page() {
       <LoadingState
         title="Loading Teams"
         description="Fetching your teams and assignments."
+      />
+    )
+  }
+
+  if (isProjectMember && teams.length === 0) {
+    return (
+      <EmptyState
+        icon={<TriangleAlert className="text-destructive" />}
+        title="Teams Unavailable"
+        description="Teams are available only to admins, team leads, and team members."
       />
     )
   }

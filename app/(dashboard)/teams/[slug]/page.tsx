@@ -105,10 +105,16 @@ export default function TeamDetailPage() {
   const [projectsPage, setProjectsPage] = useState(1)
   const [membersPage, setMembersPage] = useState(1)
   const [is2xl, setIs2xl] = useState(false)
-  const [deletingMemberAccess, setDeletingMemberAccess] = useState(false)
   const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
   const isFreelancer = profile?.role === "freelancer"
   const isProjectMember = profile?.role === "project_member"
+  const inviteBaseUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/invite` : ""
+  const buildInviteUrl = (token?: string | null) => {
+    if (!token || !inviteBaseUrl) return ""
+    const params = new URLSearchParams({ token })
+    return `${inviteBaseUrl}?${params.toString()}`
+  }
 
   const loadTeam = useCallback(async () => {
     if (!slug) return
@@ -294,35 +300,6 @@ export default function TeamDetailPage() {
     await persistTeamMembers(team.lead ?? null, nextMembers)
   }
 
-  const handleDeleteMemberAccess = async (member: { id: number; email?: string | null; isLead: boolean }) => {
-    const email = member.email?.trim().toLowerCase()
-    if (!email) {
-      toast.error("Missing member email.")
-      return
-    }
-
-    try {
-      setDeletingMemberAccess(true)
-      const response = await fetchWithAuth("/api/members/delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      })
-      const payload = await response.json().catch(() => null) as { message?: string } | null
-      if (!response.ok) {
-        throw new Error(payload?.message || "Failed to delete member access")
-      }
-      await handleRemoveMember(member.id, member.isLead)
-      toast.success("Member access deleted.")
-    } catch (error) {
-      console.error("Delete member access failed:", error)
-      toast.error(error instanceof Error ? error.message : "Failed to delete member access")
-    } finally {
-      setDeletingMemberAccess(false)
-    }
-  }
 
   const handleSetLead = async (member: TeamMember) => {
     if (!team) return
@@ -552,7 +529,10 @@ export default function TeamDetailPage() {
                           size="sm"
                           variant="ghost"
                           className="text-xs"
-                          onClick={() => navigator.clipboard.writeText(team.lead?.accessToken || "")}
+                          onClick={() => {
+                            const link = buildInviteUrl(team.lead?.accessToken || "")
+                            void navigator.clipboard.writeText(link || team.lead?.accessToken || "")
+                          }}
                         >
                           <Copy className="size-3.5" /> Copy
                         </Button>
@@ -623,7 +603,10 @@ export default function TeamDetailPage() {
                             size="sm"
                             variant="ghost"
                             className="text-xs"
-                            onClick={() => navigator.clipboard.writeText(member.accessToken || "")}
+                            onClick={() => {
+                              const link = buildInviteUrl(member.accessToken)
+                              void navigator.clipboard.writeText(link || member.accessToken || "")
+                            }}
                           >
                             <Copy className="size-3.5" /> Copy
                           </Button>
@@ -1013,21 +996,20 @@ export default function TeamDetailPage() {
           if (!open) setPendingMemberDelete(null)
         }}
       >
-        <AlertDialogContent size="sm">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Member?</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingMemberDelete
-                ? `Choose whether to remove ${pendingMemberDelete.name} from this team or delete their app access entirely.`
-                : "Choose whether to remove this member from the team or delete their app access entirely."}{" "}
-              Deleting app access removes them from all teams and projects and revokes login.
+                ? `Remove ${pendingMemberDelete.name} from this team. They can be invited again anytime.`
+                : "Remove this member from the team. They can be invited again anytime."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={savingTeam || deletingMemberAccess}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={savingTeam}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              variant="outline"
-              disabled={savingTeam || deletingMemberAccess}
+              variant="destructive"
+              disabled={savingTeam}
               onClick={() => {
                 if (!pendingMemberDelete) return
                 void handleRemoveMember(pendingMemberDelete.id, pendingMemberDelete.isLead)
@@ -1035,17 +1017,6 @@ export default function TeamDetailPage() {
               }}
             >
               {savingTeam ? "Removing..." : "Remove From Team"}
-            </AlertDialogAction>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={savingTeam || deletingMemberAccess}
-              onClick={() => {
-                if (!pendingMemberDelete) return
-                void handleDeleteMemberAccess(pendingMemberDelete)
-                setPendingMemberDelete(null)
-              }}
-            >
-              {deletingMemberAccess ? "Deleting..." : "Delete App Access"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
