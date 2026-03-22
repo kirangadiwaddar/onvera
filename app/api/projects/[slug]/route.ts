@@ -174,13 +174,13 @@ function normalizeMember(member: unknown, fallbackId: number): Member | null {
     typeof raw.accessToken === "string" && raw.accessToken.trim()
       ? raw.accessToken.trim()
       : undefined
-  const memberType =
+  const memberType: Member["memberType"] =
     raw.memberType === "agency" || raw.memberType === "freelancer"
       ? raw.memberType
       : undefined
   const isLead = typeof raw.isLead === "boolean" ? raw.isLead : undefined
   const isExternal = typeof raw.isExternal === "boolean" ? raw.isExternal : undefined
-  const base = {
+  const base: Member = {
     id,
     name,
     ...(email ? { email } : {}),
