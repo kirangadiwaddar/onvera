@@ -6,6 +6,7 @@ import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import { templateStructure } from "@/lib/template-structure"
 import type { status } from "@/lib/project-status"
 import type { Section } from "@/lib/types"
+import type { RequestIdentity } from "@/lib/auth/request-identity"
 
 type ProjectsCacheEntry = {
   expiresAt: number
@@ -72,7 +73,7 @@ function normalizeTemplateKey(template: Record<string, unknown>) {
 type Template = {
   id: string
   title: string
-  description?: string
+  description: string
   icon: string
   badge: string
   structure?: Section[]
@@ -176,7 +177,7 @@ type Project = {
   updatedAt?: string
   avatarSrc?: string
   teamIds: number[]
-  extraMembers?: Array<{ email?: string | null }>
+  extraMembers?: Member[]
   submissions?: Record<string, unknown>
   createdBy?: string | null
 }
@@ -187,9 +188,16 @@ type Team = {
   slug: string
   description: string
   status: "active" | "inactive"
-  lead?: { email?: string | null }
-  members: Array<{ email?: string | null }>
+  lead?: Member
+  members: Member[]
   createdAt: string
+  createdBy?: string | null
+}
+
+type AccessTeam = {
+  id: number
+  lead?: { email?: string }
+  members?: Array<{ email?: string }>
   createdBy?: string | null
 }
 
@@ -214,6 +222,18 @@ type SummaryProjectRow = {
   team_ids?: number[] | null
   extra_members?: Array<{ email?: string | null }> | null
   created_by?: string | null
+}
+
+type Member = {
+  id: number
+  name: string
+  role?: string
+  image?: string
+  email?: string
+  accessToken?: string
+  memberType?: "agency" | "freelancer"
+  isLead?: boolean
+  isExternal?: boolean
 }
 
 type ProjectRow = {
@@ -253,7 +273,7 @@ const isTeamMemberInTeam = (team: SummaryTeamRow, email?: string | null) => {
   return (team.members || []).some((member) => normalizeEmail(member.email ?? null) === target)
 }
 
-async function getSummaryProjects(identity: { userId: string; email?: string | null; role?: string | null }) {
+async function getSummaryProjects(identity: RequestIdentity) {
   const admin = createAdminClient()
   if (!admin) return [] as Array<{
     id: number
@@ -283,8 +303,8 @@ async function getSummaryProjects(identity: { userId: string; email?: string | n
 
   type SummaryTeam = {
     id: number
-    lead?: { email?: string | null } | null
-    members?: Array<{ email?: string | null }> | null
+    lead?: { email?: string }
+    members?: Array<{ email?: string }>
     createdBy?: string | null
   }
 
@@ -296,14 +316,16 @@ async function getSummaryProjects(identity: { userId: string; email?: string | n
     createdAt: string
     updatedAt?: string
     teamIds: number[]
-    extraMembers?: Array<{ email?: string | null }> | null
+    extraMembers?: Array<{ email?: string }>
     createdBy?: string | null
   }
 
   const teams: SummaryTeam[] = (teamRows as SummaryTeamRow[]).map((row) => ({
     id: row.id,
-    lead: row.lead ?? undefined,
-    members: row.members ?? [],
+    lead: row.lead ? { email: row.lead.email ?? undefined } : undefined,
+    members: Array.isArray(row.members)
+      ? row.members.map((member) => ({ email: member?.email ?? undefined }))
+      : [],
     createdBy: row.created_by ?? null,
   }))
 
@@ -315,7 +337,11 @@ async function getSummaryProjects(identity: { userId: string; email?: string | n
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? undefined,
     teamIds: row.team_ids ?? [],
-    extraMembers: row.extra_members ?? [],
+    extraMembers: Array.isArray(row.extra_members)
+      ? row.extra_members.map((member) => ({
+          email: member?.email ?? undefined,
+        }))
+      : [],
     createdBy: row.created_by ?? null,
   }))
 
@@ -428,15 +454,12 @@ export async function GET(request: Request) {
     projectRows = Array.from(merged.values())
   }
 
-  const accessTeamsNormalized: Team[] = accessTeamRows.map((row) => ({
+  const accessTeamsNormalized: AccessTeam[] = accessTeamRows.map((row) => ({
     id: row.id,
-    name: "",
-    slug: "",
-    description: "",
-    status: "active",
-    lead: row.lead ?? undefined,
-    members: row.members ?? [],
-    createdAt: "",
+    lead: row.lead ? { email: row.lead.email ?? undefined } : undefined,
+    members: Array.isArray(row.members)
+      ? row.members.map((member) => ({ email: member?.email ?? undefined }))
+      : [],
     createdBy: row.created_by ?? null,
   }))
 
@@ -450,12 +473,23 @@ export async function GET(request: Request) {
     updatedAt: row.updated_at ?? undefined,
     avatarSrc: row.avatar_src ?? undefined,
     teamIds: row.team_ids ?? [],
-    extraMembers: row.extra_members ?? [],
+    extraMembers: Array.isArray(row.extra_members)
+      ? row.extra_members
+        .filter(Boolean)
+        .map((member) => ({
+          ...(member as Member),
+          email: (member as { email?: string | null }).email ?? undefined,
+        }))
+      : [],
     submissions: {},
     createdBy: row.created_by ?? null,
   }))
 
-  const visibleProjects = filterProjectsForIdentity<Project, Team>(projectsNormalized, accessTeamsNormalized, identity)
+  const visibleProjects = filterProjectsForIdentity<Project, AccessTeam>(
+    projectsNormalized,
+    accessTeamsNormalized,
+    identity,
+  )
 
   const tokenExpiryBySlug = new Map<string, string | null>()
   if (visibleProjects.length > 0) {
@@ -593,6 +627,7 @@ export async function GET(request: Request) {
   const templates = Array.from(templateMap.values()).map((row) => ({
     id: String(row.id ?? ""),
     title: String(row.title ?? "Untitled"),
+    description: "",
     icon: String(row.icon ?? "Globe"),
     badge: String(row.badge ?? "Custom"),
     templateKey: row.template_key ?? row.id,
@@ -606,8 +641,20 @@ export async function GET(request: Request) {
         slug: row.slug,
         description: row.description ?? "",
         status: row.status,
-        lead: row.lead ?? undefined,
-        members: row.members ?? [],
+        lead: row.lead
+          ? {
+              ...(row.lead as Member),
+              email: row.lead.email ?? undefined,
+            }
+          : undefined,
+        members: Array.isArray(row.members)
+          ? row.members
+            .filter(Boolean)
+            .map((member) => ({
+              ...(member as Member),
+              email: (member as { email?: string | null }).email ?? undefined,
+            }))
+          : [],
         createdAt: row.created_at,
         createdBy: row.created_by ?? null,
       }))

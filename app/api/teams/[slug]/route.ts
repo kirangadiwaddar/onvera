@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { attachRelations } from "@/lib/server/data-store"
+import { attachRelations, getStoreData } from "@/lib/server/data-store"
 import { isAdminRole } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import type { Team } from "@/types/team"
 import type { Project } from "@/types/project"
 
+type TeamProject = ReturnType<typeof attachRelations>
+
 type TeamCacheEntry = {
   expiresAt: number
-  payload: { team: Team; projects: Project[] }
+  payload: { team: Team; projects: TeamProject[] }
 }
 
 const TEAM_CACHE_TTL_MS = 10_000
@@ -40,8 +42,8 @@ type TeamRow = {
   slug: string
   description?: string | null
   status: "active" | "inactive"
-  lead?: MemberLike | null
-  members?: MemberLike[] | null
+  lead?: Team["lead"] | null
+  members?: Team["members"] | null
   created_at: string
   created_by?: string | null
 }
@@ -56,7 +58,7 @@ type ProjectRow = {
   updated_at?: string | null
   avatar_src?: string | null
   team_ids?: number[] | null
-  extra_members?: MemberLike[] | null
+  extra_members?: Project["extraMembers"] | null
   created_by?: string | null
 }
 
@@ -93,8 +95,18 @@ const normalizeTeam = (row: TeamRow): Team => ({
   slug: row.slug,
   description: row.description ?? "",
   status: row.status,
-  lead: row.lead ?? undefined,
-  members: row.members ?? [],
+  lead: row.lead
+    ? {
+        ...(row.lead as Team["lead"]),
+        email: row.lead.email ?? undefined,
+      } as Team["lead"]
+    : undefined,
+  members: Array.isArray(row.members)
+    ? (row.members.map((member) => ({
+        ...(member as Team["members"][number]),
+        email: member?.email ?? undefined,
+      })) as Team["members"])
+    : [],
   createdAt: row.created_at,
 })
 
@@ -108,7 +120,12 @@ const normalizeProject = (row: ProjectRow): Project => ({
   updatedAt: row.updated_at ?? "",
   avatarSrc: row.avatar_src ?? undefined,
   teamIds: row.team_ids ?? [],
-  extraMembers: row.extra_members ?? [],
+  extraMembers: Array.isArray(row.extra_members)
+    ? row.extra_members.map((member) => ({
+        ...(member as NonNullable<Project["extraMembers"]>[number]),
+        email: member?.email ?? undefined,
+      }))
+    : [],
   memberIds: [],
   submissions: {},
 })
@@ -116,6 +133,7 @@ const normalizeProject = (row: ProjectRow): Project => ({
 const normalizeTemplate = (row: TemplateRow) => ({
   id: String(row.id ?? ""),
   title: String(row.title ?? "Untitled"),
+  description: "",
   icon: String(row.icon ?? "Globe"),
   badge: String(row.badge ?? "Custom"),
   templateKey: row.template_key ?? row.id,
