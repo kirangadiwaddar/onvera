@@ -57,7 +57,7 @@ export function TemplateModal({
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
+          <div className="space-y-2 w-full sm:col-span-2">
             <label className="text-xs font-medium text-muted-foreground">Template Title</label>
             <Input
               value={values.title}
@@ -72,7 +72,7 @@ export function TemplateModal({
               value={values.description}
               onChange={(event) => setValues((prev) => ({ ...prev, description: event.target.value }))}
               placeholder="Describe this template"
-              className="w-fulll"
+              className="w-full"
             />
           </div>
         </div>

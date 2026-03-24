@@ -778,7 +778,7 @@ export default function ClientOnboardingPage() {
             size="lg"
             className="w-full text-lg py-6"
             onClick={() => void saveProgress()}
-            disabled={savingSubmissions}
+            disabled={savingSubmissions || isProjectCompleted}
           >
             {savingSubmissions ? "Saving..." : "Save Progress"}
           </Button>

@@ -244,6 +244,8 @@ export default function ProjectDetailPage() {
   const hasLoadedRef = useRef(false)
   const lastSeenStorageKeyRef = useRef<string | null>(null)
   const latestClientSubmissionAtRef = useRef<string | null>(null)
+  const submissionsSignatureRef = useRef<string>("")
+  const lastProjectSlugRef = useRef<string | null>(null)
 
   const [customSections, setCustomSections] = useState<Section[]>([])
   const [openSectionId, setOpenSectionId] = useState<string>("")
@@ -266,6 +268,7 @@ export default function ProjectDetailPage() {
   const [viewTeam, setViewTeam] = useState<Team | null>(null)
   const [showCompletePrompt, setShowCompletePrompt] = useState(false)
   const [dismissedCompletePrompt, setDismissedCompletePrompt] = useState(false)
+  const [hasChecklistUpdates, setHasChecklistUpdates] = useState(false)
 
 
   const loadProject = useCallback(
@@ -341,6 +344,27 @@ export default function ProjectDetailPage() {
     lastSeenStorageKeyRef.current = `project_client_submission_seen:${slug}`
     void loadProject()
   }, [authLoading, loadProject, slug, user?.id])
+
+  useEffect(() => {
+    if (!project) return
+    const signature = JSON.stringify(project.submissions ?? {})
+    if (!submissionsSignatureRef.current || lastProjectSlugRef.current !== project.slug) {
+      submissionsSignatureRef.current = signature
+      lastProjectSlugRef.current = project.slug
+      setHasChecklistUpdates(false)
+      return
+    }
+    if (signature !== submissionsSignatureRef.current) {
+      submissionsSignatureRef.current = signature
+      setHasChecklistUpdates(true)
+      if (typeof window !== "undefined" && project?.slug) {
+        window.localStorage.removeItem(
+          `onvera:project-complete-prompt-dismissed:${project.slug}`,
+        )
+      }
+      setDismissedCompletePrompt(false)
+    }
+  }, [project, project?.submissions])
 
 
   useEffect(() => {
@@ -488,7 +512,8 @@ export default function ProjectDetailPage() {
     canEditProject &&
     project?.status !== "completed" &&
     checklistProgress === 100 &&
-    allSectionsCompleted
+    allSectionsCompleted &&
+    hasChecklistUpdates
 
   useEffect(() => {
     if (shouldPromptForCompletion && !dismissedCompletePrompt) {
@@ -788,6 +813,15 @@ export default function ProjectDetailPage() {
       const data = (await response.json()) as { project: Project }
       if (data.project) {
         setProject(data.project)
+      }
+      if (nextStatus !== "completed") {
+        setHasChecklistUpdates(false)
+        if (typeof window !== "undefined" && project?.slug) {
+          window.localStorage.removeItem(
+            `onvera:project-complete-prompt-dismissed:${project.slug}`,
+          )
+        }
+        setDismissedCompletePrompt(false)
       }
       toast.success("Status updated")
     } catch (error) {
