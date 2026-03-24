@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:supabase": "node scripts/seed-supabase.mjs"
+    "seed:supabase": "node scripts/seed-supabase.mjs",
+    "seed:default-templates": "node scripts/seed-default-templates.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

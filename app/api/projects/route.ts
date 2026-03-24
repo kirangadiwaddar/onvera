@@ -1,12 +1,35 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { attachRelations, getStoreData } from "@/lib/server/data-store"
+import { attachRelations } from "@/lib/server/data-store"
 import { filterProjectsForIdentity } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import { templateStructure } from "@/lib/template-structure"
 import type { status } from "@/lib/project-status"
-import type { StoreData } from "@/lib/server/data-store"
 import type { Section } from "@/lib/types"
+import type { RequestIdentity } from "@/lib/auth/request-identity"
+
+type ProjectsCacheEntry = {
+  expiresAt: number
+  payload: { projects: unknown[] }
+}
+
+const PROJECTS_CACHE_TTL_MS = 10_000
+const projectsCache = new Map<string, ProjectsCacheEntry>()
+
+function getCachedProjects(key: string) {
+  const cached = projectsCache.get(key)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload
+  }
+  if (cached) {
+    projectsCache.delete(key)
+  }
+  return null
+}
+
+function setCachedProjects(key: string, payload: ProjectsCacheEntry["payload"]) {
+  projectsCache.set(key, { payload, expiresAt: Date.now() + PROJECTS_CACHE_TTL_MS })
+}
 
 const resolveTemplateKeyFromTitle = (title?: string) => {
   if (!title) return undefined
@@ -47,7 +70,16 @@ function normalizeTemplateKey(template: Record<string, unknown>) {
   }
 }
 
-type Template = StoreData["templates"][number]
+type Template = {
+  id: string
+  title: string
+  description: string
+  icon: string
+  badge: string
+  structure?: Section[]
+  templateKey?: string
+  isDefault?: boolean
+}
 
 type TemplateRow = {
   id: string
@@ -135,25 +167,332 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "")
 }
 
-type Project = StoreData["projects"][number]
-type Team = StoreData["teams"][number]
+type Project = {
+  id: number
+  slug: string
+  title: string
+  status: status
+  templateId: string
+  createdAt: string
+  updatedAt?: string
+  avatarSrc?: string
+  teamIds: number[]
+  extraMembers?: Member[]
+  submissions?: Record<string, unknown>
+  createdBy?: string | null
+}
+
+type Team = {
+  id: number
+  name: string
+  slug: string
+  description: string
+  status: "active" | "inactive"
+  lead?: Member
+  members: Member[]
+  createdAt: string
+  createdBy?: string | null
+}
+
+type AccessTeam = {
+  id: number
+  lead?: { email?: string }
+  members?: Array<{ email?: string }>
+  createdBy?: string | null
+}
 
 function withStatus(project: Project, nextStatus: status): Project {
   return { ...project, status: nextStatus }
 }
 
+type SummaryTeamRow = {
+  id: number
+  lead?: { email?: string | null } | null
+  members?: Array<{ email?: string | null }> | null
+  created_by?: string | null
+}
+
+type SummaryProjectRow = {
+  id: number
+  slug: string
+  title: string
+  status: status
+  created_at: string
+  updated_at?: string | null
+  team_ids?: number[] | null
+  extra_members?: Array<{ email?: string | null }> | null
+  created_by?: string | null
+}
+
+type Member = {
+  id: number
+  name: string
+  role?: string
+  image?: string
+  email?: string
+  accessToken?: string
+  memberType?: "agency" | "freelancer"
+  isLead?: boolean
+  isExternal?: boolean
+}
+
+type ProjectRow = {
+  id: number
+  slug: string
+  title: string
+  status: status
+  template_id: string
+  created_at: string
+  updated_at?: string | null
+  avatar_src?: string | null
+  team_ids?: number[] | null
+  extra_members?: Array<{ email?: string | null }> | null
+  submissions?: Record<string, unknown> | null
+  created_by?: string | null
+}
+
+type TeamRow = {
+  id: number
+  name: string
+  slug: string
+  description?: string | null
+  status: "active" | "inactive"
+  lead?: { email?: string | null } | null
+  members?: Array<{ email?: string | null }> | null
+  created_at: string
+  created_by?: string | null
+}
+
+const normalizeEmail = (value?: string | null) => (value || "").trim().toLowerCase()
+
+const isTeamMemberInTeam = (team: SummaryTeamRow, email?: string | null) => {
+  const target = normalizeEmail(email)
+  if (!target) return false
+  const leadEmail = normalizeEmail(team.lead?.email ?? null)
+  if (leadEmail && leadEmail === target) return true
+  return (team.members || []).some((member) => normalizeEmail(member.email ?? null) === target)
+}
+
+async function getSummaryProjects(identity: RequestIdentity) {
+  const admin = createAdminClient()
+  if (!admin) return [] as Array<{
+    id: number
+    slug: string
+    title: string
+    status: status
+    createdAt: string
+    updatedAt?: string
+    teamIds: number[]
+  }>
+
+  const [{ data: teamRows, error: teamsError }, { data: projectRows, error: projectsError }] =
+    await Promise.all([
+      admin.from("teams").select("id,lead,members,created_by"),
+      admin
+        .from("projects")
+        .select("id,slug,title,status,created_at,updated_at,team_ids,extra_members,created_by"),
+    ])
+
+  if (teamsError || projectsError || !teamRows || !projectRows) {
+    console.error("Supabase summary fetch failed:", {
+      teamsError: teamsError?.message ?? null,
+      projectsError: projectsError?.message ?? null,
+    })
+    return []
+  }
+
+  type SummaryTeam = {
+    id: number
+    lead?: { email?: string }
+    members?: Array<{ email?: string }>
+    createdBy?: string | null
+  }
+
+  type SummaryProject = {
+    id: number
+    slug: string
+    title: string
+    status: status
+    createdAt: string
+    updatedAt?: string
+    teamIds: number[]
+    extraMembers?: Array<{ email?: string }>
+    createdBy?: string | null
+  }
+
+  const teams: SummaryTeam[] = (teamRows as SummaryTeamRow[]).map((row) => ({
+    id: row.id,
+    lead: row.lead ? { email: row.lead.email ?? undefined } : undefined,
+    members: Array.isArray(row.members)
+      ? row.members.map((member) => ({ email: member?.email ?? undefined }))
+      : [],
+    createdBy: row.created_by ?? null,
+  }))
+
+  const projects: SummaryProject[] = (projectRows as SummaryProjectRow[]).map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at ?? undefined,
+    teamIds: row.team_ids ?? [],
+    extraMembers: Array.isArray(row.extra_members)
+      ? row.extra_members.map((member) => ({
+          email: member?.email ?? undefined,
+        }))
+      : [],
+    createdBy: row.created_by ?? null,
+  }))
+
+  const visibleProjects = filterProjectsForIdentity<SummaryProject, SummaryTeam>(projects, teams, identity)
+  return visibleProjects.map((project) => ({
+    id: project.id,
+    slug: project.slug,
+    title: project.title,
+    status: project.status,
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt,
+    teamIds: project.teamIds,
+  }))
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const summary = searchParams.get("summary") === "1"
-  const { projects, teams, templates } = await getStoreData()
+  const bypassCache = searchParams.get("cache") === "0"
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
-  const visibleProjects = filterProjectsForIdentity<Project, Team>(projects, teams, identity)
+  const cacheKey = `projects:${summary ? "summary" : "full"}:${identity.userId}:${identity.role ?? ""}:${identity.email ?? ""}`
+  if (!bypassCache) {
+    const cached = getCachedProjects(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+  }
+  if (summary) {
+    const projects = await getSummaryProjects(identity)
+    const payload = { projects }
+    if (!bypassCache) {
+      setCachedProjects(cacheKey, payload)
+    }
+    return NextResponse.json(payload)
+  }
   const admin = createAdminClient()
+  if (!admin) {
+    return NextResponse.json({ projects: [] })
+  }
+
+  const { data: accessTeams, error: accessTeamsError } = await admin
+    .from("teams")
+    .select("id,lead,members,created_by")
+
+  if (accessTeamsError || !accessTeams) {
+    console.error("Supabase team access fetch failed:", accessTeamsError?.message ?? null)
+    return NextResponse.json({ projects: [] })
+  }
+
+  const accessTeamRows = accessTeams as SummaryTeamRow[]
+  const memberTeamIds = accessTeamRows
+    .filter((team) => isTeamMemberInTeam(team, identity.email ?? null))
+    .map((team) => team.id)
+
+  const ownedProjectsRequest = admin
+    .from("projects")
+    .select("id,slug,title,status,template_id,created_at,updated_at,avatar_src,team_ids,extra_members,created_by")
+    .eq("created_by", identity.userId)
+
+  const teamProjectsRequest = memberTeamIds.length > 0
+    ? admin
+        .from("projects")
+        .select("id,slug,title,status,template_id,created_at,updated_at,avatar_src,team_ids,extra_members,created_by")
+        .overlaps("team_ids", memberTeamIds)
+    : Promise.resolve({ data: [], error: null })
+
+  const emailFilter = identity.email ? [{ email: identity.email.toLowerCase() }] : []
+  const extraMemberRequest = emailFilter.length > 0
+    ? admin
+        .from("projects")
+        .select("id,slug,title,status,template_id,created_at,updated_at,avatar_src,team_ids,extra_members,created_by")
+        .contains("extra_members", emailFilter)
+    : Promise.resolve({ data: [], error: null })
+
+  const [
+    { data: ownedProjects, error: ownedError },
+    { data: teamProjects, error: teamError },
+    { data: extraMemberProjects, error: extraMemberError },
+  ] = await Promise.all([ownedProjectsRequest, teamProjectsRequest, extraMemberRequest])
+
+  let projectRows: ProjectRow[] = []
+  const hadExtraMemberError = Boolean(extraMemberError)
+
+  if (ownedError || teamError || hadExtraMemberError) {
+    if (ownedError || teamError) {
+      console.error("Supabase project access fetch failed:", {
+        ownedError: ownedError?.message ?? null,
+        teamError: teamError?.message ?? null,
+        extraMemberError: extraMemberError?.message ?? null,
+      })
+    }
+
+    const { data: fallbackProjects, error: fallbackError } = await admin
+      .from("projects")
+      .select("id,slug,title,status,template_id,created_at,updated_at,avatar_src,team_ids,extra_members,created_by")
+
+    if (fallbackError || !fallbackProjects) {
+      console.error("Supabase project fallback fetch failed:", fallbackError?.message ?? null)
+      return NextResponse.json({ projects: [] })
+    }
+    projectRows = fallbackProjects as ProjectRow[]
+  } else {
+    const merged = new Map<number, ProjectRow>()
+    ;(ownedProjects as ProjectRow[] | null | undefined)?.forEach((row) => merged.set(row.id, row))
+    ;(teamProjects as ProjectRow[] | null | undefined)?.forEach((row) => merged.set(row.id, row))
+    ;(extraMemberProjects as ProjectRow[] | null | undefined)?.forEach((row) => merged.set(row.id, row))
+    projectRows = Array.from(merged.values())
+  }
+
+  const accessTeamsNormalized: AccessTeam[] = accessTeamRows.map((row) => ({
+    id: row.id,
+    lead: row.lead ? { email: row.lead.email ?? undefined } : undefined,
+    members: Array.isArray(row.members)
+      ? row.members.map((member) => ({ email: member?.email ?? undefined }))
+      : [],
+    createdBy: row.created_by ?? null,
+  }))
+
+  const projectsNormalized: Project[] = projectRows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    status: row.status,
+    templateId: row.template_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at ?? undefined,
+    avatarSrc: row.avatar_src ?? undefined,
+    teamIds: row.team_ids ?? [],
+    extraMembers: Array.isArray(row.extra_members)
+      ? row.extra_members
+        .filter(Boolean)
+        .map((member) => ({
+          ...(member as Member),
+          email: (member as { email?: string | null }).email ?? undefined,
+        }))
+      : [],
+    submissions: {},
+    createdBy: row.created_by ?? null,
+  }))
+
+  const visibleProjects = filterProjectsForIdentity<Project, AccessTeam>(
+    projectsNormalized,
+    accessTeamsNormalized,
+    identity,
+  )
+
   const tokenExpiryBySlug = new Map<string, string | null>()
-  if (admin && visibleProjects.length > 0) {
+  if (visibleProjects.length > 0) {
     const slugs = visibleProjects.map((project) => project.slug)
     const { data } = await admin
       .from("onboarding_tokens")
@@ -170,8 +509,31 @@ export async function GET(request: Request) {
     }
   }
 
+  const statusSensitiveSlugs = visibleProjects
+    .filter((project) => project.status === "waiting" || project.status === "overdue" || project.status === "completed")
+    .map((project) => project.slug)
+
+  const submissionsBySlug = new Map<string, Record<string, unknown>>()
+  if (statusSensitiveSlugs.length > 0) {
+    const { data: submissionRows, error: submissionError } = await admin
+      .from("projects")
+      .select("slug, submissions")
+      .in("slug", statusSensitiveSlugs)
+
+    if (submissionError) {
+      console.error("Supabase submissions fetch failed:", submissionError.message)
+    } else if (Array.isArray(submissionRows)) {
+      submissionRows.forEach((row) => {
+        submissionsBySlug.set(row.slug, (row.submissions as Record<string, unknown>) ?? {})
+      })
+    }
+  }
+
   const overdueUpdates = visibleProjects.filter((project) =>
-    shouldMarkOverdue(project, tokenExpiryBySlug.get(project.slug)),
+    shouldMarkOverdue(
+      { ...project, submissions: submissionsBySlug.get(project.slug) ?? project.submissions },
+      tokenExpiryBySlug.get(project.slug),
+    ),
   )
   if (overdueUpdates.length > 0 && admin) {
     await Promise.all(
@@ -186,8 +548,11 @@ export async function GET(request: Request) {
 
   const ongoingUpdates = visibleProjects.filter(
     (project) =>
-      !shouldMarkOverdue(project, tokenExpiryBySlug.get(project.slug)) &&
-      shouldMarkOngoing(project),
+      !shouldMarkOverdue(
+        { ...project, submissions: submissionsBySlug.get(project.slug) ?? project.submissions },
+        tokenExpiryBySlug.get(project.slug),
+      ) &&
+      shouldMarkOngoing({ ...project, submissions: submissionsBySlug.get(project.slug) ?? project.submissions }),
   )
   if (ongoingUpdates.length > 0 && admin) {
     await Promise.all(
@@ -201,37 +566,109 @@ export async function GET(request: Request) {
   }
 
   const normalizedProjects: Project[] = visibleProjects.map((project) => {
-    if (project.status === "completed" && hasIncompleteSections(project.submissions)) {
+    const submissions = submissionsBySlug.get(project.slug) ?? project.submissions
+    if (project.status === "completed" && hasIncompleteSections(submissions)) {
       return withStatus(project, "ongoing")
     }
-    if (shouldMarkOverdue(project, tokenExpiryBySlug.get(project.slug))) {
+    if (shouldMarkOverdue({ ...project, submissions }, tokenExpiryBySlug.get(project.slug))) {
       return withStatus(project, "overdue")
     }
-    if (shouldMarkOngoing(project)) {
+    if (shouldMarkOngoing({ ...project, submissions })) {
       return withStatus(project, "ongoing")
     }
-    return project
+    return { ...project, submissions }
   })
 
-  if (summary) {
-    return NextResponse.json({
-      projects: normalizedProjects.map((project) => ({
-        id: project.id,
-        slug: project.slug,
-        title: project.title,
-        status: project.status,
-        createdAt: project.createdAt,
-        updatedAt: project.updatedAt,
-        teamIds: project.teamIds,
-      })),
+  const teamIds = Array.from(
+    new Set(normalizedProjects.flatMap((project) => project.teamIds ?? [])),
+  )
+
+  const { data: teamRows, error: teamRowsError } = teamIds.length
+    ? await admin
+        .from("teams")
+        .select("id,name,slug,description,status,lead,members,created_at,created_by")
+        .in("id", teamIds)
+    : { data: [], error: null }
+
+  if (teamRowsError) {
+    console.error("Supabase teams fetch failed:", teamRowsError.message)
+  }
+
+  const templateIds = Array.from(new Set(normalizedProjects.map((project) => project.templateId).filter(Boolean)))
+
+  const templatesById = templateIds.length
+    ? await admin
+        .from("templates")
+        .select("id,title,template_key,icon,badge,is_default")
+        .in("id", templateIds)
+    : { data: [], error: null }
+
+  const templatesByKey = templateIds.length
+    ? await admin
+        .from("templates")
+        .select("id,title,template_key,icon,badge,is_default")
+        .in("template_key", templateIds)
+    : { data: [], error: null }
+
+  if (templatesById.error || templatesByKey.error) {
+    console.error("Supabase templates fetch failed:", {
+      byId: templatesById.error?.message ?? null,
+      byKey: templatesByKey.error?.message ?? null,
     })
   }
 
-  return NextResponse.json({
+  const templateMap = new Map<string, TemplateRow>()
+  ;(templatesById.data || []).forEach((row) => templateMap.set(String((row as TemplateRow).id), row as TemplateRow))
+  ;(templatesByKey.data || []).forEach((row) => {
+    const key = (row as TemplateRow).template_key ?? (row as TemplateRow).id
+    templateMap.set(String(key), row as TemplateRow)
+  })
+
+  const templates = Array.from(templateMap.values()).map((row) => ({
+    id: String(row.id ?? ""),
+    title: String(row.title ?? "Untitled"),
+    description: "",
+    icon: String(row.icon ?? "Globe"),
+    badge: String(row.badge ?? "Custom"),
+    templateKey: row.template_key ?? row.id,
+    isDefault: typeof row.is_default === "boolean" ? row.is_default : undefined,
+  }))
+
+  const teams: Team[] = Array.isArray(teamRows)
+    ? (teamRows as TeamRow[]).map((row) => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        description: row.description ?? "",
+        status: row.status,
+        lead: row.lead
+          ? {
+              ...(row.lead as Member),
+              email: row.lead.email ?? undefined,
+            }
+          : undefined,
+        members: Array.isArray(row.members)
+          ? row.members
+            .filter(Boolean)
+            .map((member) => ({
+              ...(member as Member),
+              email: (member as { email?: string | null }).email ?? undefined,
+            }))
+          : [],
+        createdAt: row.created_at,
+        createdBy: row.created_by ?? null,
+      }))
+    : []
+
+  const payload = {
     projects: normalizedProjects.map((project) =>
       attachRelations(project, teams, templates, { includeTemplateStructure: false }),
     ),
-  })
+  }
+  if (!bypassCache) {
+    setCachedProjects(cacheKey, payload)
+  }
+  return NextResponse.json(payload)
 }
 
 export async function POST(request: Request) {
@@ -318,6 +755,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
 
+  projectsCache.clear()
   const { data: createdRow } = await admin
     .from("projects")
     .select("*")
