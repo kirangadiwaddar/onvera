@@ -53,6 +53,12 @@ export async function PATCH(request: Request) {
 
   if (error) {
     const message = error.message?.toLowerCase() ?? ""
+    if (error.code === "23505" || message.includes("templates_user_template_key_unique")) {
+      return NextResponse.json(
+        { message: "A template with the same key already exists." },
+        { status: 409 },
+      )
+    }
     if (message.includes("created_by") || message.includes("template_key")) {
       return NextResponse.json(
         {

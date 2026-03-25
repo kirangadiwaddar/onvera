@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed:supabase": "node scripts/seed-supabase.mjs",
-    "seed:default-templates": "node scripts/seed-default-templates.mjs"
+    "seed:default-templates": "node scripts/seed-default-templates.mjs",
+    "cleanup:templates": "node scripts/cleanup-template-duplicates.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

@@ -17,6 +17,7 @@ export async function GET(request: Request) {
     .from("templates")
     .select("id,title,description,icon,badge,structure,template_key,is_default")
     .eq("is_default", true)
+    .is("created_by", null)
     .order("title", { ascending: true })
 
   if (error) {

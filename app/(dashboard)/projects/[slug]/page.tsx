@@ -61,6 +61,7 @@ import { getAvatarColor } from "@/lib/get-avatar-colors"
 import { statusStyles, statusLabel } from "@/lib/project-status"
 import { CalendarCheck } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
+import { Spinner } from "@/components/ui/spinner"
 import { EmptyState } from "@/components/emptyState"
 import { LoadingState } from "@/components/loadingState"
 import ClientAccessModal from "@/components/projects/client-access-modal"
@@ -265,6 +266,10 @@ export default function ProjectDetailPage() {
   const [savingSubmissions, setSavingSubmissions] = useState(false)
   const [downloadingAssets, setDownloadingAssets] = useState(false)
   const [inviteSubmitting, setInviteSubmitting] = useState(false)
+  const [removingTeamId, setRemovingTeamId] = useState<number | null>(null)
+  const [openRemoveTeamId, setOpenRemoveTeamId] = useState<number | null>(null)
+  const [removingMemberId, setRemovingMemberId] = useState<number | null>(null)
+  const [openRemoveMemberId, setOpenRemoveMemberId] = useState<number | null>(null)
   const [viewTeam, setViewTeam] = useState<Team | null>(null)
   const [showCompletePrompt, setShowCompletePrompt] = useState(false)
   const [dismissedCompletePrompt, setDismissedCompletePrompt] = useState(false)
@@ -699,6 +704,9 @@ export default function ProjectDetailPage() {
     } catch (error) {
       console.error("Failed to remove external member:", error)
       toast.error(error instanceof Error ? error.message : "Failed to remove external member")
+    } finally {
+      setRemovingMemberId(null)
+      setOpenRemoveMemberId(null)
     }
   }
 
@@ -742,6 +750,40 @@ export default function ProjectDetailPage() {
     setSelectedTeamId("")
     setOpenInvite(false)
     setInviteSubmitting(false)
+  }
+
+  const removeTeam = async (teamId: number) => {
+    const currentTeamIds = Array.isArray(project.teamIds) ? project.teamIds : []
+    const nextTeamIds = currentTeamIds.filter((id) => id !== teamId)
+
+    try {
+      const response = await fetchWithAuth(`/api/projects/${project.slug}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          teamIds: nextTeamIds,
+        }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message || "Failed to remove team")
+      }
+
+      const data = await response.json()
+      if (data?.project) {
+        setProject(data.project)
+      }
+      toast.success("Team removed from project")
+    } catch (error) {
+      console.error("Failed to remove team:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to remove team")
+    } finally {
+      setRemovingTeamId(null)
+      setOpenRemoveTeamId(null)
+    }
   }
 
   const persistSubmissions = async (nextSubmissions: Record<string, unknown>) => {
@@ -1325,9 +1367,58 @@ export default function ProjectDetailPage() {
                         </TableCell>
                         {canSeeAccessToken && <TableCell>-</TableCell>}
                         <TableCell className="text-right">
-                          <Button size="sm" variant="secondary" onClick={() => setViewTeam(team)}>
-                            View Members
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button size="sm" variant="secondary" onClick={() => setViewTeam(team)}>
+                              View Members
+                            </Button>
+                            {canEditProject ? (
+                              <AlertDialog
+                                open={openRemoveTeamId === team.id}
+                                onOpenChange={(open) => {
+                                  if (!open && removingTeamId === team.id) return
+                                  setOpenRemoveTeamId(open ? team.id : null)
+                                }}
+                              >
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-red-500 hover:text-red-700"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Remove {team.name}?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will unassign the team from the project. The team will remain in your workspace.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel disabled={removingTeamId === team.id}>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      variant="destructive"
+                                      onClick={() => {
+                                        setRemovingTeamId(team.id)
+                                        void removeTeam(team.id)
+                                      }}
+                                      disabled={removingTeamId === team.id}
+                                    >
+                                      {removingTeamId === team.id ? (
+                                        <span className="inline-flex items-center gap-2">
+                                          <Spinner className="h-4 w-4" />
+                                          Removing...
+                                        </span>
+                                      ) : (
+                                        "Remove Team"
+                                      )}
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            ) : null}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
@@ -1386,7 +1477,13 @@ export default function ProjectDetailPage() {
                       )}
                       <TableCell className="text-right">
                         {canEditProject && member.isExternal && (
-                          <AlertDialog>
+                          <AlertDialog
+                            open={openRemoveMemberId === member.id}
+                            onOpenChange={(open) => {
+                              if (!open && removingMemberId === member.id) return
+                              setOpenRemoveMemberId(open ? member.id : null)
+                            }}
+                          >
                             <AlertDialogTrigger asChild>
                               <button className="text-red-500 hover:text-red-700">
                                 <Trash2 className="h-4 w-4" />
@@ -1398,20 +1495,31 @@ export default function ProjectDetailPage() {
                                 <AlertDialogTitle>
                                   Remove {member.name} - {member.role}
                                 </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Remove this member from the project. They can be invited again anytime.
-                              </AlertDialogDescription>
+                                <AlertDialogDescription>
+                                  Remove this member from the project. They can be invited again anytime.
+                                </AlertDialogDescription>
                               </AlertDialogHeader>
 
                               <AlertDialogFooter>
-                                <AlertDialogCancel>
+                                <AlertDialogCancel disabled={removingMemberId === member.id}>
                                   Cancel
                                 </AlertDialogCancel>
                                 <AlertDialogAction
-                                  onClick={() => void removeExternalMember(member.id)}
+                                  onClick={() => {
+                                    setRemovingMemberId(member.id)
+                                    void removeExternalMember(member.id)
+                                  }}
                                   variant="destructive"
+                                  disabled={removingMemberId === member.id}
                                 >
-                                  Remove From Project
+                                  {removingMemberId === member.id ? (
+                                    <span className="inline-flex items-center gap-2">
+                                      <Spinner className="h-4 w-4" />
+                                      Removing...
+                                    </span>
+                                  ) : (
+                                    "Remove From Project"
+                                  )}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>

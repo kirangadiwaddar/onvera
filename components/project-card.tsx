@@ -223,8 +223,8 @@ export function ProjectCard({
 
                 {variant === "default" && (
                     <AvatarGroup>
-                        {visibleMembers.map((member) => (
-                            <Avatar key={member.id} size="sm">
+                        {visibleMembers.map((member, index) => (
+                            <Avatar key={`${member.id ?? member.name ?? "member"}-${index}`} size="sm">
                                 <AvatarImage src={member.image} alt={member.name} />
                                 <AvatarFallback className={`font-bold ${getAvatarColor(String(member.id))}`}>
                                     {member.name.charAt(0).toUpperCase()}

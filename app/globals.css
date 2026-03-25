@@ -262,7 +262,6 @@ html {
 .branding-drop .uppy-DragDrop-inner {
   padding: 20px;
   border-radius: 16px;
-  border: 2px dashed #d1d5db !important;
   background: #ffffff !important;
   color: #111827 !important;
 }
@@ -311,7 +310,6 @@ html {
 }
 
 .dark .branding-drop .uppy-DragDrop-inner {
-  border: 2px dashed rgba(255, 255, 255, 0.25) !important;
   background: #0f111a !important;
   color: #f8fafc !important;
 }
@@ -333,7 +331,7 @@ html {
 }
 
 .dark .branding-drop .uppy-DragDrop--isDragDropSupported {
-  border: 2px dashed rgba(255, 255, 255, 0.25) !important;
+  border: 1px dashed rgba(255, 255, 255, 0.25) !important;
   background: #0f111a !important;
 }
 

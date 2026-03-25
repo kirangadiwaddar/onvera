@@ -115,6 +115,12 @@ export async function POST(request: Request) {
     })
 
   if (error) {
+    if (error.code === "23505" || error.message?.includes("templates_user_template_key_unique")) {
+      return NextResponse.json(
+        { message: "A template with the same key already exists." },
+        { status: 409 },
+      )
+    }
     if (error.message?.includes("created_by")) {
       return NextResponse.json(
         {
