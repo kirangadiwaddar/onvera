@@ -51,6 +51,7 @@ const templates = templatesJson.templates.map((template) => ({
   badge: template.badge,
   template_key: template.id,
   is_default: true,
+  created_by: null,
 }))
 
 async function run() {

@@ -55,6 +55,9 @@ const templates = templatesJson.templates.map((template) => ({
   description: template.description,
   icon: template.icon,
   badge: template.badge,
+  template_key: template.id,
+  is_default: true,
+  created_by: null,
 }))
 
 const teams = teamsJson.teams.map((team) => ({

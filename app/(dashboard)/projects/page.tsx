@@ -369,7 +369,7 @@ export default function Page() {
                   <List className="size-4" />
                 </Button>
               </div>
-              <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+              <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden dark:border-white/10 dark:bg-white/5">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button

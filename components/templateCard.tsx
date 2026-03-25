@@ -13,6 +13,7 @@ import {
     List,
     LayoutGrid,
     LayoutPanelTop,
+    Check,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -23,7 +24,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getAvatarColor } from "@/lib/get-avatar-colors";
+import { AVATAR_COLOR_CLASSES } from "@/lib/avatar-colors";
 import { ProjectModal, type ProjectFormValues } from "@/components/projects/project-modal";
 import { fetchWithAuth } from "@/lib/auth/client-fetch";
 import { useAuth } from "@/components/providers/auth-provider"
@@ -51,6 +52,7 @@ import { Separator } from "./ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
 import { EmptyState } from "@/components/emptyState";
+import { Spinner } from "@/components/ui/spinner";
 
 // import templates from "@/src/mocks/data/templates.json"
 // import type { Template } from "@/types/template"
@@ -85,6 +87,13 @@ type DefaultTemplate = {
 type Props = {
     canSeed?: boolean
 }
+
+const slugify = (value: string) =>
+    value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
 
 export default function TemplateCards({ canSeed = true }: Props) {
     const router = useRouter();
@@ -192,7 +201,9 @@ export default function TemplateCards({ canSeed = true }: Props) {
             })
     }, [showSeedPrompt, templates])
 
-    const existingSeedIds = new Set(templates.map((template): string => template.template_key ?? template.id))
+    const existingSeedIds = new Set(
+        templates.map((template): string => template.template_key ?? slugify(template.title ?? template.id))
+    )
     const selectableSeedTemplates = defaultTemplates.filter(
         (template: DefaultTemplate) => !existingSeedIds.has(template.template_key ?? template.id)
     )
@@ -309,7 +320,9 @@ export default function TemplateCards({ canSeed = true }: Props) {
     const handleSeedTemplates = async () => {
         setSubmitting(true)
         try {
-            const existingIds = new Set(templates.map((template): string => template.template_key ?? template.id))
+            const existingIds = new Set(
+                templates.map((template): string => template.template_key ?? slugify(template.title ?? template.id))
+            )
             const toCreate = defaultTemplates.filter((template: DefaultTemplate) =>
                 selectedSeedKeys.includes(template.template_key ?? template.id)
                 && !existingIds.has(template.template_key ?? template.id)
@@ -421,8 +434,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
             ) : viewMode === "grid" ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
                     {templates.map((template, index) => {
-                        void index
-                        const avatarClassName = getAvatarColor(template.id)
+                        const avatarClassName = AVATAR_COLOR_CLASSES[index % AVATAR_COLOR_CLASSES.length]
                         return (
                             <Card
                                 key={template.id}
@@ -702,37 +714,41 @@ export default function TemplateCards({ canSeed = true }: Props) {
                         }
                     }}
                 >
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-lg overflow-hidden">
                         <DialogHeader>
-                            <DialogTitle>Add predefined templates?</DialogTitle>
-                            <DialogDescription>
-                                Select the templates you want to add.
-                            </DialogDescription>
+                            <div>
+                                <DialogTitle>Add predefined templates?</DialogTitle>
+                                <DialogDescription>
+                                    Select the templates you want to add.
+                                </DialogDescription>
+                            </div>
                         </DialogHeader>
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {loadingDefaults ? (
-                                <div className="text-sm text-muted-foreground">Loading default templates...</div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <Spinner className="h-3.5 w-3.5" />
+                                    Loading default templates...
+                                </div>
                             ) : null}
                             {!loadingDefaults && defaultTemplates.length === 0 ? (
-                                <div className="text-sm text-muted-foreground">
+                                <div className="text-xs text-muted-foreground">
                                     No default templates found.
                                 </div>
                             ) : null}
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span>{selectedSeedKeys.length} selected</span>
+                                <span className="text-[11px]">Choose the set to add</span>
                                 <div className="flex items-center gap-2">
                                     <button
                                         type="button"
-                                        className="text-violet-600 hover:text-violet-700"
+                                        className="rounded-full border border-transparent px-2 py-1 text-[11px] text-violet-700 hover:border-violet-200 hover:bg-violet-50 dark:hover:border-violet-500/30 dark:hover:bg-violet-500/10"
                                         onClick={() => setSelectedSeedKeys(selectableSeedTemplates.map((t) => t.template_key ?? t.id))}
                                         disabled={loadingDefaults}
                                     >
-                                        Select all
+                                        Select all ({selectedSeedKeys.length})
                                     </button>
-                                    <span className="text-zinc-300">|</span>
                                     <button
                                         type="button"
-                                        className="text-zinc-600 hover:text-zinc-700"
+                                        className="rounded-full border border-transparent px-2 py-1 text-[11px] text-zinc-600 hover:border-zinc-200 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:border-white/10 dark:hover:bg-white/5"
                                         onClick={() => setSelectedSeedKeys([])}
                                         disabled={loadingDefaults}
                                     >
@@ -740,43 +756,56 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                     </button>
                                 </div>
                             </div>
-                            {defaultTemplates.map((template: DefaultTemplate) => {
-                                const key = template.template_key ?? template.id
-                                const checked = selectedSeedKeys.includes(key)
-                                const isExisting = existingSeedIds.has(key)
-                                return (
-                                    <label
-                                        key={template.id}
-                                        className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${
-                                            isExisting
-                                                ? "border-dashed border-zinc-200 bg-zinc-50 text-muted-foreground opacity-70 dark:border-white/10 dark:bg-white/5"
-                                                : "border-zinc-200 dark:border-white/10"
-                                        }`}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            className="mt-0.5 h-4 w-4 accent-violet-600"
-                                            checked={checked}
-                                            disabled={isExisting}
-                                            onChange={(event) => {
-                                                const nextChecked = event.target.checked
-                                                setSelectedSeedKeys((prev) =>
-                                                    nextChecked
-                                                        ? [...prev, key]
-                                                        : prev.filter((value) => value !== key)
-                                                )
-                                            }}
-                                        />
-                                        <div>
-                                            <p className="font-medium">{template.title}</p>
-                                            <p className="text-xs text-muted-foreground">{template.description}</p>
-                                            {isExisting ? (
-                                                <p className="text-[11px] text-emerald-600 mt-1">Already added</p>
-                                            ) : null}
-                                        </div>
-                                    </label>
-                                )
-                            })}
+                            <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
+                                {defaultTemplates.map((template: DefaultTemplate) => {
+                                    const key = template.template_key ?? template.id
+                                    const checked = selectedSeedKeys.includes(key)
+                                    const isExisting = existingSeedIds.has(key)
+                                    return (
+                                        <label
+                                            key={template.id}
+                                            className={`group flex items-center justify-between gap-4 rounded-xl border px-4 py-3 text-sm transition ${
+                                                isExisting
+                                                    ? "border-dashed border-zinc-200 bg-zinc-50 text-muted-foreground opacity-70 dark:border-white/10 dark:bg-white/5"
+                                                    : checked
+                                                        ? "border-emerald-200 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-500/10"
+                                                        : "border-zinc-200 hover:border-emerald-200 hover:bg-emerald-50/40 dark:border-white/10 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/10"
+                                            }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only"
+                                                checked={checked}
+                                                disabled={isExisting}
+                                                onChange={(event) => {
+                                                    const nextChecked = event.target.checked
+                                                    setSelectedSeedKeys((prev) =>
+                                                        nextChecked
+                                                            ? [...prev, key]
+                                                            : prev.filter((value) => value !== key)
+                                                    )
+                                                }}
+                                            />
+                                            <div className="min-w-0">
+                                                <p className="font-medium leading-5">{template.title}</p>
+                                                <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
+                                                {isExisting ? (
+                                                    <p className="text-[11px] text-emerald-600 mt-1">Already added</p>
+                                                ) : null}
+                                            </div>
+                                            <span
+                                                className={`flex h-7 w-7 items-center justify-center rounded-full border transition ${
+                                                    checked
+                                                        ? "border-emerald-500 bg-emerald-500 text-white"
+                                                        : "border-zinc-300 text-transparent dark:border-white/20"
+                                                }`}
+                                            >
+                                                <span className="text-sm font-semibold"><Check size={14} /></span>
+                                            </span>
+                                        </label>
+                                    )
+                                })}
+                            </div>
                         </div>
                         <DialogFooter>
                             <Button

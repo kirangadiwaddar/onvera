@@ -50,14 +50,22 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   const [savingPassword, setSavingPassword] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showResetDialog, setShowResetDialog] = useState(false)
   const [deletingAccount, setDeletingAccount] = useState(false)
+  const [resettingAccount, setResettingAccount] = useState(false)
+  const [resetStatusLoading, setResetStatusLoading] = useState(false)
+  const [resetHasData, setResetHasData] = useState(true)
   const [deleteConfirmText, setDeleteConfirmText] = useState("")
+  const [resetCountdown, setResetCountdown] = useState(15)
+  const resetTimerRef = useRef<number | null>(null)
+  const resetOpenTimeoutRef = useRef<number | null>(null)
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const currentRole =
     profile?.role ||
     (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null) ||
     null
   const canDeleteAccount = currentRole === "agency" || currentRole === "freelancer"
+  const canResetAccount = canDeleteAccount
 
   const displayInitial = useMemo(() => {
     const initialName =
@@ -77,6 +85,23 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     setNewPassword("")
     setConfirmPassword("")
     setDeleteConfirmText("")
+    setShowResetDialog(false)
+    if (resetOpenTimeoutRef.current) {
+      window.clearTimeout(resetOpenTimeoutRef.current)
+      resetOpenTimeoutRef.current = null
+    }
+    if (user?.id) {
+      setResetStatusLoading(true)
+      fetchWithAuth("/api/account/reset/status", { cache: "no-store" })
+        .then((res) => res.json().catch(() => null))
+        .then((data: { hasData?: boolean } | null) => {
+          setResetHasData(Boolean(data?.hasData))
+        })
+        .catch(() => {
+          setResetHasData(true)
+        })
+        .finally(() => setResetStatusLoading(false))
+    }
   }, [displayInitial.initialAvatar, displayInitial.initialName, open])
 
   const trimmedAvatarUrl = avatarUrl.trim()
@@ -234,6 +259,71 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     }
   }
 
+  const handleResetAccount = async () => {
+    if (!user?.id) return
+    setResettingAccount(true)
+    try {
+      const response = await fetchWithAuth("/api/account/reset", {
+        method: "POST",
+      })
+      const payload = await response.json().catch(() => null) as { message?: string } | null
+      if (!response.ok) {
+        throw new Error(payload?.message || "Failed to reset account data")
+      }
+      toast.success("Account data reset")
+      setShowResetDialog(false)
+      if (typeof window !== "undefined") {
+        window.location.reload()
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to reset account"
+      toast.error(message)
+    } finally {
+      setResettingAccount(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!showResetDialog) {
+      if (resetTimerRef.current) {
+        window.clearInterval(resetTimerRef.current)
+        resetTimerRef.current = null
+      }
+      setResetCountdown(15)
+      return
+    }
+
+    setResetCountdown(15)
+    resetTimerRef.current = window.setInterval(() => {
+      setResetCountdown((prev) => {
+        if (prev <= 1) {
+          if (resetTimerRef.current) {
+            window.clearInterval(resetTimerRef.current)
+            resetTimerRef.current = null
+          }
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => {
+      if (resetTimerRef.current) {
+        window.clearInterval(resetTimerRef.current)
+        resetTimerRef.current = null
+      }
+    }
+  }, [showResetDialog])
+
+  const handleOpenResetDialog = () => {
+    onOpenChange(false)
+    if (resetOpenTimeoutRef.current) {
+      window.clearTimeout(resetOpenTimeoutRef.current)
+      resetOpenTimeoutRef.current = null
+    }
+    setShowResetDialog(true)
+  }
+
   const handleChooseAvatarFile = () => {
     avatarInputRef.current?.click()
   }
@@ -279,12 +369,13 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Account Settings</DialogTitle>
-          <DialogDescription>Manage your profile and security settings.</DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Account Settings</DialogTitle>
+            <DialogDescription>Manage your profile and security settings.</DialogDescription>
+          </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-violet-50 p-2 rounded-lg gap-2 h-auto! dark:bg-violet-500/20" variant="default">
@@ -298,7 +389,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
           <TabsContent value="profile" className="py-5">
             <FieldGroup>
-              <div className="flex items-center gap-5">
+              <div className="space-y-4 rounded-lg border border-zinc-200 p-4 text-sm text-priamry dark:border-zinc-500/20 dark:bg-zinc-500/10 dark:text-white">
                 <Field>
                   <FieldLabel htmlFor="full-name">Full Name</FieldLabel>
                   <Input
@@ -315,15 +406,15 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                 </Field>
               </div>
 
-              <Separator />
+              {/* <Separator /> */}
 
-              <div className="flex items-end gap-5">
+              <div className="flex items-center gap-5 rounded-lg border border-zinc-200 pr-5 text-sm text-priamry dark:border-zinc-500/20 dark:bg-zinc-500/10 dark:text-white">
 
                 <Field className="w-auto">
-                  <FieldLabel>Avatar</FieldLabel>
-                  <div className="flex items-center gap-2 border-r pr-5">
-                  <Avatar className="h-18 w-18 rounded-2xl">
-                    <AvatarImage src={avatarSrc} alt={fullName || "User"} />
+                  <div className="border-r p-5">
+                    {/* <FieldLabel>Avatar</FieldLabel> */}
+                    <Avatar className="h-18 w-18 rounded-2xl">
+                      <AvatarImage src={avatarSrc} alt={fullName || "User"} />
                       <AvatarFallback className="rounded-2xl font-medium text-2xl text-black bg-blue-100 dark:bg-blue-500/20 dark:text-blue-100">
                         {(fullName || user?.email || "U").charAt(0).toUpperCase()}
                       </AvatarFallback>
@@ -343,7 +434,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                       }}
                     />
                     <TooltipProvider delayDuration={200}>
-                      <div className="space-y-2">
+                      <div className="space-x-2 mt-3">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -402,50 +493,81 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
           <TabsContent value="security" className="py-5">
             <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="new-password">New Password</FieldLabel>
-                <PasswordInput
-                  id="new-password"
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  placeholder="At least 8 characters"
-                />
-              </Field>
+              <div className="password-change-block space-y-4 rounded-lg border border-zinc-200 p-4 text-sm text-priamry dark:border-zinc-500/20 dark:bg-zinc-500/10 dark:text-white">
+                <Field>
+                  <FieldLabel htmlFor="new-password">New Password</FieldLabel>
+                  <PasswordInput
+                    id="new-password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    placeholder="At least 8 characters"
+                  />
+                </Field>
 
-              <Field>
-                <FieldLabel htmlFor="confirm-password">Confirm New Password</FieldLabel>
-                <PasswordInput
-                  id="confirm-password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  placeholder="Re-enter new password"
-                />
-              </Field>
+                <Field>
+                  <FieldLabel htmlFor="confirm-password">Confirm New Password</FieldLabel>
+                  <PasswordInput
+                    id="confirm-password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    placeholder="Re-enter new password"
+                  />
+                </Field>
 
-              <div className="flex justify-end">
-                <Button type="button" variant="gradient" onClick={handleSavePassword} disabled={savingPassword}>
-                  {savingPassword ? "Updating..." : "Update Password"}
-                </Button>
+                <div className="flex justify-end">
+                  <Button type="button" variant="gradient" onClick={handleSavePassword} disabled={savingPassword}>
+                    {savingPassword ? "Updating..." : "Update Password"}
+                  </Button>
+                </div>
               </div>
+
+              {canResetAccount ? (
+                <>
+                  {/* <Separator /> */}
+                  <div className="flex items-end justify-between gap-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                    <div className="reset-left">
+                      <p className="font-medium">Reset account data</p>
+                      <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-200/80">
+                        This removes your projects, teams, templates, and onboarding tokens. Your login stays active.
+                      </p>
+                    </div>
+                      <div className="flex flex-col items-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleOpenResetDialog}
+                          disabled={resettingAccount || resetStatusLoading || !resetHasData}
+                        >
+                          Reset account
+                        </Button>
+                        {!resetStatusLoading && !resetHasData ? (
+                          <p className="text-[11px] text-amber-700/80 dark:text-amber-200/80 mt-2">
+                            No account data to reset.
+                          </p>
+                        ) : null}
+                      </div>
+                  </div>
+                </>
+              ) : null}
 
               {canDeleteAccount ? (
                 <>
-                  <Separator />
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
-                    <p className="font-medium">Delete account</p>
-                    <p className="mt-1 text-xs text-red-600/80 dark:text-red-200/80">
-                      This will permanently delete your account and all associated data.
-                    </p>
-                    <div className="mt-3">
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        onClick={() => setShowDeleteDialog(true)}
-                        disabled={deletingAccount}
-                      >
-                        Delete account
-                      </Button>
+                  {/* <Separator /> */}
+                  <div className="flex items-end justify-between gap-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                    <div className="delete-left">
+                      <p className="font-medium">Delete account</p>
+                      <p className="mt-1 text-xs text-red-600/80 dark:text-red-200/80">
+                        This will permanently delete your account and all associated data.
+                      </p>
                     </div>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => setShowDeleteDialog(true)}
+                      disabled={deletingAccount}
+                    >
+                      Delete account
+                    </Button>
                   </div>
                 </>
               ) : null}
@@ -483,7 +605,35 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
       </DialogContent>
     </Dialog>
+
+      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset your account data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete your projects, teams, templates, and onboarding tokens. Your login and profile stay active.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Please wait <span className="font-semibold text-destructive">{resetCountdown}s</span> before confirming.
+            </p>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resettingAccount}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void handleResetAccount()}
+              disabled={resettingAccount || resetCountdown > 0 || !resetHasData}
+            >
+              {resettingAccount ? "Resetting..." : "Reset data"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
