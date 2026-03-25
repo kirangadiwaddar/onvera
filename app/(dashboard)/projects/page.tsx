@@ -638,6 +638,7 @@ export default function Page() {
           mode="edit"
           templates={templates}
           loading={submitting}
+          fixedTemplateId={editingProject.templateId}
           initialValues={{
             title: editingProject.title,
             avatarSrc: editingProject.avatarSrc ?? "",

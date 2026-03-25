@@ -209,7 +209,7 @@ export default function TemplateChecklistPage() {
               ...section,
               items: [
                 ...section.items,
-                { id: createId(), label: "New item", type: "predefined", fieldType: "upload" },
+                { id: createId(), label: "", type: "predefined", fieldType: "upload" },
               ],
             }
           : section
