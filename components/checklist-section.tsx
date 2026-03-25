@@ -78,13 +78,14 @@ export default function ChecklistSection({
   const [selectedBrandingRows, setSelectedBrandingRows] = useState<Set<number>>(new Set())
   const [draftValues, setDraftValues] = useState<Record<string, string>>({})
   const [draftPreviews, setDraftPreviews] = useState<Record<string, string>>({})
-  const [localRows, setLocalRows] = useState<{ name: string; url: string }[]>([])
+  const [localRows, setLocalRows] = useState<{ name: string; url: string; isEditing: boolean }[]>([])
   const [dynamicDrafts, setDynamicDrafts] = useState<Record<string, { name: string; url: string }>>({})
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
   const dynamicRows = useMemo<DynamicRow[]>(() => {
     const rows = submissions[section.id]
     return Array.isArray(rows) ? (rows as DynamicRow[]) : []
   }, [section.id, submissions])
+  const isDynamicSection = Boolean(section.dynamic) || section.items.length === 0
 
   const completionKey = `__section_complete:${section.id}`
   const completionValue = submissions[completionKey]
@@ -101,7 +102,7 @@ export default function ChecklistSection({
     const submission = submissions[item.id] as SubmissionValue | undefined
     return submission?.status === "approved"
   })
-  const allDynamicApproved = !section.dynamic
+  const allDynamicApproved = !isDynamicSection
     ? true
     : dynamicRows.length > 0 && dynamicRows.every((row) => row.status === "approved")
   const allBrandingApproved =
@@ -332,7 +333,16 @@ export default function ChecklistSection({
   }
 
   const addDynamicRow = () => {
-    setLocalRows((prev) => [...prev, { name: "", url: "" }])
+    setLocalRows((prev) => [...prev, { name: "", url: "", isEditing: false }])
+  }
+
+  const startLocalRow = (index: number) => {
+    setLocalRows((prev) => {
+      const updated = [...prev]
+      if (!updated[index]) return prev
+      updated[index] = { ...updated[index], isEditing: true }
+      return updated
+    })
   }
 
   const removeLocalRow = (index: number) => {
@@ -371,6 +381,8 @@ export default function ChecklistSection({
 
     setLocalRows((prev) => prev.filter((_, index) => index !== rowIndex))
   }
+
+  const hasPendingLocalRow = localRows.some((row) => !row.isEditing && !row.name.trim() && !row.url.trim())
 
   return (
     <AccordionItem
@@ -565,6 +577,7 @@ export default function ChecklistSection({
           const isEditing = editMode[item.id] || false
           const value = draftValues[item.id] ?? submission.value ?? ""
           const preview = draftPreviews[item.id] ?? submission.preview
+          const hasSubmission = Boolean(submission.value?.trim())
 
           return (
             <div key={item.id} className="border-b border-zinc-200 p-3 space-y-2 last-of-type:border-b-0 dark:border-white/10">
@@ -736,7 +749,7 @@ export default function ChecklistSection({
                               className="text-xs h-7 px-2"
                               onClick={() => runAction(`reject-${item.id}`, () => setItemStatus(item.id, "rejected"))}
                               aria-label="Reject"
-                              disabled={isSaving}
+                              disabled={!hasSubmission || isSaving}
                             >
                               {isActionPending(`reject-${item.id}`) ? (
                                 <span className="inline-flex items-center gap-2">
@@ -757,7 +770,7 @@ export default function ChecklistSection({
                               size="sm"
                               className="text-xs h-7 px-2"
                               onClick={() => runAction(`approve-${item.id}`, () => setItemStatus(item.id, "approved"))}
-                              disabled={submission.status === "approved" || isSaving}
+                              disabled={!hasSubmission || submission.status === "approved" || isSaving}
                               aria-label="Approve"
                             >
                               {isActionPending(`approve-${item.id}`) ? (
@@ -781,7 +794,7 @@ export default function ChecklistSection({
           )
         })}
 
-        {section.dynamic && (
+        {isDynamicSection && (
           <>
             {isAgency && dynamicRows.length === 0 && (
               <div className="text-destructive inline-block p-3 text-sm">Client submission pending.</div>
@@ -969,59 +982,72 @@ export default function ChecklistSection({
             {(!isAgency || (isAgency && canEdit)) && !isReadOnly && (
               <div className="border-b border-zinc-200 bg-white p-3 space-y-2 last-of-type:border-b-0 dark:border-white/10 dark:bg-white/5">
                 {localRows.map((row, index) => (
-                  <div key={index} className="rounded-lg border border-zinc-200 bg-white overflow-hidden dark:border-white/10 dark:bg-white/5">
-                    <Input
-                      placeholder="Name"
-                      value={row.name}
-                      className="h-auto rounded-none border-0 border-b border-zinc-200 py-3! text-xs dark:border-white/10"
-                      onChange={(event) => {
-                        const updated = [...localRows]
-                        updated[index].name = event.target.value
-                        setLocalRows(updated)
-                      }}
-                    />
+                  row.isEditing ? (
+                    <div key={index} className="rounded-lg border border-zinc-200 bg-white overflow-hidden dark:border-white/10 dark:bg-white/5">
+                      <Input
+                        placeholder="Name"
+                        value={row.name}
+                        className="h-auto rounded-none border-0 border-b border-zinc-200 py-3! text-xs dark:border-white/10"
+                        onChange={(event) => {
+                          const updated = [...localRows]
+                          updated[index].name = event.target.value
+                          setLocalRows(updated)
+                        }}
+                      />
 
-                    <Input
-                      placeholder="URL"
-                      value={row.url}
-                      className="h-auto rounded-none border-0 border-b border-zinc-200 py-3! text-xs dark:border-white/10"
-                      onChange={(event) => {
-                        const updated = [...localRows]
-                        updated[index].url = event.target.value
-                        setLocalRows(updated)
-                      }}
-                    />
+                      <Input
+                        placeholder="URL"
+                        value={row.url}
+                        className="h-auto rounded-none border-0 border-b border-zinc-200 py-3! text-xs dark:border-white/10"
+                        onChange={(event) => {
+                          const updated = [...localRows]
+                          updated[index].url = event.target.value
+                          setLocalRows(updated)
+                        }}
+                      />
 
-                    <div className="flex gap-2 bg-zinc-50 p-3 dark:bg-white/5">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        disabled={!row.name.trim() || !row.url.trim() || isSaving}
-                        onClick={() => runAction(`dynamic-submit-${section.id}-${index}`, () => submitDynamicRow(row, index))}
-                      >
-                        {isActionPending(`dynamic-submit-${section.id}-${index}`) ? (
-                          <span className="inline-flex items-center gap-2">
-                            <Spinner className="size-3" />
-                            {isAgency ? "Save Row" : "Submit Data"}
-                          </span>
-                        ) : (
-                          isAgency ? "Save Row" : "Submit Data"
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructiveLight"
-                        onClick={() => removeLocalRow(index)}
-                      >
-                        Remove
-                      </Button>
+                      <div className="flex gap-2 bg-zinc-50 p-3 dark:bg-white/5">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          disabled={!row.name.trim() || !row.url.trim() || isSaving}
+                          onClick={() => runAction(`dynamic-submit-${section.id}-${index}`, () => submitDynamicRow(row, index))}
+                        >
+                          {isActionPending(`dynamic-submit-${section.id}-${index}`) ? (
+                            <span className="inline-flex items-center gap-2">
+                              <Spinner className="size-3" />
+                              {isAgency ? "Save Row" : "Submit Data"}
+                            </span>
+                          ) : (
+                            isAgency ? "Save Row" : "Submit Data"
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructiveLight"
+                          onClick={() => removeLocalRow(index)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => startLocalRow(index)}
+                      className="w-full rounded-lg border border-zinc-200 bg-white py-3 text-sm font-medium text-zinc-800 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:hover:bg-white/10"
+                    >
+                      + Add New Row
+                    </button>
+                  )
                 ))}
 
-                <Button variant="ghost" onClick={addDynamicRow} className="w-full">
-                  + Add New Row
-                </Button>
+                {!hasPendingLocalRow && (
+                  <Button variant="ghost" onClick={addDynamicRow} className="w-full">
+                    + Add New Row
+                  </Button>
+                )}
               </div>
             )}
           </>
