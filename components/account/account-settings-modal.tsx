@@ -49,6 +49,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   const [savingAvatar, setSavingAvatar] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarRemoved, setAvatarRemoved] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showResetDialog, setShowResetDialog] = useState(false)
   const [deletingAccount, setDeletingAccount] = useState(false)
@@ -82,11 +83,12 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     setActiveTab("profile")
     setFullName(displayInitial.initialName)
     setAvatarUrl(displayInitial.initialAvatar)
+    setAvatarRemoved(false)
     setNewPassword("")
     setConfirmPassword("")
     setDeleteConfirmText("")
     setShowResetDialog(false)
-    if (resetOpenTimeoutRef.current) {
+    if (resetOpenTimeoutRef.current !== null) {
       window.clearTimeout(resetOpenTimeoutRef.current)
       resetOpenTimeoutRef.current = null
     }
@@ -105,8 +107,18 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   }, [displayInitial.initialAvatar, displayInitial.initialName, open])
 
   const trimmedAvatarUrl = avatarUrl.trim()
-  const hasAvatar = trimmedAvatarUrl.length > 0
+  const hasAvatar =
+    !avatarRemoved &&
+    trimmedAvatarUrl.length > 0 &&
+    trimmedAvatarUrl !== "null" &&
+    trimmedAvatarUrl !== "undefined"
   const avatarSrc = hasAvatar ? trimmedAvatarUrl : undefined
+  const avatarInitial = useMemo(() => {
+    const name = fullName.trim() || displayInitial.initialName.trim()
+    const email = typeof user?.email === "string" ? user.email : ""
+    const seed = name || email || "U"
+    return seed.trim().charAt(0).toUpperCase()
+  }, [displayInitial.initialName, fullName, user?.email])
 
   const persistProfileData = async (name: string, avatar: string) => {
     if (!user?.id) {
@@ -285,7 +297,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
   useEffect(() => {
     if (!showResetDialog) {
-      if (resetTimerRef.current) {
+      if (resetTimerRef.current !== null) {
         window.clearInterval(resetTimerRef.current)
         resetTimerRef.current = null
       }
@@ -297,7 +309,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     resetTimerRef.current = window.setInterval(() => {
       setResetCountdown((prev) => {
         if (prev <= 1) {
-          if (resetTimerRef.current) {
+          if (resetTimerRef.current !== null) {
             window.clearInterval(resetTimerRef.current)
             resetTimerRef.current = null
           }
@@ -308,7 +320,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     }, 1000)
 
     return () => {
-      if (resetTimerRef.current) {
+      if (resetTimerRef.current !== null) {
         window.clearInterval(resetTimerRef.current)
         resetTimerRef.current = null
       }
@@ -317,7 +329,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
   const handleOpenResetDialog = () => {
     onOpenChange(false)
-    if (resetOpenTimeoutRef.current) {
+    if (resetOpenTimeoutRef.current !== null) {
       window.clearTimeout(resetOpenTimeoutRef.current)
       resetOpenTimeoutRef.current = null
     }
@@ -355,6 +367,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       }
 
       setAvatarUrl(payload.url)
+      setAvatarRemoved(false)
       toast.success("Avatar uploaded. Save to apply.", { id: toastId })
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to upload avatar."
@@ -366,6 +379,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
   const handleRemoveAvatar = () => {
     setAvatarUrl("")
+    setAvatarRemoved(true)
   }
 
   return (
@@ -413,10 +427,15 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                 <Field className="w-auto">
                   <div className="border-r p-5">
                     {/* <FieldLabel>Avatar</FieldLabel> */}
-                    <Avatar className="h-18 w-18 rounded-2xl">
-                      <AvatarImage src={avatarSrc} alt={fullName || "User"} />
+                    <Avatar className="h-[72px] w-[72px] rounded-2xl">
+                      {hasAvatar ? <AvatarImage src={avatarSrc} alt={fullName || "User"} /> : null}
+                      {!hasAvatar ? (
+                        <span className="absolute inset-0 flex items-center justify-center rounded-2xl font-medium text-2xl text-black bg-blue-100 dark:bg-blue-500/20 dark:text-blue-100">
+                          {avatarInitial || "U"}
+                        </span>
+                      ) : null}
                       <AvatarFallback className="rounded-2xl font-medium text-2xl text-black bg-blue-100 dark:bg-blue-500/20 dark:text-blue-100">
-                        {(fullName || user?.email || "U").charAt(0).toUpperCase()}
+                        {avatarInitial || "U"}
                       </AvatarFallback>
                     </Avatar>
 
@@ -472,7 +491,13 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                   <Input
                     id="avatar-url"
                     value={avatarUrl}
-                    onChange={(event) => setAvatarUrl(event.target.value)}
+                    onChange={(event) => {
+                      const nextValue = event.target.value
+                      setAvatarUrl(nextValue)
+                      if (nextValue.trim()) {
+                        setAvatarRemoved(false)
+                      }
+                    }}
                     placeholder="https://example.com/avatar.png"
                   />
                 </Field>

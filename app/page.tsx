@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import Logo from "@/components/ui/logo"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import Image from "next/image"
 import dashboardDark from "./assets/dashboard-dark.png"
@@ -130,42 +131,73 @@ export default function OnveraLandingV2Page() {
   const pricingPlans = useMemo(
     () => [
       {
-        label: "Agency",
-        monthly: "$39",
-        annual: "$31",
-        note: billingCycle === "annual" ? "per workspace / month (billed annually)" : "per workspace / month",
-        badge: "Best for multi-client teams",
-        cta: "Start Agency Workspace",
-        bullets: [
-          "Unlimited projects",
-          "Team roles & permissions",
-          "Client portals & approvals",
-          "Branded onboarding",
-          "Advanced analytics",
-          "Priority support",
+        id: "free",
+        name: "Free",
+        price_monthly: 0,
+        price_yearly: 0,
+        description: "Best to get started",
+        highlight: false,
+        features: [
+          "1 active client/project",
+          "Basic onboarding workflow",
+          "Email notifications",
+          "Limited storage",
         ],
-        accent: "from-violet-100/90 via-fuchsia-100/90 to-indigo-100/90",
+        cta: "Get Started",
       },
       {
-        label: "Freelancer",
-        monthly: "$19",
-        annual: "$15",
-        note: billingCycle === "annual" ? "per workspace / month (billed annually)" : "per workspace / month",
-        badge: "Built for solo studios",
-        cta: "Start Freelancer Workspace",
-        bullets: [
-          "Unlimited projects",
-          "Solo workspace management",
-          "Client portals & approvals",
-          "Branded onboarding",
-          "Project timelines",
-          "Standard support",
+        id: "freelancer",
+        name: "Freelancer",
+        price_monthly: 399,
+        price_yearly: 3999,
+        description: "For solo professionals",
+        highlight: false,
+        features: [
+          "Up to 5 clients/projects",
+          "Custom onboarding workflows",
+          "Email + reminders",
+          "File uploads",
+          "Basic templates",
         ],
-        accent: "from-emerald-100/90 via-teal-100/90 to-sky-100/90",
+        cta: "Start Free Trial",
+      },
+      {
+        id: "agency",
+        name: "Agency",
+        price_monthly: 1499,
+        price_yearly: 14999,
+        description: "For growing teams",
+        highlight: true,
+        features: [
+          "Unlimited clients/projects",
+          "Up to 10 team members",
+          "Advanced workflows",
+          "Custom branding",
+          "Analytics dashboard",
+        ],
+        cta: "Get Started",
+      },
+      {
+        id: "pro",
+        name: "Pro Agency",
+        price_monthly: null ,
+        price_yearly: null,
+        description: "For scaling agencies",
+        highlight: false,
+        features: [
+          "Unlimited clients/projects",
+          "Unlimited team members",
+          "White-label platform",
+        ],
+        cta: "Contact Sales",
       },
     ],
-    [billingCycle],
+    [],
   )
+  const formatPrice = (value: number) => {
+    if (value === 0) return "Free"
+    return `₹${value.toLocaleString("en-IN")}`
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -199,6 +231,18 @@ export default function OnveraLandingV2Page() {
       document.documentElement.classList.toggle("dark", next === "dark")
     }
   }
+
+  const userRole =
+    profile?.role || (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null)
+  const dashboardPath = user ? getDefaultPathForRole(userRole) : "/login"
+  const displayName =
+    profile?.full_name ||
+    (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "") ||
+    (typeof user?.email === "string" ? user.email.split("@")[0] : "") ||
+    "User"
+  const avatarUrl =
+    (typeof user?.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : "") || ""
+  const avatarFallback = displayName.trim().slice(0, 1).toUpperCase()
   return (
     <main className="min-h-screen bg-white dark:bg-[#030303] text-zinc-900 dark:text-white">
       <div className="relative overflow-hidden">
@@ -208,7 +252,7 @@ export default function OnveraLandingV2Page() {
         <header className="fixed top-0 right-0 left-0 z-50 border-b border-black/10 dark:border-white/10 bg-white/80 dark:bg-black/35 backdrop-blur-xl">
           <div className="mx-auto grid grid-cols-2 lg:grid-cols-3 w-full items-center justify-between px-5 lg:px-20 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center text-black shadow-[0_0_40px_rgba(255,255,255,0.12)]">
+              <div className="flex h-10 w-10 items-center justify-center">
                 <Logo width={40} height={40} />
               </div>
               <div>
@@ -233,7 +277,20 @@ export default function OnveraLandingV2Page() {
               >
                 {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
               </button>
-              {!user && (
+              {user ? (
+                <Link
+                  href={dashboardPath}
+                  className="inline-flex items-center justify-center rounded-full border border-black/10 dark:border-white/10 bg-white/80 dark:bg-white/5 p-1 shadow-[0_8px_20px_rgba(15,23,42,0.08)] transition hover:scale-[1.02]"
+                  aria-label="Open your workspace"
+                >
+                  <Avatar className="h-9 w-9">
+                    {avatarUrl ? <AvatarImage src={avatarUrl} alt={displayName} /> : null}
+                    <AvatarFallback className="bg-violet-500 text-white">
+                      {avatarFallback}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+              ) : (
                 <Link
                   href="/login"
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-violet-500 text-sm font-medium text-white shadow-[0_8px_20px_rgba(99,102,241,0.25)] transition hover:scale-[1.02] sm:h-auto sm:w-auto sm:px-4 sm:py-2"
@@ -401,7 +458,7 @@ export default function OnveraLandingV2Page() {
       </div>
 
 
-      <section id="stats" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16 scroll-mt-24">
+      <section id="stats" className="mx-auto w-full px-5 py-10 lg:px-20 scroll-mt-24">
         <motion.div>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
 
@@ -659,12 +716,11 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section id="pricing" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16 scroll-mt-24">
+      {/* <section id="pricing" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16 scroll-mt-24">
         <div className="lg:grid lg:grid-cols-3 space-y-5 lg:space-y-0 gap-6">
           <div
             className="relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/4 p-8 shrink-0"
           >
-            {/* Prismatic Aurora Burst - Multi-layered Gradient */}
             <div
               className="absolute inset-0 z-0"
               style={{
@@ -713,52 +769,168 @@ export default function OnveraLandingV2Page() {
           </div>
           <div className="lg:col-span-2">
             <div className="lg:grid lg:gap-6 lg:grid-cols-2 space-y-5 lg:space-y-0">
-              {pricingPlans.map((plan) => (
+              {pricingPlans.map((plan) => {
+                const rawPrice = billingCycle === "annual" ? plan.price_yearly : plan.price_monthly
+                const isContactOnly = plan.id === "pro" || rawPrice === null
+                const price = rawPrice ?? 0
+                const isFree = price === 0
+                const priceSuffix =
+                  !isContactOnly && !isFree ? (billingCycle === "annual" ? "/year" : "/month") : ""
+                const billingNote = isContactOnly
+                  ? null
+                  : isFree
+                    ? "No credit card required"
+                    : billingCycle === "annual"
+                      ? "Billed yearly"
+                      : "Billed monthly"
+
+                return (
+                  <div
+                    key={plan.id}
+                    className={`group relative overflow-hidden rounded-[2rem] border bg-white shadow-[0_20px_40px_rgba(15,23,42,0.08)] dark:bg-[#0a0a0a] ${
+                      plan.highlight
+                        ? "border-violet-400/70 dark:border-violet-400/50"
+                        : "border-black/10 dark:border-white/10"
+                    }`}
+                  >
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(124,58,237,0.18),transparent_70%)] opacity-70" />
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(59,130,246,0.14),transparent_70%)] opacity-50" />
+                    <div className="relative rounded-[1.5rem] p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="inline-flex rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-violet-100/80 to-fuchsia-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(124,58,237,0.08)]">
+                            {plan.name}
+                          </div>
+                          <p className="mt-3 text-sm text-zinc-600 dark:text-white/70">{plan.description}</p>
+                        </div>
+                        {plan.highlight ? (
+                          <div className="rounded-full border border-violet-200/70 bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-700 dark:border-violet-500/40 dark:text-violet-200">
+                            Most popular
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-6 grid gap-3">
+                        {!isContactOnly ? (
+                          <div className="mt-2 flex items-end gap-2">
+                            <h3 className="text-4xl font-semibold text-zinc-900 dark:text-white">
+                              {formatPrice(price)}
+                            </h3>
+                            {priceSuffix ? (
+                              <span className="pb-1 text-sm text-zinc-500 dark:text-white/60">{priceSuffix}</span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {billingNote ? (
+                          <p className="text-sm text-zinc-600 dark:text-white/70">{billingNote}</p>
+                        ) : null}
+                        {plan.features.map((item) => (
+                          <div
+                            key={item}
+                            className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 px-4 py-3 text-sm text-zinc-600 dark:text-white/70"
+                          >
+                            <CheckCircle2 className="h-4 w-4 text-zinc-600 dark:text-white/70" />
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+
+                      <a
+                        href="/register"
+                        className={`mt-6 inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition hover:scale-[1.02] ${
+                          plan.highlight
+                            ? "bg-violet-500 text-white"
+                            : "border border-black/10 dark:border-white/10 text-zinc-700 dark:text-white/80"
+                        }`}
+                      >
+                        {plan.cta}
+                        <ArrowRight className="h-4 w-4" />
+                      </a>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </section> */}
+
+      <section id="pricing" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16 scroll-mt-24">
+        <div className="rounded-[32px] border border-black/10 dark:border-white/10 bg-white/80 dark:bg-white/5 p-8">
+          <SectionBadge>Pricing</SectionBadge>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-semibold">Select the plan that fits your team</h2>
+              <p className="mt-3 text-sm text-zinc-600 dark:text-white/70">
+                Flexible tiers for solo freelancers, studios, and multi-team agencies.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/5 p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setBillingCycle("monthly")}
+                className={`rounded-full px-4 py-1.5 transition ${
+                  billingCycle === "monthly" ? "bg-violet-500 text-white" : "text-zinc-600 dark:text-white/70"
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingCycle("annual")}
+                className={`rounded-full px-4 py-1.5 transition ${
+                  billingCycle === "annual" ? "bg-violet-500 text-white" : "text-zinc-600 dark:text-white/70"
+                }`}
+              >
+                Annual
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-6 lg:grid-cols-4">
+            {pricingPlans.map((plan) => {
+              const rawPrice = billingCycle === "annual" ? plan.price_yearly : plan.price_monthly
+              const price = rawPrice ?? 0
+              const suffix = billingCycle === "annual" ? "/year" : "/month"
+              const isContactOnly = plan.id === "pro" || rawPrice === null
+              return (
                 <div
-                  key={plan.label}
-                  className="group relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white shadow-[0_20px_40px_rgba(15,23,42,0.08)] dark:bg-[#0a0a0a]"
+                  key={plan.id}
+                  className={`relative overflow-hidden rounded-[26px] border p-6 flex flex-col ${
+                    plan.highlight
+                      ? "border-violet-300/70 bg-gradient-to-b from-violet-50 via-violet-100/40 to-white dark:border-violet-400/60 dark:from-violet-500/15 dark:via-fuchsia-500/10 dark:to-transparent"
+                      : "border-black/10 dark:border-white/10 bg-white dark:bg-white/5"
+                  }`}
                 >
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(124,58,237,0.18),transparent_70%)] opacity-70" />
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(59,130,246,0.14),transparent_70%)] opacity-50" />
-                  <div className="relative rounded-[1.5rem] p-6">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="inline-flex rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-violet-100/80 to-fuchsia-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(124,58,237,0.08)]">
-                          {plan.label}
-                        </div>
-                      </div>
-                      <div className="rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-violet-100/80 to-indigo-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(99,102,241,0.08)]">
-                        {plan.badge}
-                      </div>
+                  {plan.highlight ? (
+                    <div className="absolute right-4 top-4 rounded-full bg-violet-100 px-3 py-1 text-xs text-violet-700 dark:bg-violet-500/20 dark:text-violet-200">
+                      Most popular
                     </div>
-
-                    <div className="mt-6 grid gap-3">
-                      <h3 className="mt-4 text-5xl font-semibold text-zinc-900 dark:text-white">
-                        {billingCycle === "annual" ? plan.annual : plan.monthly}
-                      </h3>
-                      <p className="mt-1 text-sm text-zinc-600 dark:text-white/70">{plan.note}</p>
-                      {plan.bullets.map((item) => (
-                        <div
-                          key={item}
-                          className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 px-4 py-3 text-sm text-zinc-600 dark:text-white/70"
-                        >
-                          <CheckCircle2 className="h-4 w-4 text-zinc-600 dark:text-white/70" />
-                          {item}
-                        </div>
-                      ))}
+                  ) : null}
+                  <h3 className="text-lg font-semibold">{plan.name}</h3>
+                  <p className="mt-2 text-xs text-zinc-600 dark:text-white/60">{plan.description}</p>
+                  {!isContactOnly ? (
+                    <div className="mt-4 flex items-end gap-2">
+                      <span className="text-3xl font-semibold">{formatPrice(price)}</span>
+                      <span className="text-xs text-zinc-500 dark:text-white/60">{suffix}</span>
                     </div>
-
-                    <a
-                      href="/register"
-                      className="mt-6 inline-flex items-center gap-2 rounded-full bg-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"
-                    >
+                  ) : null}
+                  <div className="mt-5 space-y-2 text-xs text-zinc-600 dark:text-white/70">
+                    {plan.features.map((feature) => (
+                      <div key={feature} className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        {feature}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex-1 flex items-end">
+                    <Button className="mt-6 w-full rounded-full" variant={plan.highlight ? "gradient" : "outline"}>
                       {plan.cta}
-                      <ArrowRight className="h-4 w-4" />
-                    </a>
+                    </Button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -831,17 +1003,45 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <footer className="border-t border-black/10 dark:border-white/10 bg-violet-100 dark:bg-violet-900/40">
-        <div className="mx-auto flex justify-center w-full flex-col gap-4 px-5 lg:px-20 py-8 text-sm text-zinc-900 dark:text-white/70 md:flex-row md:items-center">
-          <span>© {new Date().getFullYear()} Onvera. All rights reserved.</span>
-          {/* <div className="flex flex-wrap gap-4">
-            <a href="#" className="transition hover:text-zinc-900 dark:text-white">Privacy</a>
-            <a href="#" className="transition hover:text-zinc-900 dark:text-white">Terms</a>
-            <a href="#" className="transition hover:text-zinc-900 dark:text-white">Careers</a>
-            <a href="#" className="transition hover:text-zinc-900 dark:text-white">Contact</a>
-          </div> */}
+      <footer className="">
+        <div className="mx-auto w-full px-5 lg:px-20 py-6 border-t border-black/10 dark:border-white/10 bg-white/80 dark:bg-white/5 p-6 text-xs text-zinc-600 dark:text-white/60">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center">
+                <Logo width={40} height={40} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-zinc-900 dark:text-white">Onvera</p>
+                <p className="text-xs text-zinc-500 dark:text-white/60">Client OS</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-4 text-zinc-600 dark:text-white/60">
+              <span className="inline-flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4" /> Enterprise-ready security
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <BadgeCheck className="h-4 w-4" /> Premium client experience
+              </span>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-zinc-600 dark:text-white/60">
+            <p>© 2026 Onvera. All rights reserved.</p>
+            <div className="flex items-center gap-4 text-zinc-600 dark:text-white/60">
+              <Link href="#features" className="transition hover:text-zinc-900 dark:hover:text-white">
+                Features
+              </Link>
+              <Link href="#pricing" className="transition hover:text-zinc-900 dark:hover:text-white">
+                Pricing
+              </Link>
+              <Link href="#faq" className="transition hover:text-zinc-900 dark:hover:text-white">
+                FAQ
+              </Link>
+            </div>
+          </div>
         </div>
       </footer>
+
+      
     </main>
   )
 }
