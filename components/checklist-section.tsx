@@ -15,6 +15,14 @@ import { CheckCircle2, ChevronDownIcon, XCircle } from "lucide-react"
 import { BrandingUploader } from "@/components/branding-uploader"
 import { Spinner } from "@/components/ui/spinner"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -26,6 +34,7 @@ type SubmissionValue = {
   status?: "submitted" | "approved" | "rejected" | string
   preview?: string
   submittedAt?: string
+  rejectionReason?: string
 }
 
 type DynamicRow = {
@@ -33,6 +42,7 @@ type DynamicRow = {
   url?: string
   status?: "submitted" | "approved" | "rejected" | string
   submittedAt?: string
+  rejectionReason?: string
 }
 
 type Submissions = Record<string, SubmissionValue | DynamicRow[] | unknown>
@@ -81,6 +91,14 @@ export default function ChecklistSection({
   const [localRows, setLocalRows] = useState<{ name: string; url: string; isEditing: boolean }[]>([])
   const [dynamicDrafts, setDynamicDrafts] = useState<Record<string, { name: string; url: string }>>({})
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+  const [rejectTarget, setRejectTarget] = useState<
+    | { type: "item"; itemId: string; label: string }
+    | { type: "dynamic"; index: number; label: string }
+    | { type: "branding"; indices: number[]; label: string }
+    | null
+  >(null)
   const dynamicRows = useMemo<DynamicRow[]>(() => {
     const rows = submissions[section.id]
     return Array.isArray(rows) ? (rows as DynamicRow[]) : []
@@ -109,6 +127,7 @@ export default function ChecklistSection({
     section.id === "branding" && dynamicRows.length > 0 && dynamicRows.every((row) => row.status === "approved")
   const allBrandingRejected =
     section.id === "branding" && dynamicRows.length > 0 && dynamicRows.every((row) => row.status === "rejected")
+  const hasBrandingPending = section.id === "branding" && dynamicRows.some((row) => row.status === "submitted")
   const hasRejected =
     section.items.some((item) => {
       const submission = submissions[item.id] as SubmissionValue | undefined
@@ -189,7 +208,13 @@ export default function ChecklistSection({
     patchSubmissions((prev) => {
       const existing = Array.isArray(prev[section.id]) ? (prev[section.id] as DynamicRow[]) : []
       const next = existing.map((row, index) =>
-        index === rowIndex ? { ...row, status } : row,
+        index === rowIndex
+          ? {
+              ...row,
+              status,
+              rejectionReason: status === "rejected" ? row.rejectionReason : undefined,
+            }
+          : row,
       )
       return { ...prev, [section.id]: next }
     })
@@ -273,6 +298,7 @@ export default function ChecklistSection({
           value,
           status: defaultStatus,
           submittedAt: new Date().toISOString(),
+          rejectionReason: undefined,
           ...extras,
         },
       }
@@ -289,6 +315,7 @@ export default function ChecklistSection({
           ...current,
           status,
           submittedAt: current.submittedAt || new Date().toISOString(),
+          rejectionReason: status === "rejected" ? current.rejectionReason : undefined,
         },
       }
       return markSectionUpdated(prev, next)
@@ -306,9 +333,14 @@ export default function ChecklistSection({
   const updateDynamicRow = (index: number, patch: Partial<DynamicRow>) => {
     patchSubmissions((prev) => {
       const rows = Array.isArray(prev[section.id]) ? [...(prev[section.id] as DynamicRow[])] : []
+      const current = rows[index] || {}
+      const nextPatch = { ...patch }
+      if (patch.status && patch.status !== "rejected") {
+        nextPatch.rejectionReason = undefined
+      }
       rows[index] = {
-        ...(rows[index] || {}),
-        ...patch,
+        ...current,
+        ...nextPatch,
       }
       const next: Submissions = {
         ...prev,
@@ -328,6 +360,7 @@ export default function ChecklistSection({
       url: draft.url,
       status: "submitted",
       submittedAt: new Date().toISOString(),
+      rejectionReason: undefined,
     })
     setEditMode((prev) => ({ ...prev, [dynamicId]: false }))
   }
@@ -371,6 +404,7 @@ export default function ChecklistSection({
         url: row.url.trim(),
         status: "submitted",
         submittedAt: new Date().toISOString(),
+        rejectionReason: undefined,
       })
       const next: Submissions = {
         ...prev,
@@ -383,6 +417,60 @@ export default function ChecklistSection({
   }
 
   const hasPendingLocalRow = localRows.some((row) => !row.isEditing && !row.name.trim() && !row.url.trim())
+
+  const openRejectDialog = (target: NonNullable<typeof rejectTarget>) => {
+    setRejectTarget(target)
+    setRejectReason("")
+    setRejectDialogOpen(true)
+  }
+
+  const closeRejectDialog = () => {
+    setRejectDialogOpen(false)
+    setRejectTarget(null)
+    setRejectReason("")
+  }
+
+  const confirmReject = () => {
+    if (!rejectTarget) return
+    const reason = rejectReason.trim()
+    if (!reason) return
+
+    runAction("reject-dialog", () => {
+      if (rejectTarget.type === "item") {
+        const current = (submissions[rejectTarget.itemId] as SubmissionValue | undefined) || {}
+        patchSubmissions((prev) => {
+          const next: Submissions = {
+            ...prev,
+            [rejectTarget.itemId]: {
+              ...current,
+              status: "rejected",
+              submittedAt: current.submittedAt || new Date().toISOString(),
+              rejectionReason: reason,
+            },
+          }
+          return markSectionUpdated(prev, next)
+        })
+      }
+
+      if (rejectTarget.type === "dynamic") {
+        updateDynamicRow(rejectTarget.index, { status: "rejected", rejectionReason: reason })
+      }
+
+      if (rejectTarget.type === "branding") {
+        patchSubmissions((prev) => {
+          const existing = Array.isArray(prev[section.id]) ? (prev[section.id] as DynamicRow[]) : []
+          const next = existing.map((row, index) =>
+            rejectTarget.indices.includes(index)
+              ? { ...row, status: "rejected", rejectionReason: reason }
+              : row,
+          )
+          return { ...prev, [section.id]: next }
+        })
+      }
+    })
+
+    closeRejectDialog()
+  }
 
   return (
     <AccordionItem
@@ -494,6 +582,11 @@ export default function ChecklistSection({
                       <Badge className={`py-1 px-2 text-[11px] capitalize ${getStatusBadgeClass(row.status)}`}>
                         {row.status || "submitted"}
                       </Badge>
+                      {row.status === "rejected" && row.rejectionReason ? (
+                        <span className="text-[11px] text-rose-600 dark:text-rose-300">
+                          {row.rejectionReason}
+                        </span>
+                      ) : null}
                       {(!isAgency || ((canEdit || canModerate) && brandingEdit)) && !isReadOnly ? (
                         <Button
                           variant="ghost"
@@ -535,18 +628,20 @@ export default function ChecklistSection({
                       size="sm"
                       variant="destructiveLight"
                       className="text-xs h-7 px-2"
-                      onClick={() => runAction("branding-reject", () => applyBrandingStatusToSelection("rejected"))}
+                      onClick={() =>
+                        openRejectDialog({
+                          type: "branding",
+                          indices:
+                            selectedBrandingRows.size === 0
+                              ? dynamicRows.map((_, idx) => idx)
+                              : Array.from(selectedBrandingRows),
+                          label: section.title,
+                        })
+                      }
                       aria-label="Reject"
                       disabled={dynamicRows.length === 0 || allBrandingRejected || isSaving}
                     >
-                      {isActionPending("branding-reject") ? (
-                        <span className="inline-flex items-center gap-2">
-                          <Spinner className="size-3" />
-                          Reject
-                        </span>
-                      ) : (
-                        "Reject"
-                      )}
+                      Reject
                     </Button>
                     <Button
                       variant="gradient"
@@ -554,7 +649,7 @@ export default function ChecklistSection({
                       className="text-xs h-7 px-2"
                       onClick={() => runAction("branding-approve", () => applyBrandingStatusToSelection("approved"))}
                       aria-label="Approve"
-                      disabled={dynamicRows.length === 0 || allBrandingApproved || isSaving}
+                      disabled={dynamicRows.length === 0 || allBrandingApproved || !hasBrandingPending || isSaving}
                     >
                       {isActionPending("branding-approve") ? (
                         <span className="inline-flex items-center gap-2">
@@ -588,6 +683,11 @@ export default function ChecklistSection({
                   {submission?.value ? submission.status || "submitted" : "Not Submitted"}
                 </Badge>
               </div>
+              {submission.status === "rejected" && submission.rejectionReason ? (
+                <div className="mb-2 text-xs text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">
+                  Rejection note: {submission.rejectionReason}
+                </div>
+              ) : null}
 
               {item.fieldType === "textarea" && (
                 <Textarea
@@ -747,18 +847,13 @@ export default function ChecklistSection({
                               size="sm"
                               variant="destructiveLight"
                               className="text-xs h-7 px-2"
-                              onClick={() => runAction(`reject-${item.id}`, () => setItemStatus(item.id, "rejected"))}
+                              onClick={() =>
+                                openRejectDialog({ type: "item", itemId: item.id, label: item.label })
+                              }
                               aria-label="Reject"
                               disabled={!hasSubmission || isSaving}
                             >
-                              {isActionPending(`reject-${item.id}`) ? (
-                                <span className="inline-flex items-center gap-2">
-                                  <Spinner className="size-3" />
-                                  Reject
-                                </span>
-                              ) : (
-                                "Reject"
-                              )}
+                              Reject
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Reject</TooltipContent>
@@ -770,7 +865,12 @@ export default function ChecklistSection({
                               size="sm"
                               className="text-xs h-7 px-2"
                               onClick={() => runAction(`approve-${item.id}`, () => setItemStatus(item.id, "approved"))}
-                              disabled={!hasSubmission || submission.status === "approved" || isSaving}
+                              disabled={
+                                !hasSubmission ||
+                                submission.status === "approved" ||
+                                submission.status === "rejected" ||
+                                isSaving
+                              }
                               aria-label="Approve"
                             >
                               {isActionPending(`approve-${item.id}`) ? (
@@ -821,6 +921,11 @@ export default function ChecklistSection({
                       {row?.url ? row.status || "submitted" : "Not Submitted"}
                     </Badge>
                   </div>
+                  {row.status === "rejected" && row.rejectionReason ? (
+                    <div className="rounded-md border border-rose-100 bg-rose-50 px-2 py-1 text-xs text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">
+                      Rejection note: {row.rejectionReason}
+                    </div>
+                  ) : null}
 
                   <Input
                     value={draft.name}
@@ -929,22 +1034,21 @@ export default function ChecklistSection({
                         <>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button
+                            <Button
                               size="sm"
                               variant="destructiveLight"
                               className="text-xs h-7 px-2"
-                              onClick={() => runAction(`dynamic-reject-${dynamicId}`, () => updateDynamicRow(index, { status: "rejected" }))}
+                              onClick={() =>
+                                openRejectDialog({
+                                  type: "dynamic",
+                                  index,
+                                  label: row.name || `${section.title} ${index + 1}`,
+                                })
+                              }
                               aria-label="Reject"
                               disabled={isSaving}
                             >
-                              {isActionPending(`dynamic-reject-${dynamicId}`) ? (
-                                <span className="inline-flex items-center gap-2">
-                                  <Spinner className="size-3" />
-                                  Reject
-                                </span>
-                              ) : (
-                                "Reject"
-                              )}
+                              Reject
                             </Button>
                             </TooltipTrigger>
                             <TooltipContent>Reject</TooltipContent>
@@ -956,7 +1060,7 @@ export default function ChecklistSection({
                               className="text-xs h-7 px-2"
                               variant="gradient"
                               onClick={() => runAction(`dynamic-approve-${dynamicId}`, () => updateDynamicRow(index, { status: "approved" }))}
-                              disabled={row.status === "approved" || isSaving}
+                              disabled={row.status === "approved" || row.status === "rejected" || isSaving}
                               aria-label="Approve"
                             >
                               {isActionPending(`dynamic-approve-${dynamicId}`) ? (
@@ -1055,6 +1159,43 @@ export default function ChecklistSection({
         </>
         )}
       </AccordionContent>
+      <Dialog open={rejectDialogOpen} onOpenChange={(open) => (open ? setRejectDialogOpen(true) : closeRejectDialog())}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Provide a rejection note</DialogTitle>
+            <DialogDescription>
+              {rejectTarget
+                ? `Let the client know why "${rejectTarget.label}" was rejected.`
+                : "Let the client know why this item was rejected."}
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={rejectReason}
+            placeholder="Add a short explanation..."
+            onChange={(event) => setRejectReason(event.target.value)}
+            className="min-h-28"
+          />
+          <DialogFooter className="gap-2! sm:gap-0">
+            <Button variant="outline" onClick={closeRejectDialog} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmReject}
+              disabled={!rejectReason.trim() || isSaving}
+            >
+              {isActionPending("reject-dialog") ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="size-3" />
+                  Reject
+                </span>
+              ) : (
+                "Reject"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AccordionItem>
   )
 }
