@@ -13,6 +13,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar"
+import { getAvatarColor } from "@/lib/get-avatar-colors"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -207,7 +208,7 @@ export function NavUser({
                 
                 <Avatar className="h-8 w-8 rounded-full">
                   <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-full font-bold text-black bg-blue-100 dark:bg-blue-500/20 dark:text-blue-100">
+                  <AvatarFallback className={`rounded-full font-bold ${getAvatarColor(user.name)}`}>
                     {user.name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
@@ -228,14 +229,12 @@ export function NavUser({
             >
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 p-3 text-left text-sm">
-                  <div className="h-10 w-10 rounded-full flex items-center justify-center border border-violet-500">
                   <Avatar className="h-8 w-8 rounded-full">
                     <AvatarImage src={user.avatar} alt={user.name} />
-                    <AvatarFallback className="rounded-full font-bold text-black bg-blue-100 dark:bg-blue-500/20 dark:text-blue-100">
+                    <AvatarFallback className={`rounded-full font-bold ${getAvatarColor(user.name)}`}>
                       {user.name.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
-                  </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-medium">{user.name}</span>
                     <span className="text-muted-foreground truncate text-xs">

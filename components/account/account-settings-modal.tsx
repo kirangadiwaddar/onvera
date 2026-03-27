@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getAvatarColor } from "@/lib/get-avatar-colors"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -393,22 +394,23 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-violet-50 p-2 rounded-lg gap-2 h-auto! dark:bg-violet-500/20" variant="default">
-            <TabsTrigger className="rounded-sm data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="profile">
+            <TabsTrigger className="rounded-sm font-normal cursor-pointer data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="profile">
               Profile
             </TabsTrigger>
-            <TabsTrigger className="rounded-sm data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="security">
+            <TabsTrigger className="rounded-sm font-normal cursor-pointer data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="security">
               Security
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile" className="py-5">
             <FieldGroup>
-              <div className="space-y-4 rounded-lg border border-zinc-200 p-4 text-sm text-priamry dark:border-zinc-500/20 dark:bg-zinc-500/10 dark:text-white">
+              <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800/50 p-5 space-y-3 text-sm text-priamry dark:text-white">
                 <Field>
                   <FieldLabel htmlFor="full-name">Full Name</FieldLabel>
                   <Input
                     id="full-name"
                     value={fullName}
+                    className="bg-white"
                     onChange={(event) => setFullName(event.target.value)}
                     placeholder="Your full name"
                   />
@@ -422,7 +424,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
               {/* <Separator /> */}
 
-              <div className="flex items-center gap-5 rounded-lg border border-zinc-200 pr-5 text-sm text-priamry dark:border-zinc-500/20 dark:bg-zinc-500/10 dark:text-white">
+              <div className="flex items-center gap-5 rounded-lg bg-zinc-100 dark:bg-zinc-800/50 pr-5 text-sm text-priamry dark:text-white">
 
                 <Field className="w-auto">
                   <div className="border-r p-5">
@@ -434,7 +436,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                           {avatarInitial || "U"}
                         </span>
                       ) : null}
-                      <AvatarFallback className="rounded-2xl font-medium text-2xl text-black bg-blue-100 dark:bg-blue-500/20 dark:text-blue-100">
+                      <AvatarFallback className={`rounded-2xl font-medium text-2xl ${getAvatarColor(avatarInitial)}`}>
                         {avatarInitial || "U"}
                       </AvatarFallback>
                     </Avatar>
@@ -453,7 +455,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                       }}
                     />
                     <TooltipProvider delayDuration={200}>
-                      <div className="space-x-2 mt-3">
+                      <div className="flex items-center justify-center gap-2 mt-3">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -498,6 +500,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                         setAvatarRemoved(false)
                       }
                     }}
+                    className="bg-white"
                     placeholder="https://example.com/avatar.png"
                   />
                 </Field>
@@ -518,12 +521,13 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
 
           <TabsContent value="security" className="py-5">
             <FieldGroup>
-              <div className="password-change-block space-y-4 rounded-lg border border-zinc-200 p-4 text-sm text-priamry dark:border-zinc-500/20 dark:bg-zinc-500/10 dark:text-white">
+              <div className="password-change-block rounded-lg bg-zinc-100 dark:bg-zinc-800/50 p-5 space-y-5 text-sm text-priamry  dark:text-white">
                 <Field>
                   <FieldLabel htmlFor="new-password">New Password</FieldLabel>
                   <PasswordInput
                     id="new-password"
                     value={newPassword}
+                    className="bg-white"
                     onChange={(event) => setNewPassword(event.target.value)}
                     placeholder="At least 8 characters"
                   />
@@ -534,13 +538,14 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                   <PasswordInput
                     id="confirm-password"
                     value={confirmPassword}
+                    className="bg-white"
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     placeholder="Re-enter new password"
                   />
                 </Field>
 
                 <div className="flex justify-end">
-                  <Button type="button" variant="gradient" onClick={handleSavePassword} disabled={savingPassword}>
+                  <Button type="button" size="sm" variant="gradient" className="text-xs" onClick={handleSavePassword} disabled={savingPassword}>
                     {savingPassword ? "Updating..." : "Update Password"}
                   </Button>
                 </div>
@@ -560,6 +565,8 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                         <Button
                           type="button"
                           variant="outline"
+                          size="sm"
+                          className="text-xs"
                           onClick={handleOpenResetDialog}
                           disabled={resettingAccount || resetStatusLoading || !resetHasData}
                         >
@@ -578,7 +585,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
               {canDeleteAccount ? (
                 <>
                   {/* <Separator /> */}
-                  <div className="flex items-end justify-between gap-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                  <div className="flex items-end justify-between gap-10 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
                     <div className="delete-left">
                       <p className="font-medium">Delete account</p>
                       <p className="mt-1 text-xs text-red-600/80 dark:text-red-200/80">
@@ -588,6 +595,8 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                     <Button
                       type="button"
                       variant="destructive"
+                      size="sm"
+                      className="text-xs"
                       onClick={() => setShowDeleteDialog(true)}
                       disabled={deletingAccount}
                     >

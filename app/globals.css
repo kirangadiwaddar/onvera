@@ -150,6 +150,9 @@ html {
   outline: none !important;
   box-shadow: none !important;
 }
+input{
+  box-shadow: none !important;
+}
 
 @layer base {
   * {
@@ -363,3 +366,4 @@ html {
     opacity: 0;
   }
 }
+

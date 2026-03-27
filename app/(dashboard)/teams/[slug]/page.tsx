@@ -503,7 +503,7 @@ export default function TeamDetailPage() {
                       <TooltipTrigger asChild>
                         <Avatar>
                           <AvatarImage src={team.lead.image} alt={team.lead.name} />
-                          <AvatarFallback className={`font-bold ${getAvatarColor(String(team.lead.id))}`}>
+                          <AvatarFallback className={`font-bold ${getAvatarColor(team.lead?.name || team.lead?.email || "M")}`}>
                             {team.lead.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
@@ -579,7 +579,7 @@ export default function TeamDetailPage() {
                         <TooltipTrigger asChild>
                           <Avatar>
                             <AvatarImage src={member.image} alt={member.name} />
-                            <AvatarFallback className={`font-bold ${getAvatarColor(String(member.id))}`}>
+                            <AvatarFallback className={`font-bold ${getAvatarColor(member.name || member.email || "M")}`}>
                               {member.name.charAt(0)}
                             </AvatarFallback>
                           </Avatar>

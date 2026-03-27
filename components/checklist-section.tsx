@@ -366,7 +366,7 @@ export default function ChecklistSection({
   }
 
   const addDynamicRow = () => {
-    setLocalRows((prev) => [...prev, { name: "", url: "", isEditing: false }])
+    setLocalRows((prev) => [...prev, { name: "", url: "", isEditing: true }])
   }
 
   const startLocalRow = (index: number) => {
@@ -416,7 +416,7 @@ export default function ChecklistSection({
     setLocalRows((prev) => prev.filter((_, index) => index !== rowIndex))
   }
 
-  const hasPendingLocalRow = localRows.some((row) => !row.isEditing && !row.name.trim() && !row.url.trim())
+  const hasPendingLocalRow = localRows.some((row) => !row.name.trim() && !row.url.trim())
 
   const openRejectDialog = (target: NonNullable<typeof rejectTarget>) => {
     setRejectTarget(target)

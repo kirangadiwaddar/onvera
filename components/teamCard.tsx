@@ -138,7 +138,7 @@ export default function TeamCard({
                                     alt={member.name}
                                 />
                                 <AvatarFallback
-                                    className={`font-bold ${getAvatarColor(String(member.id))}`}
+                                    className={`font-bold ${getAvatarColor(member.name || member.email || "M")}`}
                                 >
                                     {member.name.charAt(0).toUpperCase()}
                                 </AvatarFallback>
