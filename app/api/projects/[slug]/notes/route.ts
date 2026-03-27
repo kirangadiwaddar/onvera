@@ -37,7 +37,7 @@ type TeamLike = {
   createdBy?: string | null
 }
 
-function normalizeMembers(raw?: unknown[] | null) {
+function normalizeMembers(raw?: unknown[] | null): MemberLike[] {
   if (!Array.isArray(raw)) return []
   return raw
     .map((entry) => {
@@ -51,17 +51,17 @@ function normalizeMembers(raw?: unknown[] | null) {
     .filter(Boolean) as MemberLike[]
 }
 
-function normalizeProject(project: ProjectRow) {
+function normalizeProject(project: ProjectRow): ProjectLike {
   return {
     id: project.id,
     slug: project.slug,
     teamIds: project.team_ids ?? [],
     extraMembers: normalizeMembers(project.extra_members),
     createdBy: project.created_by ?? null,
-  } as ProjectLike
+  }
 }
 
-function normalizeTeams(teams: TeamRow[]) {
+function normalizeTeams(teams: TeamRow[]): TeamLike[] {
   return teams.map(
     (team) =>
       ({
@@ -72,7 +72,7 @@ function normalizeTeams(teams: TeamRow[]) {
             : undefined,
         members: normalizeMembers(team.members),
         createdBy: team.created_by ?? null,
-      }) as TeamLike,
+      }),
   )
 }
 
