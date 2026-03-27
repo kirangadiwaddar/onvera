@@ -18,23 +18,62 @@ type TeamRow = {
   created_by?: string | null
 }
 
+type MemberLike = {
+  email?: string
+}
+
+type ProjectLike = {
+  id: number
+  slug: string
+  teamIds: number[]
+  extraMembers?: MemberLike[]
+  createdBy?: string | null
+}
+
+type TeamLike = {
+  id: number
+  lead?: MemberLike
+  members?: MemberLike[]
+  createdBy?: string | null
+}
+
+function normalizeMembers(raw?: unknown[] | null) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null
+      const candidate = entry as { email?: unknown }
+      if (typeof candidate.email === "string" && candidate.email.trim()) {
+        return { email: candidate.email }
+      }
+      return null
+    })
+    .filter(Boolean) as MemberLike[]
+}
+
 function normalizeProject(project: ProjectRow) {
   return {
     id: project.id,
     slug: project.slug,
     teamIds: project.team_ids ?? [],
-    extraMembers: project.extra_members ?? [],
+    extraMembers: normalizeMembers(project.extra_members),
     createdBy: project.created_by ?? null,
-  }
+  } as ProjectLike
 }
 
 function normalizeTeams(teams: TeamRow[]) {
-  return teams.map((team) => ({
-    id: team.id,
-    lead: team.lead ?? undefined,
-    members: team.members ?? undefined,
-    createdBy: team.created_by ?? null,
-  }))
+  return teams.map(
+    (team) =>
+      ({
+        id: team.id,
+        lead:
+          team.lead && typeof team.lead === "object"
+            ? { email: (team.lead as { email?: unknown }).email as string | undefined }
+            : undefined,
+        members: normalizeMembers(team.members),
+        createdBy: team.created_by ?? null,
+      }) as TeamLike,
+  )
 }
 
 async function getProjectWithTeams(admin: ReturnType<typeof createAdminClient>, slug: string) {
