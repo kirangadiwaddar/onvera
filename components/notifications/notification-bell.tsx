@@ -107,6 +107,11 @@ export function NotificationBell() {
         { event: "*", schema: "public", table: "onboarding_tokens" },
         () => void loadActivities(),
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "project_note_mentions" },
+        () => void loadActivities(),
+      )
       .subscribe()
 
     return () => {

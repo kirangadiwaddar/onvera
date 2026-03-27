@@ -13,11 +13,21 @@ const normalizeKey = (value?: string | null) => {
 
 export function getAvatarColor(key?: string | null) {
   const normalized = normalizeKey(key)
-  let hash = 0
-  for (let i = 0; i < normalized.length; i += 1) {
-    hash = (hash * 31 + normalized.charCodeAt(i)) | 0
-    hash |= 0
+  const firstChar = normalized.trim().charAt(0).toUpperCase()
+  const code = firstChar.charCodeAt(0)
+  let index = 0
+
+  if (code >= 65 && code <= 90) {
+    // A-Z map consistently to the same color
+    index = (code - 65) % AVATAR_COLOR_CLASSES.length
+  } else {
+    // Fallback to hash for non-letters
+    let hash = 0
+    for (let i = 0; i < normalized.length; i += 1) {
+      hash = (hash * 31 + normalized.charCodeAt(i)) | 0
+      hash |= 0
+    }
+    index = Math.abs(hash) % AVATAR_COLOR_CLASSES.length
   }
-  const index = Math.abs(hash) % AVATAR_COLOR_CLASSES.length
   return AVATAR_COLOR_CLASSES[index]
 }

@@ -189,6 +189,43 @@ export async function GET(request: Request) {
     }
   }
 
+  if (admin && identity.email) {
+    const { data: mentions } = await admin
+      .from("project_note_mentions")
+      .select("note_id, project_id, created_at")
+      .ilike("mentioned_email", identity.email)
+      .order("created_at", { ascending: false })
+      .limit(50)
+
+    const mentionRows = Array.isArray(mentions) ? mentions : []
+    if (mentionRows.length > 0) {
+      const noteIds = mentionRows.map((row) => row.note_id).filter(Boolean) as string[]
+      const { data: noteRows } = await admin
+        .from("project_notes")
+        .select("id, author_name")
+        .in("id", noteIds)
+
+      const authorByNote = new Map<string, string>()
+      ;(noteRows || []).forEach((row) => {
+        authorByNote.set(String(row.id), String(row.author_name))
+      })
+
+      mentionRows.forEach((row) => {
+        const project = visibleProjects.find((item) => item.id === row.project_id)
+        if (!project) return
+        const authorName = authorByNote.get(String(row.note_id)) || "Someone"
+        activities.push({
+          id: `mention-${row.note_id}-${row.created_at}`,
+          title: `${authorName} mentioned you in a note`,
+          project: project.title,
+          status: "mention",
+          actor: "Team Lead",
+          timestamp: row.created_at,
+        })
+      })
+    }
+  }
+
   const recentActivities = activities
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     .slice(0, limit)

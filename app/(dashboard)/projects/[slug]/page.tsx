@@ -11,6 +11,16 @@ import ChecklistSection from "@/components/checklist-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 import {
   Table,
@@ -33,7 +43,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { BadgeCheck, Check, Copy, Crown, Download, Files, Plus, Trash2, Users } from "lucide-react"
+import { BadgeCheck, Check, Copy, Crown, Download, Files, MoreHorizontal, NotebookText, Pen, Plus, Trash, Trash2, Users, X } from "lucide-react"
 
 import {
   Dialog,
@@ -71,6 +81,24 @@ import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 
 const CUSTOM_SECTIONS_KEY = "__custom_sections"
+const DEFAULT_NOTE_REACTIONS: string[] = []
+const DEFAULT_MENTION_LIMIT = 6
+
+type ProjectNote = {
+  id: string
+  authorName: string
+  authorAvatar?: string
+  authorEmail?: string
+  message: string
+  createdAt: string
+  reactions?: {
+    emoji: string
+    count: number
+    reacted: boolean
+  }[]
+  canEdit?: boolean
+  canDelete?: boolean
+}
 
 function getCustomSectionsFromSubmissions(submissions?: Record<string, unknown>): Section[] {
   const raw = submissions?.[CUSTOM_SECTIONS_KEY]
@@ -238,6 +266,11 @@ function getLatestClientSubmissionAt(submissions?: Record<string, unknown>) {
 
 export default function ProjectDetailPage() {
   const { user, profile, loading: authLoading } = useAuth()
+  const [notes, setNotes] = useState<ProjectNote[]>([])
+  const [noteDraft, setNoteDraft] = useState("")
+  const [notesLoading, setNotesLoading] = useState(false)
+  const [noteSubmitting, setNoteSubmitting] = useState(false)
+  const [notesSeenAt, setNotesSeenAt] = useState<string | null>(null)
   const { slug } = useParams()
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
@@ -274,6 +307,223 @@ export default function ProjectDetailPage() {
   const [showCompletePrompt, setShowCompletePrompt] = useState(false)
   const [dismissedCompletePrompt, setDismissedCompletePrompt] = useState(false)
   const [hasChecklistUpdates, setHasChecklistUpdates] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [showNoteComposer, setShowNoteComposer] = useState(false)
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editDrafts, setEditDrafts] = useState<Record<string, string>>({})
+  const [reactionSubmitting, setReactionSubmitting] = useState<Record<string, boolean>>({})
+  const [composerCursor, setComposerCursor] = useState(0)
+  const [composerMention, setComposerMention] = useState<{ start: number; query: string; active: boolean } | null>(null)
+  const [composerMentionIndex, setComposerMentionIndex] = useState(0)
+  const [editCursor, setEditCursor] = useState<Record<string, number>>({})
+  const [editMentionIndex, setEditMentionIndex] = useState<Record<string, number>>({})
+
+  const handleAddNote = async () => {
+    const trimmed = noteDraft.trim()
+    if (!trimmed) return
+    if (!slug) return
+    if (noteSubmitting) return
+    const authorName =
+      profile?.full_name ||
+      (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "") ||
+      user?.email ||
+      "Team member"
+    const authorAvatar =
+      typeof user?.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : undefined
+
+    try {
+      setNoteSubmitting(true)
+      const response = await fetchWithAuth(`/api/projects/${slug}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: trimmed,
+          authorName,
+          authorAvatar,
+          mentions: getMentionEmails(trimmed),
+        }),
+      })
+      const payload = await response.json().catch(() => null) as { note?: ProjectNote; message?: string } | null
+      if (!response.ok || !payload?.note) {
+        throw new Error(payload?.message || "Unable to add note")
+      }
+      setNotes((prev) => [payload.note as ProjectNote, ...prev])
+      setNoteDraft("")
+      setShowNoteComposer(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to add note"
+      toast.error(message)
+    } finally {
+      setNoteSubmitting(false)
+    }
+  }
+
+  const startEditNote = (note: ProjectNote) => {
+    setEditingNoteId(note.id)
+    setEditDrafts((prev) => ({
+      ...prev,
+      [note.id]: note.message,
+    }))
+  }
+
+  const cancelEditNote = () => {
+    setEditingNoteId(null)
+  }
+
+  const saveEditNote = async (noteId: string) => {
+    const draft = (editDrafts[noteId] || "").trim()
+    if (!draft) return
+    if (!slug) return
+
+    try {
+      setNoteSubmitting(true)
+      const response = await fetchWithAuth(`/api/projects/${slug}/notes/${noteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: draft, mentions: getMentionEmails(draft) }),
+      })
+      const payload = await response.json().catch(() => null) as { note?: ProjectNote; message?: string } | null
+      if (!response.ok || !payload?.note) {
+        throw new Error(payload?.message || "Unable to update note")
+      }
+      setNotes((prev) =>
+        prev.map((note) =>
+          note.id === noteId
+            ? { ...(payload.note as ProjectNote), reactions: note.reactions }
+            : note,
+        ),
+      )
+      setEditingNoteId(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update note"
+      toast.error(message)
+    } finally {
+      setNoteSubmitting(false)
+    }
+  }
+
+  const deleteNote = async (noteId: string) => {
+    if (!slug) return
+    if (!window.confirm("Delete this note? This cannot be undone.")) return
+
+    try {
+      setNoteSubmitting(true)
+      const response = await fetchWithAuth(`/api/projects/${slug}/notes/${noteId}`, { method: "DELETE" })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null
+        throw new Error(payload?.message || "Unable to delete note")
+      }
+      setNotes((prev) => prev.filter((note) => note.id !== noteId))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete note"
+      toast.error(message)
+    } finally {
+      setNoteSubmitting(false)
+    }
+  }
+
+  const toggleReaction = async (noteId: string, emoji: string) => {
+    if (!slug) return
+    const key = `${noteId}:${emoji}`
+    if (reactionSubmitting[key]) return
+
+    try {
+      setReactionSubmitting((prev) => ({ ...prev, [key]: true }))
+      const response = await fetchWithAuth(`/api/projects/${slug}/notes/${noteId}/reactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji }),
+      })
+      const payload = await response.json().catch(() => null) as { reactions?: ProjectNote["reactions"]; message?: string } | null
+      if (!response.ok || !payload?.reactions) {
+        throw new Error(payload?.message || "Unable to update reaction")
+      }
+      setNotes((prev) =>
+        prev.map((note) => (note.id === noteId ? { ...note, reactions: payload.reactions } : note)),
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update reaction"
+      toast.error(message)
+    } finally {
+      setReactionSubmitting((prev) => {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      })
+    }
+  }
+
+  const formatNoteTime = (value: string) => {
+    const date = new Date(value)
+    if (!Number.isFinite(date.getTime())) return ""
+    return date.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
+  const getMentionState = (value: string, cursor: number | null) => {
+    if (cursor === null || cursor === undefined) return null
+    const text = value.slice(0, cursor)
+    const atIndex = text.lastIndexOf("@")
+    if (atIndex === -1) return null
+    const beforeChar = atIndex === 0 ? " " : text[atIndex - 1]
+    if (beforeChar && !/\s/.test(beforeChar)) return null
+    const query = text.slice(atIndex + 1)
+    if (query.includes(" ") || query.includes("\n")) return null
+    return { start: atIndex, query, active: true }
+  }
+
+  const applyMention = (value: string, start: number, cursor: number, mention: string) => {
+    const before = value.slice(0, start)
+    const after = value.slice(cursor)
+    return `${before}@${mention} ${after}`
+  }
+
+  const getMentionEmails = (value: string) => {
+    if (!value) return []
+    const lower = value.toLowerCase()
+    const emails = new Set<string>()
+    mentionCandidates.forEach((candidate) => {
+      if (!candidate.email) return
+      const token = `@${candidate.name.toLowerCase()}`
+      if (lower.includes(token)) {
+        emails.add(candidate.email)
+      }
+    })
+    return Array.from(emails)
+  }
+
+  const loadNotes = useCallback(
+    async (currentSlug: string) => {
+      try {
+        setNotesLoading(true)
+        const response = await fetchWithAuth(`/api/projects/${currentSlug}/notes`, { cache: "no-store" })
+        const payload = await response.json().catch(() => null) as { notes?: ProjectNote[]; message?: string } | null
+        if (!response.ok) {
+          throw new Error(payload?.message || "Unable to load notes")
+        }
+        setNotes((payload?.notes || []) as ProjectNote[])
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to load notes"
+        toast.error(message)
+        setNotes([])
+      } finally {
+        setNotesLoading(false)
+      }
+    },
+    [],
+  )
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!slug) return
+    const key = `onvera:project-notes-seen:${slug}`
+    const stored = window.localStorage.getItem(key)
+    setNotesSeenAt(stored)
+  }, [slug])
 
 
   const loadProject = useCallback(
@@ -348,7 +598,8 @@ export default function ProjectDetailPage() {
     if (!slug) return
     lastSeenStorageKeyRef.current = `project_client_submission_seen:${slug}`
     void loadProject()
-  }, [authLoading, loadProject, slug, user?.id])
+    void loadNotes(String(slug))
+  }, [authLoading, loadNotes, loadProject, slug, user?.id])
 
   useEffect(() => {
     if (!project) return
@@ -388,6 +639,21 @@ export default function ProjectDetailPage() {
     }
   }, [loadProject, slug, supabase])
 
+  useEffect(() => {
+    if (!slug || !supabase) return
+    const channel = supabase
+      .channel(`project-notes-${slug}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "project_notes", filter: `project_slug=eq.${slug}` },
+        () => void loadNotes(String(slug)),
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [loadNotes, slug, supabase])
 
   useEffect(() => {
     if (authLoading) return
@@ -444,6 +710,111 @@ export default function ProjectDetailPage() {
       prev && checklistSections.some((section) => section.id === prev) ? prev : ""
     )
   }, [checklistSections])
+
+  const assignedTeams = Array.isArray(project?.teams)
+    ? project!.teams.filter(Boolean)
+    : []
+  const externalMembers = project?.members?.filter((member) => member && member.isExternal) ?? []
+  const mentionCandidates = useMemo(() => {
+    const candidates = new Map<string, { name: string; image?: string; email?: string }>()
+    const currentUserEmail = (user?.email || "").toLowerCase()
+    const addCandidate = (member?: { name?: string; email?: string; image?: string }) => {
+      if (!member) return
+      const name = (member.name || "").trim()
+      if (!name) return
+      const key = (member.email || name).toLowerCase()
+      if (currentUserEmail && key === currentUserEmail) return
+      if (candidates.has(key)) return
+      candidates.set(key, { name, image: member.image, email: member.email })
+    }
+
+    assignedTeams.forEach((team) => {
+      addCandidate(team.lead as { name?: string; email?: string; image?: string })
+      ;(team.members || []).forEach((member) =>
+        addCandidate(member as { name?: string; email?: string; image?: string }),
+      )
+    })
+    ;(project?.members || []).forEach((member) =>
+      addCandidate(member as { name?: string; email?: string; image?: string }),
+    )
+
+    return Array.from(candidates.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }, [assignedTeams, project?.members])
+
+  const filteredComposerMentions = useMemo(() => {
+    if (!composerMention?.active) return []
+    const query = composerMention.query.toLowerCase()
+    const list = query
+      ? mentionCandidates.filter((candidate) => candidate.name.toLowerCase().includes(query))
+      : mentionCandidates
+    return list.slice(0, DEFAULT_MENTION_LIMIT)
+  }, [composerMention, mentionCandidates])
+
+  const latestNoteAt = useMemo(() => (notes.length > 0 ? notes[0].createdAt : null), [notes])
+  const hasNewNotes = useMemo(() => {
+    if (!latestNoteAt) return false
+    if (!notesSeenAt) return true
+    return new Date(latestNoteAt).getTime() > new Date(notesSeenAt).getTime()
+  }, [latestNoteAt, notesSeenAt])
+
+  useEffect(() => {
+    if (!notesOpen) return
+    if (!latestNoteAt) return
+    const nextSeen = latestNoteAt
+    setNotesSeenAt(nextSeen)
+    if (typeof window !== "undefined" && slug) {
+      window.localStorage.setItem(`onvera:project-notes-seen:${slug}`, nextSeen)
+    }
+  }, [latestNoteAt, notesOpen, slug])
+
+  const highlightMentions = (value: string) => {
+    if (!value) return value
+    const candidates = mentionCandidates
+      .map((candidate) => candidate.name)
+      .sort((a, b) => b.length - a.length)
+    if (candidates.length === 0) return value
+    const parts: Array<string | { text: string; key: string }> = []
+    let i = 0
+
+    while (i < value.length) {
+      const char = value[i]
+      if (char !== "@") {
+        parts.push(char)
+        i += 1
+        continue
+      }
+      let matched = false
+      for (const name of candidates) {
+        if (
+          value
+            .slice(i + 1, i + 1 + name.length)
+            .toLowerCase() === name.toLowerCase()
+        ) {
+          const mentionText = value.slice(i, i + 1 + name.length)
+          parts.push({ text: mentionText, key: `${mentionText}-${i}` })
+          i += 1 + name.length
+          matched = true
+          break
+        }
+      }
+      if (!matched) {
+        parts.push(char)
+        i += 1
+      }
+    }
+
+    return parts.map((part, index) => {
+      if (typeof part === "string") return part
+      return (
+        <span
+          key={`${part.key}-${index}`}
+          className="font-semibold text-sky-600 dark:text-sky-300"
+        >
+          {part.text}
+        </span>
+      )
+    })
+  }
   const totalSections = checklistSections.length
   const uploadedCount = checklistSections.filter((section) => {
     const hasRejected = section.dynamic
@@ -552,10 +923,6 @@ export default function ProjectDetailPage() {
   const canManageChecklist = canEditProject || isLeadMember
   const isProjectCompleted = project.status === "completed"
   const canSeeAccessToken = isLeadMember || !restrictedRole
-  const assignedTeams = Array.isArray(project.teams)
-    ? project.teams.filter(Boolean)
-    : []
-  const externalMembers = project.members?.filter((member) => member && member.isExternal) ?? []
   const inviteBaseUrl =
     typeof window !== "undefined" ? `${window.location.origin}/invite` : ""
   const buildInviteUrl = (token?: string | null) => {
@@ -1011,8 +1378,10 @@ export default function ProjectDetailPage() {
         </h1> */}
 
         <div className="flex items-center gap-2">
-          <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 py-2 px-3">{project.templateTitle}</Badge>
-          <Badge className="bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-sky-300 py-2 px-3">
+          <Badge className="py-2 px-3 text-cyan-900 bg-cyan-100 dark:bg-cyan-950 dark:text-white">
+            {project.templateTitle}
+          </Badge>
+          <Badge className="bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-sky-300 py-2 px-3 overflow-hidden">
             <CalendarCheck />{" "}
             {new Date(project.createdAt).toLocaleDateString("en-GB")}
           </Badge>
@@ -1046,9 +1415,430 @@ export default function ProjectDetailPage() {
           {canManageChecklist ? (
             <ClientAccessModal projectSlug={project.slug} canManage={canManageChecklist} />
           ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs"
+            onClick={() => setNotesOpen(true)}
+          >
+            <span className="relative inline-flex items-center gap-2">
+              <NotebookText />
+              Notes
+              {hasNewNotes ? (
+                <span className="h-2 w-2 rounded-full bg-orange-500" />
+              ) : null}
+            </span>
+          </Button>
         </div>
       </div>
       <Separator className="mt-4 bg-border" />
+
+      <Sheet
+        open={notesOpen}
+        onOpenChange={(open) => {
+          setNotesOpen(open)
+          if (!open) {
+            setShowNoteComposer(false)
+          }
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="w-[360px] max-w-[90vw]"
+          showCloseButton={false}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          <SheetHeader className="border-b border-zinc-100 dark:border-white/10">
+            <div className="flex items-center justify-between">
+              <div>
+                <SheetTitle className="text-sm">Notes</SheetTitle>
+                <p className="text-[11px] text-muted-foreground">
+                  Shared Notes of this project.
+                </p>
+              </div>
+              <TooltipProvider delayDuration={300}>
+                <div className="flex items-center gap-2 pr-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 rounded-full focus-visible:ring-0 focus-visible:ring-offset-0"
+                        onClick={() => setShowNoteComposer(true)}
+                        aria-label="Add note"
+                      >
+                        <Plus className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Add note</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <SheetClose asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 rounded-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-800 focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200"
+                          aria-label="Close"
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </SheetClose>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Close</TooltipContent>
+                  </Tooltip>
+                </div>
+              </TooltipProvider>
+            </div>
+          </SheetHeader>
+
+          <div className="px-4">          
+            {showNoteComposer || noteDraft.trim() ? (
+              <div className="space-y-2">
+              <div className="relative">
+                <Textarea
+                  value={noteDraft}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    const cursor = event.target.selectionStart ?? value.length
+                    setNoteDraft(value)
+                    setComposerCursor(cursor)
+                    const mentionState = getMentionState(value, cursor)
+                    setComposerMention(mentionState)
+                    setComposerMentionIndex(0)
+                  }}
+                  onClick={(event) => {
+                    const target = event.target as HTMLTextAreaElement
+                    const cursor = target.selectionStart ?? target.value.length
+                    setComposerCursor(cursor)
+                    const mentionState = getMentionState(target.value, cursor)
+                    setComposerMention(mentionState)
+                    setComposerMentionIndex(0)
+                  }}
+                  onKeyUp={(event) => {
+                    const target = event.currentTarget
+                    const cursor = target.selectionStart ?? target.value.length
+                    setComposerCursor(cursor)
+                    const mentionState = getMentionState(target.value, cursor)
+                    setComposerMention(mentionState)
+                    setComposerMentionIndex(0)
+                  }}
+                  onKeyDown={(event) => {
+                    if (!composerMention?.active || filteredComposerMentions.length === 0) return
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault()
+                      setComposerMentionIndex((prev) =>
+                        (prev + 1) % filteredComposerMentions.length,
+                      )
+                    }
+                    if (event.key === "ArrowUp") {
+                      event.preventDefault()
+                      setComposerMentionIndex((prev) =>
+                        (prev - 1 + filteredComposerMentions.length) % filteredComposerMentions.length,
+                      )
+                    }
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      const candidate = filteredComposerMentions[composerMentionIndex]
+                      if (!candidate) return
+                      const next = applyMention(
+                        noteDraft,
+                        composerMention.start,
+                        composerCursor,
+                        candidate.name,
+                      )
+                      setNoteDraft(next)
+                      setComposerMention(null)
+                    }
+                  }}
+                  placeholder="Share an update with the team..."
+                  className="min-h-[90px] text-xs"
+                />
+                {composerMention?.active && filteredComposerMentions.length > 0 && (
+                  <div className="absolute left-0 top-full z-20 mt-2 w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-2 shadow-lg dark:border-white/10 dark:bg-zinc-950">
+                    <div className="text-[11px] text-muted-foreground px-2 pb-2">Mention someone</div>
+                    <div className="space-y-1">
+                      {filteredComposerMentions.map((candidate, index) => (
+                        <button
+                          key={candidate.name}
+                          type="button"
+                          onClick={() => {
+                            const next = applyMention(
+                              noteDraft,
+                              composerMention.start,
+                              composerCursor,
+                              candidate.name,
+                            )
+                            setNoteDraft(next)
+                            setComposerMention(null)
+                          }}
+                          className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-xs ${
+                            index === composerMentionIndex
+                              ? "bg-zinc-100 dark:bg-white/10"
+                              : "hover:bg-zinc-100 dark:hover:bg-white/10"
+                          }`}
+                        >
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage src={candidate.image} />
+                            <AvatarFallback className={`font-semibold ${getAvatarColor(candidate.name)}`}>
+                              {candidate.name.slice(0, 1).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="truncate">{candidate.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="destructiveLight"
+                    onClick={() => {
+                      setNoteDraft("")
+                      setShowNoteComposer(false)
+                    }}
+                    className="text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="gradient"
+                    disabled={!noteDraft.trim() || noteSubmitting}
+                    onClick={handleAddNote}
+                    className="text-xs"
+                  >
+                    {noteSubmitting ? "Posting..." : "Post Note"}
+                  </Button>
+                </div>
+                <Separator className="my-4 bg-zinc-100 dark:bg-zinc-500/30" />
+              </div>
+            ) : (
+              null
+            )}
+
+          </div>
+
+          <div className="space-y-4 px-4">
+            {notesLoading ? (
+              <div className="text-xs text-muted-foreground">Loading notes...</div>
+            ) : notes.length === 0 ? (
+              <div className="text-xs text-muted-foreground">
+                No notes yet. Start the discussion with the team.
+              </div>
+            ) : (
+              <div className="relative space-y-4">
+                {notes.length > 1 ? (
+                  <span className="absolute left-3.5 top-2 bottom-5 w-px border-l border-dashed border-zinc-200 dark:border-white/20" />
+                ) : null}
+                {notes.map((note) => (
+                  <div key={note.id} className="flex gap-3">
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage src={note.authorAvatar} />
+                      <AvatarFallback
+                        className={`font-semibold ${getAvatarColor(note.authorEmail || note.authorName)}`}
+                      >
+                        {note.authorName.slice(0, 1).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs text-zinc-800 dark:text-zinc-100">
+                            <span className="font-semibold">{note.authorName}</span>{" "}
+                            {editingNoteId === note.id ? null : (
+                              <span className="text-muted-foreground">
+                                {highlightMentions(note.message)}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            {formatNoteTime(note.createdAt)}
+                          </p>
+                        </div>
+                        {(note.canEdit || note.canDelete) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-7 w-7">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {note.canEdit && (
+                                <DropdownMenuItem onClick={() => startEditNote(note)} className="text-xs">
+                                  <Pen /> Edit
+                                </DropdownMenuItem>
+                              )}
+                              {note.canDelete && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem variant="destructive" onClick={() => deleteNote(note.id)} className="text-xs">
+                                    <Trash /> Delete
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+
+                      {editingNoteId === note.id ? (
+                        <div className="mt-2 space-y-2">
+                          <div className="relative">
+                            <Textarea
+                              value={editDrafts[note.id] ?? ""}
+                              onChange={(event) => {
+                                const value = event.target.value
+                                const cursor = event.target.selectionStart ?? value.length
+                                setEditDrafts((prev) => ({
+                                  ...prev,
+                                  [note.id]: value,
+                                }))
+                                setEditCursor((prev) => ({ ...prev, [note.id]: cursor }))
+                                setEditMentionIndex((prev) => ({ ...prev, [note.id]: 0 }))
+                              }}
+                              onClick={(event) => {
+                                const target = event.target as HTMLTextAreaElement
+                                const cursor = target.selectionStart ?? target.value.length
+                                setEditCursor((prev) => ({ ...prev, [note.id]: cursor }))
+                                setEditMentionIndex((prev) => ({ ...prev, [note.id]: 0 }))
+                              }}
+                              onKeyUp={(event) => {
+                                const target = event.currentTarget
+                                const cursor = target.selectionStart ?? target.value.length
+                                setEditCursor((prev) => ({ ...prev, [note.id]: cursor }))
+                                setEditMentionIndex((prev) => ({ ...prev, [note.id]: 0 }))
+                              }}
+                              onKeyDown={(event) => {
+                                const currentValue = editDrafts[note.id] ?? ""
+                                const cursor = editCursor[note.id] ?? currentValue.length
+                                const mentionState = getMentionState(currentValue, cursor)
+                                if (!mentionState?.active) return
+                                const query = mentionState.query.toLowerCase()
+                                const list = (query
+                                  ? mentionCandidates.filter((candidate) =>
+                                      candidate.name.toLowerCase().includes(query),
+                                    )
+                                  : mentionCandidates
+                                ).slice(0, DEFAULT_MENTION_LIMIT)
+                                if (list.length === 0) return
+
+                                if (event.key === "ArrowDown") {
+                                  event.preventDefault()
+                                  setEditMentionIndex((prev) => ({
+                                    ...prev,
+                                    [note.id]: ((prev[note.id] ?? 0) + 1) % list.length,
+                                  }))
+                                }
+                                if (event.key === "ArrowUp") {
+                                  event.preventDefault()
+                                  setEditMentionIndex((prev) => ({
+                                    ...prev,
+                                    [note.id]:
+                                      ((prev[note.id] ?? 0) - 1 + list.length) % list.length,
+                                  }))
+                                }
+                                if (event.key === "Enter") {
+                                  event.preventDefault()
+                                  const index = editMentionIndex[note.id] ?? 0
+                                  const candidate = list[index]
+                                  if (!candidate) return
+                                  const next = applyMention(
+                                    currentValue,
+                                    mentionState.start,
+                                    cursor,
+                                    candidate.name,
+                                  )
+                                  setEditDrafts((prev) => ({
+                                    ...prev,
+                                    [note.id]: next,
+                                  }))
+                                }
+                              }}
+                              className="min-h-[90px] text-xs"
+                            />
+                            {(() => {
+                              const currentValue = editDrafts[note.id] ?? ""
+                              const cursor = editCursor[note.id] ?? currentValue.length
+                              const mentionState = getMentionState(currentValue, cursor)
+                              if (!mentionState?.active) return null
+                              const query = mentionState.query.toLowerCase()
+                              const list = (query
+                                ? mentionCandidates.filter((candidate) =>
+                                    candidate.name.toLowerCase().includes(query),
+                                  )
+                                : mentionCandidates
+                              ).slice(0, DEFAULT_MENTION_LIMIT)
+                              if (list.length === 0) return null
+                              const selectedIndex = editMentionIndex[note.id] ?? 0
+
+                              return (
+                                <div className="absolute left-0 top-full z-20 mt-2 w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-2 shadow-lg dark:border-white/10 dark:bg-zinc-950">
+                                  <div className="text-[11px] text-muted-foreground px-2 pb-2">Mention someone</div>
+                                  <div className="space-y-1">
+                                    {list.map((candidate, index) => (
+                                      <button
+                                        key={candidate.name}
+                                        type="button"
+                                        onClick={() => {
+                                          const next = applyMention(
+                                            currentValue,
+                                            mentionState.start,
+                                            cursor,
+                                            candidate.name,
+                                          )
+                                          setEditDrafts((prev) => ({
+                                            ...prev,
+                                            [note.id]: next,
+                                          }))
+                                        }}
+                                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-xs ${
+                                          index === selectedIndex
+                                            ? "bg-zinc-100 dark:bg-white/10"
+                                            : "hover:bg-zinc-100 dark:hover:bg-white/10"
+                                        }`}
+                                      >
+                                        <Avatar className="h-6 w-6">
+                                          <AvatarImage src={candidate.image} />
+                                          <AvatarFallback className={`font-semibold ${getAvatarColor(candidate.name)}`}>
+                                            {candidate.name.slice(0, 1).toUpperCase()}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <span className="truncate">{candidate.name}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )
+                            })()}
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" variant="ghost" onClick={cancelEditNote}>
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              disabled={!((editDrafts[note.id] || "").trim()) || noteSubmitting}
+                              onClick={() => saveEditNote(note.id)}
+                            >
+                              {noteSubmitting ? "Saving..." : "Save"}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <div className="px-7 py-0 grid grid-cols-3">
         <div className="left-block col-span-2 border-r border-zinc-100 dark:border-zinc-700 h-full py-5 pb-7 pr-5">
@@ -1217,7 +2007,7 @@ export default function ProjectDetailPage() {
             )}
           </div>}
         </div>
-        <div className="right-block p-5">
+        <div className="right-block p-5 space-y-6">
           {getUploadedEntries(project.submissions || {}, [...templateSections, ...customSections]).length === 0 ? (
             <EmptyState icon={<Files />} title="No Files Uploaded" description="Client onboarding is pending" />
           ) :
@@ -1343,7 +2133,7 @@ export default function ProjectDetailPage() {
                             <div className="flex items-center gap-2">
                               <Avatar className="h-7 w-7">
                                 <AvatarImage src={team.lead.image} />
-                                <AvatarFallback className={`font-bold ${getAvatarColor(String(team.lead.id))}`}>
+                                <AvatarFallback className={`font-bold ${getAvatarColor(team.lead?.name || team.lead?.email || "M")}`}>
                                   {team.lead.name.slice(0, 1).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
@@ -1383,7 +2173,7 @@ export default function ProjectDetailPage() {
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    className="h-8 w-8 text-red-500 hover:text-red-700"
+                                    className="h-8 w-8 text-red-500 hover:text-red-700 cursor-pointer"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -1430,7 +2220,7 @@ export default function ProjectDetailPage() {
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={member.image} />
-                            <AvatarFallback className={`font-bold ${getAvatarColor(String(member.id))}`}>
+                            <AvatarFallback className={`font-bold ${getAvatarColor(member.name || member.email || "M")}`}>
                               {member.name.slice(0, 1).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
@@ -1485,7 +2275,7 @@ export default function ProjectDetailPage() {
                             }}
                           >
                             <AlertDialogTrigger asChild>
-                              <button className="text-red-500 hover:text-red-700">
+                              <button className="text-red-500 hover:text-red-700 cursor-pointer">
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             </AlertDialogTrigger>
@@ -1670,7 +2460,7 @@ export default function ProjectDetailPage() {
                         <div className="flex items-center gap-2">
                           <Avatar className="h-7 w-7">
                             <AvatarImage src={member.image} />
-                            <AvatarFallback className={`font-bold ${getAvatarColor(String(member.id))}`}>
+                            <AvatarFallback className={`font-bold ${getAvatarColor(member.name || member.email || "M")}`}>
                               {member.name.slice(0, 1).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>

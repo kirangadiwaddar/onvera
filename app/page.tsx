@@ -22,6 +22,7 @@ import {
 import Logo from "@/components/ui/logo"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getAvatarColor } from "@/lib/get-avatar-colors"
 import Link from "next/link"
 import Image from "next/image"
 import dashboardDark from "./assets/dashboard-dark.png"
@@ -285,7 +286,7 @@ export default function OnveraLandingV2Page() {
                 >
                   <Avatar className="h-9 w-9">
                     {avatarUrl ? <AvatarImage src={avatarUrl} alt={displayName} /> : null}
-                    <AvatarFallback className="bg-violet-500 text-white">
+                    <AvatarFallback className={`font-semibold ${getAvatarColor(displayName)}`}>
                       {avatarFallback}
                     </AvatarFallback>
                   </Avatar>

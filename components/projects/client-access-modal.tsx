@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Copy, ExternalLink, Handshake, Mail, RefreshCcw } from "lucide-react"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
+import { Spinner } from "../ui/spinner"
 
 type TokenPayload = {
   token: string
@@ -45,13 +46,22 @@ export default function ClientAccessModal({ projectSlug, canManage = true }: Pro
   const [expiresInDays, setExpiresInDays] = useState("5")
   const [maxUses, setMaxUses] = useState("1000")
   const [clientEmail, setClientEmail] = useState("")
+  const [lastSentEmail, setLastSentEmail] = useState<string | null>(null)
+  const [lastSentToken, setLastSentToken] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState("")
+  const [emailSending, setEmailSending] = useState(false)
 
   const absoluteUrl = useMemo(() => {
     if (!tokenData?.url) return ""
     if (typeof window === "undefined") return tokenData.url
     return `${window.location.origin}${tokenData.url}`
   }, [tokenData?.url])
+
+  const normalizedClientEmail = clientEmail.trim().toLowerCase()
+  const emailAlreadySent =
+    Boolean(lastSentEmail && lastSentToken && tokenData?.token) &&
+    lastSentEmail === normalizedClientEmail &&
+    lastSentToken === tokenData?.token
 
   const fetchToken = useCallback(async () => {
     setLoading(true)
@@ -77,6 +87,14 @@ export default function ClientAccessModal({ projectSlug, canManage = true }: Pro
     if (!open) return
     void fetchToken()
   }, [open, fetchToken])
+
+  useEffect(() => {
+    if (!tokenData?.token) return
+    if (lastSentToken && lastSentToken !== tokenData.token) {
+      setLastSentEmail(null)
+      setLastSentToken(null)
+    }
+  }, [lastSentToken, tokenData?.token])
 
   const handleGenerate = async () => {
     setSaving(true)
@@ -168,7 +186,7 @@ export default function ClientAccessModal({ projectSlug, canManage = true }: Pro
     }
   }
 
-  const handleEmailClient = () => {
+  const handleEmailClient = async () => {
     if (!absoluteUrl) {
       setErrorMessage("Generate link first")
       return
@@ -177,12 +195,38 @@ export default function ClientAccessModal({ projectSlug, canManage = true }: Pro
       setErrorMessage("Enter client email")
       return
     }
+    if (!tokenData?.token) {
+      setErrorMessage("Generate link first")
+      return
+    }
     setErrorMessage("")
-    const subject = encodeURIComponent("Your Client Onboarding Access")
-    const body = encodeURIComponent(
-      `Hi,\n\nUse this onboarding link:\n${absoluteUrl}\n\nPassword: ${tokenData?.password || "Not required"}\n\nThanks.`,
-    )
-    window.open(`mailto:${encodeURIComponent(clientEmail.trim())}?subject=${subject}&body=${body}`, "_blank")
+    setEmailSending(true)
+    try {
+      const response = await fetchWithAuth("/api/onboarding/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectSlug,
+          token: tokenData.token,
+          email: clientEmail.trim(),
+          url: absoluteUrl,
+          password: tokenData.password || "",
+        }),
+      })
+      const payload = await response.json().catch(() => null) as { message?: string; sent?: boolean } | null
+      if (!response.ok || payload?.sent === false) {
+        throw new Error(payload?.message || "Failed to send email")
+      }
+      toast.success("Client access email sent.")
+      setLastSentEmail(clientEmail.trim().toLowerCase())
+      setLastSentToken(tokenData.token)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to send email"
+      setErrorMessage(message)
+      toast.error(message)
+    } finally {
+      setEmailSending(false)
+    }
   }
 
   return (
@@ -202,98 +246,94 @@ export default function ClientAccessModal({ projectSlug, canManage = true }: Pro
         {loading ? (
           <div className="text-sm text-muted-foreground">Loading access details...</div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-5">
             {errorMessage && (
               <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
                 {errorMessage}
               </div>
             )}
             {tokenData ? (
-              <div className="rounded-lg border p-3 space-y-3">
+              <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800/50 p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-medium">Current Link</div>
                   <Badge className={`capitalize border ${statusClass(tokenData.status)}`}>{tokenData.status}</Badge>
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs">Client URL</Label>
                   <div className="flex items-center gap-2">
-                    <Input value={absoluteUrl} readOnly className="text-xs" />
+                    <Input value={absoluteUrl} readOnly className="text-xs bg-white" />
                     <Button variant="outline" size="icon" onClick={() => void handleCopyLink()} disabled={!absoluteUrl}>
                       <Copy className="size-4" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={() => window.open(absoluteUrl, "_blank")}>
+                    {/* <Button variant="outline" size="icon" onClick={() => window.open(absoluteUrl, "_blank")}>
                       <ExternalLink className="size-4" />
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 text-xs">
-                  <Badge variant="outline" className="border-zinc-200 text-zinc-700 dark:border-white/10 dark:text-white/70">
-                    Password: {tokenData.password || "None"}
-                  </Badge>
-                  <Badge variant="outline" className="border-zinc-200 text-zinc-700 dark:border-white/10 dark:text-white/70">
-                    Usage: {tokenData.usedCount}/{tokenData.maxUses}
-                  </Badge>
-                </div>
-
-                {canManage ? (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={saving || tokenData.status === "active"}
-                      onClick={() => void handleStatusUpdate("activate")}
-                    >
-                      Activate
-                    </Button>
-                    <Button
-                      variant="destructiveLight"
-                      size="sm"
-                      disabled={saving || tokenData.status === "revoked"}
-                      onClick={() => void handleStatusUpdate("revoke")}
-                    >
-                      Revoke
-                    </Button>
-                    {tokenData.status === "used_up" && (
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <Badge className="py-1.5 px-2 text-xs bg-white text-zinc-700 dark:bg-white/10 dark:text-white/70">
+                      Password: {tokenData.password || "None"}
+                    </Badge>
+                    <Badge className="py-1.5 px-2 text-xs bg-white text-zinc-700 dark:bg-white/10 dark:text-white/70">
+                      Usage: {tokenData.usedCount}/{tokenData.maxUses}
+                    </Badge>
+                  </div>
+                  {canManage ? (
+                    <div className="flex flex-row-reverse items-center gap-2 flex-wrap">
                       <Button
-                        variant="outline"
                         size="sm"
-                        disabled={saving}
-                        onClick={() => void handleStatusUpdate("reset-usage")}
+                        disabled={saving || tokenData.status === "active"}
+                        onClick={() => void handleStatusUpdate("activate")}
+                        className="text-xs"
                       >
-                        Reset Usage
+                        Activate
                       </Button>
-                    )}
-                  </div>
-                ) : null}
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="text-xs"
+                        disabled={saving || tokenData.status === "revoked"}
+                        onClick={() => void handleStatusUpdate("revoke")}
+                      >
+                        Revoke
+                      </Button>
+                      {tokenData.status === "used_up" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={saving}
+                          className="text-xs"
+                          onClick={() => void handleStatusUpdate("reset-usage")}
+                        >
+                          Reset Usage
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+
+
               </div>
             ) : (
-              <div className="rounded-lg border p-3 text-sm text-muted-foreground">
+              <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800/50 p-5 text-sm text-muted-foreground">
                 No onboarding link generated yet.
               </div>
             )}
 
             {canManage ? (
-              <div className="rounded-lg border p-3 space-y-3">
+              <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800/50 p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">Manage Link</p>
-                  <Button variant="gradient" size="sm" onClick={() => void handleGenerate()} disabled={saving}>
+                  <Button variant="gradient" size="sm" className="text-xs" onClick={() => void handleGenerate()} disabled={saving}>
                     <RefreshCcw className="mr-1 size-3.5" />
                     {tokenData ? "Regenerate" : "Generate"}
                   </Button>
                 </div>
 
                 <div className="grid grid-cols-1 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Password</Label>
-                    <Input
-                      type="text"
-                      placeholder="Optional password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                    />
-                  </div>
+                
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">Expire (days)</Label>
@@ -301,6 +341,7 @@ export default function ClientAccessModal({ projectSlug, canManage = true }: Pro
                         type="number"
                         min={1}
                         value={expiresInDays}
+                        className="bg-white"
                         onChange={(event) => setExpiresInDays(event.target.value)}
                       />
                     </div>
@@ -310,40 +351,64 @@ export default function ClientAccessModal({ projectSlug, canManage = true }: Pro
                         type="number"
                         min={1}
                         value={maxUses}
+                        className="bg-white"
                         onChange={(event) => setMaxUses(event.target.value)}
                       />
                     </div>
                   </div>
-                </div>
 
-                {tokenData && (
-                  <>
-                    <div className="flex gap-2 flex-wrap">
-                      <Button variant="outline" size="sm" onClick={() => void handlePasswordUpdate()} disabled={saving}>
-                        Update Password
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleEmailClient} disabled={!tokenData}>
-                        <Mail className="mr-1 size-3.5" />
-                        Email Client
-                      </Button>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Client Email</Label>
+                  <div className="password-block">
+                    <Label className="text-xs mb-2">Password</Label>
+                    <div className="flex items-center gap-2">                    
+                    <div className="space-y-1 flex-1">                      
                       <Input
-                        type="email"
-                        placeholder="client@example.com"
-                        value={clientEmail}
-                        onChange={(event) => setClientEmail(event.target.value)}
+                        type="text"
+                        placeholder="Optional password"
+                        value={password}
+                        className="bg-white"
+                        onChange={(event) => setPassword(event.target.value)}
                       />
                     </div>
-                  </>
-                )}
+                    {tokenData && (
+                        <Button className="text-xs bg-violet-600 hover:bg-violet-800 text-white h-auto py-2.5 dark:bg-violet-900 dark:text-white" onClick={() => void handlePasswordUpdate()} disabled={saving}>
+                          Update Password
+                        </Button>
+                    )}
+                  </div>
+                  </div>                  
+                </div>
               </div>
             ) : (
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-white/70">
+              <div className="rounded-lg  bg-zinc-100 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-800/50 dark:text-white/70">
                 View-only access. Only admins and team leads can manage onboarding links.
               </div>
             )}
+
+            {canManage && tokenData ? (
+              <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800/50 p-5 space-y-3">
+                <p className="text-sm font-medium">Email Client</p>
+                <div className="flex items-center justify-between gap-2">
+                  <Input
+                    type="email"
+                    placeholder="client@example.com"
+                    value={clientEmail}
+                    className="bg-white"
+                    onChange={(event) => setClientEmail(event.target.value)}
+                  />
+                  <Button                    
+                    onClick={handleEmailClient}
+                    disabled={emailSending || !tokenData || !normalizedClientEmail || emailAlreadySent}
+                    className="border border-zinc-200 dark:border-zinc-600"
+                  >
+                    {emailSending ? <Spinner /> : <Mail className="size-3.5" />}
+                    {emailSending ? "Sending..." : emailAlreadySent ? "Sent" : "Send"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  We’ll send the current onboarding link and password (if set).
+                </p>
+              </div>
+            ) : null}
           </div>
         )}
 

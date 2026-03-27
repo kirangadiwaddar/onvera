@@ -1,5 +1,6 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getAvatarColor } from "@/lib/get-avatar-colors"
 import { cn } from "@/lib/utils"
 
 interface TestimonialCardProps {
@@ -28,7 +29,7 @@ export default function TestimonialCard({
       <div className="flex flex-row items-center gap-2">
         <Avatar className="h-8 w-8">
           {avatar && <AvatarImage src={avatar} alt={name} />}
-          <AvatarFallback className="border font-semibold uppercase text-primary">{name.charAt(0)}</AvatarFallback>
+          <AvatarFallback className={`font-semibold ${getAvatarColor(name)}`}>{name.charAt(0)}</AvatarFallback>
         </Avatar>
         <div className="flex flex-col">
           <figcaption className="text-sm font-medium dark:text-white">{name}</figcaption>

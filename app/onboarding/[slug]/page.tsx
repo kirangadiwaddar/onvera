@@ -636,7 +636,7 @@ export default function ClientOnboardingPage() {
                         alt={member.name}
                       />
                       <AvatarFallback
-                        className={`font-bold ${getAvatarColor(String(member.id))}`}
+                        className={`font-bold ${getAvatarColor(member.name || member.email || "M")}`}
                       >
                         {member.name.slice(0, 1).toUpperCase()}
                       </AvatarFallback>
