@@ -3,7 +3,7 @@
 import { Card, CardAction, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Avatar, AvatarImage, AvatarFallback, AvatarGroup, AvatarGroupCount } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { CalendarCheck, FolderOpenDot, MoreVertical, PencilIcon, TrashIcon } from "lucide-react"
+import { CalendarCheck, FolderOpenDot, Lock, MoreVertical, PencilIcon, TrashIcon } from "lucide-react"
 
 import type { Team } from "@/types/team"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu"
@@ -15,6 +15,7 @@ type Props = {
     team: Team
     slug: string
     projectsAssigned?: number
+    isLocked?: boolean
     onEdit?: (team: Team) => void
     onDelete?: (team: Team) => void
 }
@@ -23,9 +24,11 @@ export default function TeamCard({
     team,
     slug,
     projectsAssigned,
+    isLocked,
     onEdit,
     onDelete,
 }: Props) {
+    const hasActions = Boolean(onEdit || onDelete)
     const allMembers = [
   ...(team.lead ? [team.lead] : []),
   ...(team.members || []),
@@ -55,51 +58,66 @@ export default function TeamCard({
                         />
                         {team.status}
                     </span>
+                    {isLocked ? (
+                        <>
+                            <span className="mx-1 text-zinc-300 dark:text-white/20">|</span>
+                            <span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-200">
+                                <Lock className="size-3" />
+                                Locked
+                            </span>
+                        </>
+                    ) : null}
                 </span>
 
                 <CardAction className="flex items-start justify-end gap-1">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="-mt-1 -mr-1"
-                                onClick={(event) => {
-                                    event.preventDefault()
-                                    event.stopPropagation()
-                                }}
-                            >
-                                <MoreVertical className="size-5" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-lg">
-                            <DropdownMenuGroup>
-                                <DropdownMenuItem
-                                    onSelect={(event) => {
+                    {hasActions ? (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="-mt-1 -mr-1"
+                                    onClick={(event) => {
                                         event.preventDefault()
                                         event.stopPropagation()
-                                        onEdit?.(team)
                                     }}
-                                    className="text-xs!"
                                 >
-                                    <PencilIcon />
-                                    Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    onSelect={(event) => {
-                                        event.preventDefault()
-                                        event.stopPropagation()
-                                        onDelete?.(team)
-                                    }}
-                                    variant="destructive"
-                                    className="text-xs!"
-                                >
-                                    <TrashIcon />
-                                    Delete
-                                </DropdownMenuItem>
-                            </DropdownMenuGroup>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                                    <MoreVertical className="size-5" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-lg">
+                                <DropdownMenuGroup>
+                                    {onEdit ? (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => {
+                                                event.preventDefault()
+                                                event.stopPropagation()
+                                                onEdit(team)
+                                            }}
+                                            className="text-xs!"
+                                        >
+                                            <PencilIcon />
+                                            Edit
+                                        </DropdownMenuItem>
+                                    ) : null}
+                                    {onDelete ? (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => {
+                                                event.preventDefault()
+                                                event.stopPropagation()
+                                                onDelete(team)
+                                            }}
+                                            variant="destructive"
+                                            className="text-xs!"
+                                        >
+                                            <TrashIcon />
+                                            Delete
+                                        </DropdownMenuItem>
+                                    ) : null}
+                                </DropdownMenuGroup>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ) : null}
                 </CardAction>
             </CardHeader>
 

@@ -79,10 +79,10 @@ export function RecentActivity({
             return (
               <div
                 key={activity.id}
-                className={isList ? "flex items-start justify-between -mx-3 px-3 py-3 gap-10" : "activity-item flex items-start justify-between py-4 gap-10"}
+                className={isList ? "flex items-start justify-between -mx-3 px-3 py-3 gap-6" : "activity-item w-fll flex items-start justify-between py-4 gap-6"}
               >
                 
-                <div className={isList ? "space-y-1" : "space-y-1"}>
+                <div className={isList ? "space-y-1 max-w-[78%]" : "space-y-1 max-w-[78%]"}>
                   <div className={isList ? "text-sm flex items-center gap-2" : "text-sm flex items-center gap-1"}>
                     
                     <p>{activity.title}

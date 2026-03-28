@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import { canUseDefaultTemplates } from "@/lib/billing/plans"
 
 export async function GET(request: Request) {
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+  }
+  if (!canUseDefaultTemplates(identity.plan)) {
+    return NextResponse.json({ message: "Default templates are not available on your plan." }, { status: 403 })
   }
 
   const admin = createAdminClient()

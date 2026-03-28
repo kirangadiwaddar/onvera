@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { LayoutGrid, List, Plus, Users, TriangleAlert } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { LayoutGrid, List, Lock, Plus, Users, TriangleAlert } from "lucide-react"
 import Link from "next/link"
 
 import TeamCard from "@/components/teamCard"
@@ -16,6 +16,7 @@ import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
 import { LoadingState } from "@/components/loadingState"
 import { EmptyState } from "@/components/emptyState"
+import { canUseTeams, getPlanLimits, normalizePlan } from "@/lib/billing/plans"
 
 export default function Page() {
   const { profile, user, loading: authLoading } = useAuth()
@@ -28,8 +29,23 @@ export default function Page() {
   const [editingTeam, setEditingTeam] = useState<Team | null>(null)
   const [deletingTeam, setDeletingTeam] = useState<Team | null>(null)
   const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
-  const isFreelancer = profile?.role === "freelancer"
   const isProjectMember = profile?.role === "project_member"
+  const currentPlan = normalizePlan(
+    profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
+  )
+  const planLimits = getPlanLimits(currentPlan)
+  const planAllowsTeams = canUseTeams(currentPlan)
+  const ownedTeamsCount = teams.filter((team) => team.createdBy === user?.id).length
+  const teamLimitReached = planLimits.maxTeams !== null && ownedTeamsCount >= planLimits.maxTeams
+  const createTeamDisabled = isReadOnlyRole || submitting
+  const lockedTeamIds = useMemo(() => {
+    if (planLimits.maxTeams === null) return new Set<number>()
+    const owned = teams
+      .filter((team) => team.createdBy === user?.id)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    const locked = owned.slice(planLimits.maxTeams).map((team) => team.id)
+    return new Set(locked)
+  }, [planLimits.maxTeams, teams, user?.id])
 
   const loadTeams = async () => {
     setLoadingTeams(true)
@@ -49,9 +65,9 @@ export default function Page() {
       setLoadingTeams(false)
       return
     }
-    if (isFreelancer) return
+    if (!planAllowsTeams && !isReadOnlyRole) return
     void loadTeams()
-  }, [authLoading, isFreelancer, user?.id])
+  }, [authLoading, isReadOnlyRole, planAllowsTeams, user?.id])
 
   if (authLoading) {
     return (
@@ -63,6 +79,10 @@ export default function Page() {
   }
 
   const handleCreateTeam = async (values: TeamFormValues) => {
+    if (teamLimitReached) {
+      toast.error("Team limit reached for your plan.")
+      return
+    }
     setSubmitting(true)
     try {
       const res = await fetchWithAuth("/api/teams", {
@@ -118,6 +138,14 @@ export default function Page() {
     }
   }
 
+  const handleOpenCreateTeam = () => {
+    if (teamLimitReached) {
+      toast.error("Team limit reached for your plan.")
+      return
+    }
+    setIsCreateOpen(true)
+  }
+
   const handleDeleteTeam = async () => {
     if (!deletingTeam) return
 
@@ -132,7 +160,7 @@ export default function Page() {
         throw new Error(payload?.message || "Failed to delete team")
       }
 
-      await loadTeams()
+      setTeams((prev) => prev.filter((team) => team.id !== deletingTeam.id))
       setDeletingTeam(null)
       toast.success("Team deleted")
     } catch (error) {
@@ -143,11 +171,12 @@ export default function Page() {
     }
   }
 
-  if (isFreelancer) {
+  if (!planAllowsTeams && !isReadOnlyRole) {
     return (
       <EmptyState
+       icon={<TriangleAlert className="text-destructive" />}
         title="Teams Unavailable"
-        description="Freelancer workspaces don't have access to teams."
+        description="Teams are available only on Agency plans."
       />
     )
   }
@@ -166,7 +195,7 @@ export default function Page() {
       <EmptyState
         icon={<TriangleAlert className="text-destructive" />}
         title="Teams Unavailable"
-        description="Teams are available only to admins, team leads, and team members."
+        description="Teams are available only to team leads and team members."
       />
     )
   }
@@ -204,7 +233,11 @@ export default function Page() {
                   </Button>
                 </div>
                 {!isReadOnlyRole && (
-                  <Button variant="gradient" onClick={() => setIsCreateOpen(true)}>
+                  <Button
+                    variant="gradient"
+                    onClick={handleOpenCreateTeam}
+                    disabled={createTeamDisabled}
+                  >
                     <Plus /> Create Team
                   </Button>
                 )}
@@ -219,8 +252,8 @@ export default function Page() {
               icon={<Users />}
               title="No teams yet"
               description="Create your first team to start organizing projects and collaboration."
-              buttonText={!isReadOnlyRole ? "Create Team" : undefined}
-              onClick={!isReadOnlyRole ? () => setIsCreateOpen(true) : undefined}
+              buttonText={!createTeamDisabled ? "Create Team" : undefined}
+              onClick={!createTeamDisabled ? handleOpenCreateTeam : undefined}
             />
           </div>
         ) : viewMode === "grid" ? (
@@ -231,8 +264,17 @@ export default function Page() {
                 slug={team.slug}
                 team={team}
                 projectsAssigned={team.projectsAssigned}
-                onEdit={isReadOnlyRole ? undefined : (selectedTeam) => setEditingTeam(selectedTeam)}
-                onDelete={isReadOnlyRole ? undefined : (selectedTeam) => setDeletingTeam(selectedTeam)}
+                isLocked={lockedTeamIds.has(team.id)}
+                onEdit={
+                  isReadOnlyRole || lockedTeamIds.has(team.id)
+                    ? undefined
+                    : (selectedTeam) => setEditingTeam(selectedTeam)
+                }
+                onDelete={
+                  isReadOnlyRole || lockedTeamIds.has(team.id)
+                    ? undefined
+                    : (selectedTeam) => setDeletingTeam(selectedTeam)
+                }
               />
             ))}
           </div>
@@ -258,6 +300,12 @@ export default function Page() {
                           <Link href={`/teams/${team.slug}`} className="hover:underline">
                             {team.name}
                           </Link>
+                          {lockedTeamIds.has(team.id) ? (
+                            <span className="ml-2 inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-200">
+                              <Lock className="size-3" />
+                              Locked
+                            </span>
+                          ) : null}
                         </TableCell>
                         <TableCell className="capitalize">{team.status}</TableCell>
                         <TableCell>{team.projectsAssigned ?? 0}</TableCell>
@@ -267,7 +315,7 @@ export default function Page() {
                             <Button size="sm" variant="outline" asChild>
                               <Link href={`/teams/${team.slug}`}>View</Link>
                             </Button>
-                            {!isReadOnlyRole && (
+                            {!isReadOnlyRole && !lockedTeamIds.has(team.id) && (
                               <>
                                 <Button
                                   size="sm"
@@ -297,7 +345,7 @@ export default function Page() {
         )}
       </div>
 
-      {!isReadOnlyRole && isCreateOpen ? (
+      {!isReadOnlyRole ? (
         <TeamModal
           open={isCreateOpen}
           onOpenChange={setIsCreateOpen}
@@ -307,19 +355,25 @@ export default function Page() {
         />
       ) : null}
 
-      {!isReadOnlyRole && editingTeam ? (
+      {!isReadOnlyRole ? (
         <TeamModal
-          open={!!editingTeam}
+          open={Boolean(editingTeam)}
           onOpenChange={(open) => {
-            if (!open) setEditingTeam(null)
+            if (!open) {
+              window.setTimeout(() => setEditingTeam(null), 300)
+            }
           }}
           mode="edit"
           loading={submitting}
-          initialValues={{
-            name: editingTeam.name,
-            description: editingTeam.description,
-            status: editingTeam.status,
-          }}
+          initialValues={
+            editingTeam
+              ? {
+                  name: editingTeam.name,
+                  description: editingTeam.description,
+                  status: editingTeam.status,
+                }
+              : undefined
+          }
           onSubmit={handleEditTeam}
         />
       ) : null}

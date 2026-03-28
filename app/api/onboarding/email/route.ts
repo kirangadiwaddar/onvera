@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import { render } from "@react-email/render"
+import { ClientAccessEmail } from "@/components/emails/client-access-email"
 
 function isAdminRole(role?: string | null) {
-  return role === "agency" || role === "freelancer" || role === "admin"
+  return role === "super_admin" || role === "team_lead"
 }
 
 export async function POST(request: Request) {
@@ -45,16 +47,19 @@ export async function POST(request: Request) {
   }
 
   const subject = "Your Client Access Link"
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111">
-      <h2>Client Access</h2>
-      <p>Hi,</p>
-      <p>Here is your onboarding link:</p>
-      <p><a href="${url}">${url}</a></p>
-      <p>Password: <strong>${password || "Not required"}</strong></p>
-      <p>If you have any questions, just reply to this email.</p>
-    </div>
-  `
+  const html = render(
+    ClientAccessEmail({
+      url,
+      password,
+    }),
+  )
+  const text = render(
+    ClientAccessEmail({
+      url,
+      password,
+    }),
+    { plainText: true },
+  )
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -67,6 +72,7 @@ export async function POST(request: Request) {
       to: [email],
       subject,
       html,
+      text,
     }),
   })
 

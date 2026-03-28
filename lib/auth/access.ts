@@ -20,7 +20,7 @@ type ProjectLike = {
 }
 
 export function isAdminRole(role?: string | null) {
-  return role === "agency" || role === "freelancer" || role === "admin"
+  return role === "super_admin" || role === "team_lead"
 }
 
 function normalizeEmail(value?: string | null) {

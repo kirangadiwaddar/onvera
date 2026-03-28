@@ -10,6 +10,8 @@ import {
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import { templateStructure } from "@/lib/template-structure"
 import type { Section } from "@/lib/types"
+import { getPlanForUserId } from "@/lib/billing/server"
+import { getPlanLimits } from "@/lib/billing/plans"
 
 const slugify = (value: string) =>
   value
@@ -81,7 +83,7 @@ type Member = {
   role?: string
   image?: string
   accessToken?: string
-  memberType?: "agency" | "freelancer"
+  memberType?: "team_lead"
   isLead?: boolean
   isExternal?: boolean
   isRegistered?: boolean
@@ -175,8 +177,8 @@ function normalizeMember(member: unknown, fallbackId: number): Member | null {
       ? raw.accessToken.trim()
       : undefined
   const memberType: Member["memberType"] =
-    raw.memberType === "agency" || raw.memberType === "freelancer"
-      ? raw.memberType
+    raw.memberType === "team_lead" || raw.memberType === "agency" || raw.memberType === "freelancer"
+      ? "team_lead"
       : undefined
   const isLead = typeof raw.isLead === "boolean" ? raw.isLead : undefined
   const isExternal = typeof raw.isExternal === "boolean" ? raw.isExternal : undefined
@@ -263,6 +265,23 @@ function normalizeProject(row: ProjectRow) {
     submissions: row.submissions ?? {},
     createdBy: row.created_by ?? null,
   }
+}
+
+async function isProjectLockedForOwner(
+  admin: ReturnType<typeof createAdminClient>,
+  ownerId: string | null | undefined,
+  projectId: number,
+  maxProjects: number | null,
+) {
+  if (!admin || !ownerId || maxProjects === null) return false
+  const { data: rows } = await admin
+    .from("projects")
+    .select("id, created_at")
+    .eq("created_by", ownerId)
+    .order("created_at", { ascending: false })
+  const projects = Array.isArray(rows) ? rows : []
+  const index = projects.findIndex((row) => row.id === projectId)
+  return index >= 0 && index >= maxProjects
 }
 
 function normalizeTeam(row: TeamRow) {
@@ -375,7 +394,15 @@ export async function GET(
   const templates = Array.isArray(templateRows)
     ? (templateRows as TemplateRow[]).map(normalizeTemplate)
     : []
-  const project = normalizeProject(projectRow as ProjectRow)
+  const ownerPlan = await getPlanForUserId(admin, projectRow.created_by ?? null)
+  const planLimits = getPlanLimits(ownerPlan)
+  const isLocked = await isProjectLockedForOwner(
+    admin,
+    projectRow.created_by ?? null,
+    projectRow.id,
+    planLimits.maxProjects,
+  )
+  const project = { ...normalizeProject(projectRow as ProjectRow), plan: ownerPlan, isLocked }
 
   const candidateEmails = new Set<string>()
   teams.forEach((team) => {
@@ -484,6 +511,14 @@ export async function PUT(
     teamIds.length > 0 ? await admin.from("teams").select("*").in("id", teamIds) : { data: [] }
   const teams = (Array.isArray(teamRows) ? teamRows : []).map(normalizeTeam)
   const currentProject = normalizeProject(projectRow as ProjectRow)
+  const ownerPlan = await getPlanForUserId(admin, currentProject.createdBy ?? null)
+  const planLimits = getPlanLimits(ownerPlan)
+  const isLocked = await isProjectLockedForOwner(
+    admin,
+    currentProject.createdBy ?? null,
+    currentProject.id,
+    planLimits.maxProjects,
+  )
 
   const visibleProjects = filterProjectsForIdentity([currentProject], teams, identity)
   if (visibleProjects.length === 0) {
@@ -496,8 +531,22 @@ export async function PUT(
     Object.keys(body).length > 0 && Object.keys(body).every((key) => key === "submissions")
   const ownerAccess = currentProject.createdBy === identity.userId
 
+  if (isLocked && !onlySubmissionsUpdate) {
+    return NextResponse.json({ message: "Project is locked on your current plan." }, { status: 403 })
+  }
   if (!ownerAccess && !adminRole && (!leadAccess || !onlySubmissionsUpdate)) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 })
+  }
+  if (Array.isArray(body.teamIds) && !planLimits.teamAccess) {
+    return NextResponse.json({ message: "Teams are not available on your current plan." }, { status: 403 })
+  }
+  if (Array.isArray(body.extraMembers) && planLimits.maxExternalMembersPerProject !== null) {
+    if (body.extraMembers.length > planLimits.maxExternalMembersPerProject) {
+      return NextResponse.json(
+        { message: "External member limit reached for this project." },
+        { status: 403 },
+      )
+    }
   }
 
   const updatePayload: {
@@ -578,7 +627,7 @@ export async function PUT(
       .or(`id.eq.${updatedRow.template_id},template_key.eq.${updatedRow.template_id}`),
   ])
 
-  const updatedProject = normalizeProject(updatedRow as ProjectRow)
+  const updatedProject = { ...normalizeProject(updatedRow as ProjectRow), plan: ownerPlan }
   const refreshedTeams = (Array.isArray(updatedTeamRows) ? updatedTeamRows : []).map(normalizeTeam)
   const templates = Array.isArray(templateRows)
     ? (templateRows as TemplateRow[]).map(normalizeTemplate)

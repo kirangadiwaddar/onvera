@@ -5,6 +5,7 @@ import {
     MoreVertical,
     PencilIcon,
     TrashIcon,
+    Lock,
 } from "lucide-react"
 import Link from "next/link"
 import type { ReactNode } from "react"
@@ -48,6 +49,7 @@ export interface ProjectCardProps {
     status?: status
     avatarSrc?: string
     createdAt?: string
+    isLocked?: boolean
     onEdit?: () => void
     onDelete?: () => void
     onShare?: () => void
@@ -74,6 +76,7 @@ export function ProjectCard({
     status,
     avatarSrc,
     createdAt,
+    isLocked,
     footerAction,
     teams = [],
     members = [],
@@ -126,6 +129,12 @@ export function ProjectCard({
                 </Avatar>
 
                 <CardAction className="flex items-start justify-end gap-1">
+                    {isLocked ? (
+                        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">
+                            <Lock className="size-3" />
+                            Locked
+                        </Badge>
+                    ) : null}
                     {status && (
                         <Badge className={`${statusStyles[status]}`}>
                             {statusLabel[status]}

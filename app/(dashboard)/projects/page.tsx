@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { FolderOpenDot, LayoutGrid, List, ListFilter, MoreVertical, PencilIcon, Plus, TrashIcon } from "lucide-react"
+import { FolderOpenDot, LayoutGrid, List, ListFilter, Lock, MoreVertical, PencilIcon, Plus, TrashIcon } from "lucide-react"
 
 import { ProjectCard } from "@/components/project-card"
 import { ProjectModal, type ProjectFormValues } from "@/components/projects/project-modal"
@@ -44,6 +44,7 @@ import { statusLabel, statusStyles } from "@/lib/project-status"
 import { useAuth } from "@/components/providers/auth-provider"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
+import { getPlanLimits, normalizePlan } from "@/lib/billing/plans"
 
 const statuses: Array<{ value: "all" | status; label: string }> = [
   { value: "all", label: "All" },
@@ -69,6 +70,7 @@ type ProjectItem = {
   avatarSrc?: string
   createdAt?: string
   members?: { id: number; name: string; image?: string }[]
+  createdBy?: string | null
 }
 
 export default function Page() {
@@ -88,6 +90,25 @@ export default function Page() {
   const [editingProject, setEditingProject] = useState<ProjectItem | null>(null)
   const [deletingProject, setDeletingProject] = useState<ProjectItem | null>(null)
   const isReadOnlyRole = profile?.role === "project_member" || profile?.role === "team_member"
+  const currentPlan = normalizePlan(
+    profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
+  )
+  const planLimits = getPlanLimits(currentPlan)
+  const ownedProjectCount = projects.filter((project) => project.createdBy === user?.id).length
+  const projectLimitReached = planLimits.maxProjects !== null && ownedProjectCount >= planLimits.maxProjects
+  const createProjectDisabled = isReadOnlyRole || submitting
+  const lockedProjectIds = useMemo(() => {
+    if (planLimits.maxProjects === null) return new Set<number>()
+    const owned = projects
+      .filter((project) => project.createdBy === user?.id)
+      .sort((a, b) => {
+        const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        return bDate - aDate
+      })
+    const locked = owned.slice(planLimits.maxProjects).map((project) => project.id)
+    return new Set(locked)
+  }, [planLimits.maxProjects, projects, user?.id])
 
   const loadProjects = async () => {
     let res = await fetchWithAuth("/api/projects", { cache: "no-store" })
@@ -215,6 +236,10 @@ export default function Page() {
   const isStatusActive = statusFilter !== "all"
 
   const handleCreateProject = async (values: ProjectFormValues) => {
+    if (projectLimitReached) {
+      toast.error("Project limit reached for your plan.")
+      return
+    }
     setSubmitting(true)
     try {
       const res = await fetchWithAuth("/api/projects", {
@@ -257,6 +282,10 @@ export default function Page() {
   const handleOpenCreate = () => {
     if (templates.length === 0) {
       toast.error("Create at least one template before starting a project.")
+      return
+    }
+    if (projectLimitReached) {
+      toast.error("Project limit reached for your plan.")
       return
     }
     setIsCreateOpen(true)
@@ -310,7 +339,7 @@ export default function Page() {
         throw new Error(payload?.message || "Failed to delete project")
       }
 
-      await loadProjects()
+      setProjects((prev) => prev.filter((project) => project.id !== deletingProject.id))
       setDeletingProject(null)
       toast.success("Project deleted")
     } catch (error) {
@@ -336,15 +365,15 @@ export default function Page() {
         <EmptyState
           title="No Projects Yet"
           description="You haven't created any projects yet."
-          buttonText={isReadOnlyRole ? undefined : "Create Project"}
-          onClick={isReadOnlyRole ? undefined : handleOpenCreate}
+          buttonText={!createProjectDisabled ? "Create Project" : undefined}
+          onClick={!createProjectDisabled ? handleOpenCreate : undefined}
           icon={<FolderOpenDot />}
         />
       ) : (
         <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
           <div className="flex flex-col lg:flex-row items-center justify-between px-7 gap-4 lg:gap-5">
             <p className="text-sm flex-1 lg:line-clamp-2">
-              Manage and track all your projects, monitor progress, and stay on top of deadlines in one place.
+              Manage and track all your projects and stay on top of deadlines in one place.
             </p>
             <div className="right-actions flex items-center gap-3 justify-end">
               <div className="flex items-center gap-1 rounded-full border border-zinc-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/5">
@@ -433,7 +462,11 @@ export default function Page() {
                 </DropdownMenu>
               </div>
               {!isReadOnlyRole && (
-                <Button variant="gradient" onClick={handleOpenCreate}>
+                <Button
+                  variant="gradient"
+                  onClick={handleOpenCreate}
+                  disabled={createProjectDisabled}
+                >
                   <Plus strokeWidth={2} /> Create New
                 </Button>
               )}
@@ -469,8 +502,9 @@ export default function Page() {
                     createdAt={project.createdAt}
                     avatarSrc={project.avatarSrc}
                     members={project.members}
-                    onEdit={isReadOnlyRole ? undefined : () => setEditingProject(project)}
-                    onDelete={isReadOnlyRole ? undefined : () => setDeletingProject(project)}
+                    isLocked={lockedProjectIds.has(project.id)}
+                    onEdit={isReadOnlyRole || lockedProjectIds.has(project.id) ? undefined : () => setEditingProject(project)}
+                    onDelete={isReadOnlyRole || lockedProjectIds.has(project.id) ? undefined : () => setDeletingProject(project)}
                   />
                 ))}
               </div>
@@ -499,8 +533,14 @@ export default function Page() {
                                   {project.title.substring(0, 2).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
-                              <div>
+                              <div className="flex items-center gap-2">
                                 <div className="text-sm font-medium">{project.title}</div>
+                                {lockedProjectIds.has(project.id) ? (
+                                  <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">
+                                    <Lock className="size-3" />
+                                    Locked
+                                  </Badge>
+                                ) : null}
                               </div>
                             </div>
                           </TableCell>
@@ -544,12 +584,12 @@ export default function Page() {
                                 })
                               : "-"}
                           </TableCell>
-                          <TableCell className="text-right">
-                            {!isReadOnlyRole ? (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    size="icon-sm"
+                        <TableCell className="text-right">
+                          {!isReadOnlyRole && !lockedProjectIds.has(project.id) ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  size="icon-sm"
                                     variant="ghost"
                                     className="h-8 w-8"
                                     aria-label="Project actions"
@@ -618,7 +658,7 @@ export default function Page() {
         </div>
       )}
 
-      {!isReadOnlyRole && isCreateOpen ? (
+      {!isReadOnlyRole ? (
         <ProjectModal
           open={isCreateOpen}
           onOpenChange={setIsCreateOpen}
@@ -629,21 +669,27 @@ export default function Page() {
         />
       ) : null}
 
-      {!isReadOnlyRole && editingProject ? (
+      {!isReadOnlyRole ? (
         <ProjectModal
-          open={!!editingProject}
+          open={Boolean(editingProject)}
           onOpenChange={(open) => {
-            if (!open) setEditingProject(null)
+            if (!open) {
+              window.setTimeout(() => setEditingProject(null), 300)
+            }
           }}
           mode="edit"
           templates={templates}
           loading={submitting}
-          fixedTemplateId={editingProject.templateId}
-          initialValues={{
-            title: editingProject.title,
-            avatarSrc: editingProject.avatarSrc ?? "",
-            templateId: editingProject.templateId,
-          }}
+          fixedTemplateId={editingProject?.templateId}
+          initialValues={
+            editingProject
+              ? {
+                  title: editingProject.title,
+                  avatarSrc: editingProject.avatarSrc ?? "",
+                  templateId: editingProject.templateId,
+                }
+              : undefined
+          }
           onSubmit={handleEditProject}
         />
       ) : null}

@@ -4,7 +4,10 @@ create extension if not exists pgcrypto;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
-  role text not null check (role in ('agency', 'freelancer', 'project_member', 'team_member')),
+  role text not null check (role in ('super_admin', 'team_lead', 'team_member', 'project_member')),
+  plan text not null default 'free' check (plan in ('free', 'freelancer', 'agency', 'agency_pro')),
+  stripe_customer_id text,
+  stripe_subscription_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -391,15 +394,17 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, full_name, role)
+  insert into public.profiles (id, full_name, role, plan)
   values (
     new.id,
     coalesce(new.raw_user_meta_data ->> 'full_name', ''),
-    coalesce(new.raw_user_meta_data ->> 'role', 'agency')
+    coalesce(new.raw_user_meta_data ->> 'role', 'super_admin'),
+    coalesce(new.raw_user_meta_data ->> 'plan', 'free')
   )
   on conflict (id) do update
     set full_name = excluded.full_name,
         role = excluded.role,
+        plan = excluded.plan,
         updated_at = now();
 
   return new;

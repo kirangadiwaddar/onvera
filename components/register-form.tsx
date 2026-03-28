@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -25,12 +24,10 @@ export function RegisterForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
-  const publicRoles = ["agency", "freelancer"] as const
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [step, setStep] = useState<"form" | "otp">("form")
-  const [selectedRole, setSelectedRole] = useState<UserRole>(publicRoles[0])
   const [pendingEmail, setPendingEmail] = useState("")
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
@@ -63,12 +60,6 @@ export function RegisterForm({
     setInviteToken(token && token.trim() ? token.trim() : null)
   }, [searchParams])
 
-  useEffect(() => {
-    if (inviteRole) {
-      setSelectedRole(inviteRole)
-    }
-  }, [inviteRole])
-
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!hasSupabaseEnv()) {
@@ -79,9 +70,7 @@ export function RegisterForm({
     setError(null)
     setSuccess(null)
 
-    const formData = new FormData(event.currentTarget)
-    const formRole = String(formData.get("role") ?? "") as UserRole
-    const role = (inviteRole || formRole || "agency") as UserRole
+    const role = (inviteRole || "super_admin") as UserRole
 
     try {
       const supabase = createClient()
@@ -99,6 +88,7 @@ export function RegisterForm({
             data: {
               full_name: fullName,
               role,
+              plan: "free",
             },
           },
         })
@@ -151,6 +141,7 @@ export function RegisterForm({
           id: verifyData.user.id,
           full_name: fullName,
           role,
+          plan: "free",
         })
       }
 
@@ -260,9 +251,9 @@ export function RegisterForm({
                 required
               />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="role">Role</FieldLabel>
-              {inviteRole ? (
+            {inviteRole ? (
+              <Field>
+                <FieldLabel htmlFor="role">Role</FieldLabel>
                 <>
                   <Input
                     id="role"
@@ -275,27 +266,8 @@ export function RegisterForm({
                     {USER_ROLE_LABELS[inviteRole]}
                   </div>
                 </>
-              ) : (
-                <>
-                  <input type="hidden" name="role" value={selectedRole} />
-                  <Select
-                    value={selectedRole}
-                    onValueChange={(value) => setSelectedRole(value as UserRole)}
-                  >
-                    <SelectTrigger id="role" className="w-full">
-                      <SelectValue placeholder="Select your role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {publicRoles.map((role) => (
-                        <SelectItem key={role} value={role}>
-                          {USER_ROLE_LABELS[role]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </>
-              )}
-            </Field>
+              </Field>
+            ) : null}
             {inviteToken && (
               <Field>
                 <FieldLabel htmlFor="inviteToken">Invite Token</FieldLabel>

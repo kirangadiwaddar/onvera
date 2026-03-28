@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import { render } from "@react-email/render"
+import { InviteEmail } from "@/components/emails/invite-email"
 
 function isAdminRole(role?: string | null) {
-  return role === "agency" || role === "freelancer" || role === "admin"
+  return role === "super_admin" || role === "team_lead"
 }
 
 export async function POST(request: Request) {
@@ -53,16 +55,25 @@ export async function POST(request: Request) {
   const inviteUrl = `${origin}/invite?token=${encodeURIComponent(token)}`
 
   const subject = `You're invited to ${contextType === "team" ? "team" : "project"}: ${contextName}`
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
-      <h2>You are invited to Onvera</h2>
-      <p>Hi ${name},</p>
-      <p>You have been invited as <strong>${memberRole.replace("_", " ")}</strong> for <strong>${contextName}</strong>.</p>
-      <p>Accept your invite:</p>
-      <p><a href="${inviteUrl}">${inviteUrl}</a></p>
-      <p>If you already have an account, log in and accept. If you are new, create an account to continue.</p>
-    </div>
-  `
+  const html = render(
+    InviteEmail({
+      name,
+      inviteUrl,
+      memberRole,
+      contextName,
+      contextType,
+    }),
+  )
+  const text = render(
+    InviteEmail({
+      name,
+      inviteUrl,
+      memberRole,
+      contextName,
+      contextType,
+    }),
+    { plainText: true },
+  )
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -75,6 +86,7 @@ export async function POST(request: Request) {
       to: [email],
       subject,
       html,
+      text,
     }),
   })
 

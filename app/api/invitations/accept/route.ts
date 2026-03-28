@@ -147,7 +147,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // Ensure invited members keep the correct role, but don't downgrade admins/agencies.
+  // Ensure invited members keep the correct role, but don't downgrade team leads.
   if (identity.userId && invite.memberRole) {
     const { data: profile } = await admin
       .from("profiles")
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     const currentRole = typeof profile?.role === "string" ? profile.role : null
-    const isPrivileged = currentRole === "agency" || currentRole === "freelancer"
+    const isPrivileged = currentRole === "team_lead" || currentRole === "super_admin"
     if (!isPrivileged && currentRole !== invite.memberRole) {
       await admin
         .from("profiles")

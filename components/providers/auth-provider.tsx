@@ -16,6 +16,9 @@ type UserProfile = {
   id: string
   full_name: string | null
   role: UserRole | null
+  plan: string | null
+  stripe_customer_id?: string | null
+  stripe_subscription_id?: string | null
 }
 
 type AuthContextValue = {
@@ -34,7 +37,7 @@ async function loadProfile(userId: string): Promise<UserProfile | null> {
     const supabase = createClient()
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, role")
+      .select("id, full_name, role, plan, stripe_customer_id, stripe_subscription_id")
       .eq("id", userId)
       .single()
 

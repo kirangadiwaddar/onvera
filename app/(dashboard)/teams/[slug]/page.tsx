@@ -13,6 +13,7 @@ import { getAvatarColor } from "@/lib/get-avatar-colors"
 import { CalendarDays, Copy, Crown, LayoutGrid, List, Plus, Trash2, UserRoundCheck, TriangleAlert } from "lucide-react"
 import { ProjectCard } from "@/components/project-card"
 import { toast } from "sonner"
+import { canUseTeams, normalizePlan } from "@/lib/billing/plans"
 
 import {
   Table,
@@ -106,8 +107,11 @@ export default function TeamDetailPage() {
   const [membersPage, setMembersPage] = useState(1)
   const [is2xl, setIs2xl] = useState(false)
   const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
-  const isFreelancer = profile?.role === "freelancer"
   const isProjectMember = profile?.role === "project_member"
+  const currentPlan = normalizePlan(
+    profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
+  )
+  const planAllowsTeams = canUseTeams(currentPlan)
   const inviteBaseUrl =
     typeof window !== "undefined" ? `${window.location.origin}/invite` : ""
   const buildInviteUrl = (token?: string | null) => {
@@ -141,7 +145,7 @@ export default function TeamDetailPage() {
       return
     }
     if (!slug) return
-    if (isFreelancer) {
+    if (!planAllowsTeams && !isReadOnlyRole) {
       setLoading(false)
       return
     }
@@ -153,7 +157,7 @@ export default function TeamDetailPage() {
       .finally(() => {
         setLoading(false)
       })
-  }, [authLoading, loadTeam, slug, isFreelancer, user?.id])
+  }, [authLoading, isReadOnlyRole, loadTeam, planAllowsTeams, slug, user?.id])
 
   useEffect(() => {
     if (authLoading) return
@@ -390,16 +394,17 @@ export default function TeamDetailPage() {
       <EmptyState
         icon={<TriangleAlert className="text-destructive" />}
         title="Teams Unavailable"
-        description="Teams are available only to admins and team members."
+        description="Teams are available only to team leads and team members."
       />
     )
   }
 
-  if (isFreelancer) {
+  if (!planAllowsTeams && !isReadOnlyRole) {
     return (
       <EmptyState
+       icon={<TriangleAlert className="text-destructive" />}
         title="Teams Unavailable"
-        description="Freelancer workspaces don't have access to teams."
+        description="Teams are available only on Agency plans."
       />
     )
   }
@@ -414,7 +419,7 @@ export default function TeamDetailPage() {
 
   const formattedDate = new Date(team.createdAt).toLocaleDateString("en-GB")
   const adminName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Admin"
-  const adminRoleLabel = profile?.role === "freelancer" ? "Freelancer" : "Agency"
+  const adminRoleLabel = "Team Lead"
   const assignableProjects = allProjects.filter((project) => {
     const notAssigned = !project.teamIds?.includes(team.id)
     const matchesSearch = project.title.toLowerCase().includes(assignSearch.toLowerCase())
