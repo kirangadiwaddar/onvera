@@ -78,10 +78,10 @@ export function TemplateModal({
         </div>
 
         <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button variant="destructiveLight" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
+          <Button variant="gradient" onClick={handleSubmit} disabled={loading}>
             {loading ? "Saving..." : mode === "edit" ? "Update Template" : "Create Template"}
           </Button>
         </DialogFooter>

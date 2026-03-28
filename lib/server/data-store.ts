@@ -27,7 +27,7 @@ type Member = {
   image?: string
   email?: string
   accessToken?: string
-  memberType?: "agency" | "freelancer"
+  memberType?: "team_lead"
   isLead?: boolean
   isExternal?: boolean
 }

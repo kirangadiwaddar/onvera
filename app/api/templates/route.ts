@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import type { Section } from "@/lib/types"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import { randomUUID } from "crypto"
+import { getPlanLimits } from "@/lib/billing/plans"
 
 export async function GET(request: Request) {
   const identity = await getRequestIdentityFromRequest(request)
@@ -89,6 +90,20 @@ export async function POST(request: Request) {
 
   if (!body?.title || !body?.description) {
     return NextResponse.json({ message: "Missing required template fields." }, { status: 400 })
+  }
+
+  const planLimits = getPlanLimits(identity.plan)
+  if (planLimits.maxTemplates !== null) {
+    const { count } = await admin
+      .from("templates")
+      .select("id", { count: "exact", head: true })
+      .eq("created_by", identity.userId)
+    if ((count ?? 0) >= planLimits.maxTemplates) {
+      return NextResponse.json(
+        { message: "Template limit reached for your current plan." },
+        { status: 403 },
+      )
+    }
   }
 
   const baseId = randomUUID()

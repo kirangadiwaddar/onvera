@@ -1,11 +1,13 @@
 import { createClient } from "@supabase/supabase-js"
 import type { UserRole } from "@/lib/auth/roles"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { normalizePlan, type PlanId } from "@/lib/billing/plans"
 
 export type RequestIdentity = {
   userId: string
   email: string | null
   role: UserRole | null
+  plan: PlanId
 }
 
 function getBearerToken(request: Request) {
@@ -36,20 +38,25 @@ export async function getRequestIdentityFromRequest(request: Request): Promise<R
   if (!user) return null
 
   let role = (user.user_metadata?.role || null) as UserRole | null
+  let plan = normalizePlan(
+    typeof user.user_metadata?.plan === "string" ? user.user_metadata.plan : null,
+  )
 
   const admin = createAdminClient()
   if (admin) {
     const { data: profile } = await admin
       .from("profiles")
-      .select("role")
+      .select("role, plan")
       .eq("id", user.id)
       .maybeSingle()
     role = (profile?.role || role || null) as UserRole | null
+    plan = normalizePlan(profile?.plan ?? plan)
   }
 
   return {
     userId: user.id,
     email: user.email || null,
     role,
+    plan,
   }
 }

@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { getStoreData } from "@/lib/server/data-store"
 import { filterTeamsForIdentity } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import { getPlanLimits } from "@/lib/billing/plans"
 
 function slugify(value: string) {
   return value
@@ -50,6 +51,26 @@ export async function POST(request: Request) {
 
   if (!admin) {
     return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
+  }
+
+  const planLimits = getPlanLimits(identity.plan)
+  if (!planLimits.teamAccess || planLimits.maxTeams === 0) {
+    return NextResponse.json(
+      { message: "Teams are not available on your current plan." },
+      { status: 403 },
+    )
+  }
+  if (planLimits.maxTeams !== null) {
+    const { count } = await admin
+      .from("teams")
+      .select("id", { count: "exact", head: true })
+      .eq("created_by", identity.userId)
+    if ((count ?? 0) >= planLimits.maxTeams) {
+      return NextResponse.json(
+        { message: "Team limit reached for your current plan." },
+        { status: 403 },
+      )
+    }
   }
 
   const { teams, templates } = await getStoreData({ bypassCache: true, includeRegisteredEmails: true })

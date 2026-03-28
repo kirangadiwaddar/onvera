@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { FolderOpenDot, LayoutPanelTop, CirclePile, LayoutGrid } from "lucide-react"
+import { FolderOpenDot, LayoutPanelTop, CirclePile, LayoutGrid, Sparkles } from "lucide-react"
 
 // import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/sidebar/nav-main"
@@ -23,6 +23,9 @@ import { useEffect, useState } from "react"
 import type { Team } from "@/types/team"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { createClient } from "@/lib/supabase/client"
+import { canUseTeams, normalizePlan, PLAN_LABELS } from "@/lib/billing/plans"
+import Link from "next/link"
+import { Button } from "./ui/button"
 
 
 const data = {
@@ -47,16 +50,26 @@ const data = {
       url: "/teams",
       icon: CirclePile,
     },
+    {
+      title: "Plan Manager",
+      url: "/admin/plan-manager",
+      icon: Sparkles,
+    },
   ],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, profile, loading: authLoading } = useAuth()
+  const [mounted, setMounted] = useState(false)
   const [serverIdentity, setServerIdentity] = useState<{
     user: { email: string | null; fullName: string | null } | null
-    profile: { fullName: string | null; role?: string | null } | null
+    profile: { fullName: string | null; role?: string | null; plan?: string | null } | null
   } | null>(null)
   const [teamMembership, setTeamMembership] = useState<"none" | "member" | "lead">("none")
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (authLoading || !user?.id) return
@@ -125,6 +138,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     serverIdentity?.user?.email,
   ])
 
+  if (!mounted) {
+    return null
+  }
+
   const name =
     profile?.full_name ||
     serverIdentity?.profile?.fullName ||
@@ -141,26 +158,51 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ? user.user_metadata.role
       : null
   const currentRole = profile?.role || serverIdentity?.profile?.role || metadataRole || null
+  const rawPlan = profile?.plan || serverIdentity?.profile?.plan || null
+  const currentPlan = rawPlan ? normalizePlan(rawPlan) : null
   const roleReady = !authLoading && (!user || !!currentRole)
   const managedByLabel =
-    teamMembership === "lead"
-      ? "Team Lead"
-      : teamMembership === "member"
+    currentRole === "super_admin"
+      ? currentPlan
+        ? `${PLAN_LABELS[currentPlan]}`
+        : null
+      : currentRole === "team_lead"
+        ? "Team Lead"
+      : currentRole === "team_member"
         ? "Team Member"
         : currentRole === "project_member"
-        ? "Project Member"
-        : null
+          ? "Project Member"
+          : null
+  const managedByPrefix = currentRole === "super_admin" && currentPlan ? "Current Plan" : "Managed by"
   const canAccessTeams = currentRole === "team_member" || teamMembership !== "none"
+  const adminEmailList =
+    typeof process.env.NEXT_PUBLIC_ADMIN_EMAILS === "string"
+      ? process.env.NEXT_PUBLIC_ADMIN_EMAILS
+          .split(",")
+          .map((email) => email.trim().toLowerCase())
+          .filter(Boolean)
+      : []
+  const isAdminEmail =
+    currentRole === "super_admin" &&
+    !!email &&
+    adminEmailList.includes(email.trim().toLowerCase())
+
+  const planAllowsTeams = canUseTeams(currentPlan)
+  const showUpgradePrompt = currentRole === "super_admin" && currentPlan === "free"
+  const hideManagedBy = currentRole === "super_admin" && !currentPlan
 
   const navItems = roleReady
-    ? currentRole === "freelancer"
-      ? data.navMain.filter((item) => item.url !== "/teams")
-      : currentRole === "project_member"
+    ? currentRole === "project_member"
       ? data.navMain.filter((item) => item.url === "/projects" || (canAccessTeams && item.url === "/teams"))
       : currentRole === "team_member"
         ? data.navMain.filter((item) => item.url === "/projects" || item.url === "/teams")
-        : data.navMain
+        : planAllowsTeams
+          ? data.navMain
+          : data.navMain.filter((item) => item.url !== "/teams")
     : []
+  const filteredNavItems = navItems.filter(
+    (item) => item.url !== "/admin/plan-manager" || isAdminEmail,
+  )
 
   const showOngoingProjects = roleReady
 
@@ -192,17 +234,40 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         {roleReady ? (
           <>
-            <NavMain items={navItems} />
+            <NavMain items={filteredNavItems} />
             {showOngoingProjects ? <NavProjects /> : null}
           </>
         ) : (
           <div className="px-4 py-3 text-xs text-muted-foreground">Loading menu...</div>
         )}
-        {/* <UpgradeBlock /> */}
         {/* <NavSecondary items={data.navSecondary} className="mt-auto" />   */}
       </SidebarContent>
       <SidebarFooter>        
-        <NavUser user={{ name, email, avatar }} role={currentRole} managedByLabel={managedByLabel} onLogout={handleLogout} /> 
+        {showUpgradePrompt ? (
+          <div className="pb-8 px-3">
+            <div className="bg-violet-100 dark:bg-violet-500/20 rounded-xl p-5 space-y-2 text-center group-data-[state=collapsed]:hidden">
+              <div className="space-y-3">
+                  <p className="mt-1 text-sm font-semibold text-violet-700 dark:text-white/80">Unlock full features</p>
+                  <p className="mt-1 text-xs text-violet-700 dark:text-white/40">
+                    Teams, notes, and unlimited templates.
+                  </p>
+              <Link href="/billing" className="mt-3 inline-block w-full">
+                <Button variant="gradient" size="sm" className="rounded-full text-xs py-2">
+                  <Sparkles className="w-3.5! h-3.5!" /> Upgrade plan
+                </Button>
+              </Link>
+            </div>
+          </div>
+          </div>
+        ) : null}
+        <NavUser
+          user={{ name, email, avatar }}
+          role={currentRole}
+          managedByLabel={managedByLabel}
+          managedByPrefix={managedByPrefix}
+          hideManagedBy={hideManagedBy}
+          onLogout={handleLogout}
+        />
       </SidebarFooter>
     </Sidebar>
   )

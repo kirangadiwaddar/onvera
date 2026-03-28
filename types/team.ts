@@ -6,7 +6,7 @@ export type TeamMember = {
   email?: string
   accessToken?: string
   isRegistered?: boolean
-  memberType?: "agency" | "freelancer"
+  memberType?: "team_lead"
   isLead?: boolean
 }
 
@@ -18,7 +18,7 @@ export type TeamLead = {
   email?: string
   accessToken?: string
   isRegistered?: boolean
-  memberType?: "agency" | "freelancer"
+  memberType?: "team_lead"
   isLead?: boolean
 }
 
@@ -32,4 +32,5 @@ export type Team = {
   members: TeamMember[]
   projectsAssigned?: number
   createdAt: string
+  createdBy?: string | null
 }

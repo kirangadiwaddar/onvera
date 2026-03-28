@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { filterProjectsForIdentity } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import { canUseNotes } from "@/lib/billing/plans"
+import { getPlanForUserId } from "@/lib/billing/server"
 
 type ProjectRow = {
   id: number
@@ -138,6 +140,10 @@ export async function PATCH(
   if (!admin || !access.identity) {
     return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
   }
+  const ownerPlan = await getPlanForUserId(admin, access.project.created_by ?? null)
+  if (!canUseNotes(ownerPlan)) {
+    return NextResponse.json({ message: "Project notes are not available on this plan." }, { status: 403 })
+  }
 
   const { data: note, error: noteError } = await admin
     .from("project_notes")
@@ -214,6 +220,10 @@ export async function DELETE(
   if (access.error) return access.error
   if (!admin || !access.identity) {
     return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
+  }
+  const ownerPlan = await getPlanForUserId(admin, access.project.created_by ?? null)
+  if (!canUseNotes(ownerPlan)) {
+    return NextResponse.json({ message: "Project notes are not available on this plan." }, { status: 403 })
   }
 
   const { data: note, error: noteError } = await admin

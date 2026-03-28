@@ -7,6 +7,7 @@ import { templateStructure } from "@/lib/template-structure"
 import type { status } from "@/lib/project-status"
 import type { Section } from "@/lib/types"
 import type { RequestIdentity } from "@/lib/auth/request-identity"
+import { getPlanLimits } from "@/lib/billing/plans"
 
 type ProjectsCacheEntry = {
   expiresAt: number
@@ -231,7 +232,7 @@ type Member = {
   image?: string
   email?: string
   accessToken?: string
-  memberType?: "agency" | "freelancer"
+  memberType?: "team_lead"
   isLead?: boolean
   isExternal?: boolean
 }
@@ -702,6 +703,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
   }
 
+  const planLimits = getPlanLimits(identity.plan)
+  if (planLimits.maxProjects !== null) {
+    const { count } = await admin
+      .from("projects")
+      .select("id", { count: "exact", head: true })
+      .eq("created_by", identity.userId)
+    if ((count ?? 0) >= planLimits.maxProjects) {
+      return NextResponse.json(
+        { message: "Project limit reached for your current plan." },
+        { status: 403 },
+      )
+    }
+  }
+
   const baseSlug = slugify(body.slug || body.title)
 
   if (!baseSlug) {
@@ -724,6 +739,24 @@ export async function POST(request: Request) {
   while (existingSlugs.has(slug)) {
     slug = `${baseSlug}-${suffix}`
     suffix += 1
+  }
+
+  if (!planLimits.defaultTemplates) {
+    const { data: templateRow } = await admin
+      .from("templates")
+      .select("id, is_default, created_by, template_key")
+      .or(`id.eq.${body.templateId},template_key.eq.${body.templateId}`)
+      .maybeSingle()
+    const isDefaultTemplate =
+      templateRow &&
+      (templateRow as { is_default?: boolean | null }).is_default === true &&
+      !(templateRow as { created_by?: string | null }).created_by
+    if (isDefaultTemplate) {
+      return NextResponse.json(
+        { message: "Default templates are not available on your current plan." },
+        { status: 403 },
+      )
+    }
   }
 
   const insertPayload = {

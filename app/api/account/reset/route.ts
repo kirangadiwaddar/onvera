@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 
-const ALLOWED_ROLES = new Set(["agency", "freelancer"])
+const ALLOWED_ROLES = new Set(["super_admin"])
 
 function isMissingCreatedBy(message?: string | null) {
   return Boolean(message && message.toLowerCase().includes("created_by"))

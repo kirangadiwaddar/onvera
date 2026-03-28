@@ -14,9 +14,10 @@ import {
     LayoutGrid,
     LayoutPanelTop,
     Check,
+    Lock,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
     DropdownMenu,
@@ -53,6 +54,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Link from "next/link";
 import { EmptyState } from "@/components/emptyState";
 import { Spinner } from "@/components/ui/spinner";
+import { canUseDefaultTemplates, getPlanLimits, normalizePlan } from "@/lib/billing/plans";
 
 // import templates from "@/src/mocks/data/templates.json"
 // import type { Template } from "@/types/template"
@@ -97,7 +99,7 @@ const slugify = (value: string) =>
 
 export default function TemplateCards({ canSeed = true }: Props) {
     const router = useRouter();
-    const { user, loading: authLoading } = useAuth()
+    const { user, profile, loading: authLoading } = useAuth()
     const storageKey = user?.id ? `onvera:seed-templates-dismissed:${user.id}` : null
     const [templates, setTemplates] = useState<TemplateWithCount[]>([])
     const [loadingTemplates, setLoadingTemplates] = useState(true)
@@ -113,6 +115,51 @@ export default function TemplateCards({ canSeed = true }: Props) {
     const [selectedSeedKeys, setSelectedSeedKeys] = useState<string[]>([])
     const [defaultTemplates, setDefaultTemplates] = useState<DefaultTemplate[]>([])
     const [loadingDefaults, setLoadingDefaults] = useState(false)
+    const [ownedProjectCount, setOwnedProjectCount] = useState(0)
+    const currentPlan = normalizePlan(
+        profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
+    )
+    const planLimits = getPlanLimits(currentPlan)
+    const templateLimitReached = planLimits.maxTemplates !== null && templates.length >= planLimits.maxTemplates
+    const projectLimitReached = planLimits.maxProjects !== null && ownedProjectCount >= planLimits.maxProjects
+    const canSeedDefaults = canSeed && canUseDefaultTemplates(currentPlan)
+    const seedRemaining = planLimits.maxTemplates === null
+        ? Number.POSITIVE_INFINITY
+        : Math.max(planLimits.maxTemplates - templates.length, 0)
+    const lockedTemplateIds = useMemo(() => {
+        if (planLimits.maxTemplates === null) return new Set<string>()
+        const sorted = [...templates].sort((a, b) => {
+            const aDate = a.createdAt ?? a.created_at
+            const bDate = b.createdAt ?? b.created_at
+            if (!aDate && !bDate) return 0
+            if (!aDate) return 1
+            if (!bDate) return -1
+            return new Date(bDate).getTime() - new Date(aDate).getTime()
+        })
+        const locked = sorted.slice(planLimits.maxTemplates).map((template) => template.id)
+        return new Set(locked)
+    }, [planLimits.maxTemplates, templates])
+
+    useEffect(() => {
+        if (authLoading) return
+        if (!user?.id) {
+            setOwnedProjectCount(0)
+            return
+        }
+        const loadProjectCount = async () => {
+            try {
+                const res = await fetchWithAuth("/api/projects?cache=0", { cache: "no-store" })
+                if (!res.ok) return
+                const data = await res.json().catch(() => null) as { projects?: Array<{ createdBy?: string | null }> } | null
+                const projects = Array.isArray(data?.projects) ? data!.projects! : []
+                const ownedCount = projects.filter((project) => project.createdBy === user.id).length
+                setOwnedProjectCount(ownedCount)
+            } catch {
+                setOwnedProjectCount(0)
+            }
+        }
+        void loadProjectCount()
+    }, [authLoading, user?.id])
 
     const loadTemplates = (silent = false) => {
         if (!silent) setLoadingTemplates(true)
@@ -136,6 +183,10 @@ export default function TemplateCards({ canSeed = true }: Props) {
             .finally(() => {
                 if (!silent) setLoadingTemplates(false)
             })
+    }
+
+    const notifyTemplateLocked = () => {
+        toast.error("Template is locked on your current plan.")
     }
 
     useEffect(() => {
@@ -164,15 +215,16 @@ export default function TemplateCards({ canSeed = true }: Props) {
     }
 
     useEffect(() => {
-        if (!canSeed) return
+        if (!canSeedDefaults) return
         if (loadingTemplates) return
         if (templates.length > 0) return
         if (seedPromptDismissed) return
+        if (seedRemaining <= 0) return
         setShowSeedPrompt(true)
-    }, [canSeed, loadingTemplates, seedPromptDismissed, templates.length])
+    }, [canSeedDefaults, loadingTemplates, seedPromptDismissed, seedRemaining, templates.length])
 
     useEffect(() => {
-        if (!showSeedPrompt) return
+        if (!showSeedPrompt || !canSeedDefaults) return
         setLoadingDefaults(true)
         fetchWithAuth("/api/templates/defaults", { cache: "no-store" })
             .then(async (res) => {
@@ -187,10 +239,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
                 const next = Array.isArray(data?.templates) ? (data.templates as DefaultTemplate[]) : []
                 setDefaultTemplates(next)
                 const existingKeys = new Set(templates.map((template): string => template.template_key ?? template.id))
-                const defaults = next
-                    .map((template): string => template.template_key ?? template.id)
-                    .filter((key: string) => !existingKeys.has(key))
-                setSelectedSeedKeys(defaults)
+                setSelectedSeedKeys([])
             })
             .catch(() => {
                 setDefaultTemplates([])
@@ -199,7 +248,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
             .finally(() => {
                 setLoadingDefaults(false)
             })
-    }, [showSeedPrompt, templates])
+    }, [canSeedDefaults, showSeedPrompt, templates])
 
     const existingSeedIds = new Set(
         templates.map((template): string => template.template_key ?? slugify(template.title ?? template.id))
@@ -209,6 +258,10 @@ export default function TemplateCards({ canSeed = true }: Props) {
     )
 
     const handleCreateProject = async (values: ProjectFormValues) => {
+        if (projectLimitReached) {
+            toast.error("Project limit reached for your plan.")
+            return
+        }
         setSubmitting(true)
         try {
             const res = await fetchWithAuth("/api/projects", {
@@ -224,15 +277,15 @@ export default function TemplateCards({ canSeed = true }: Props) {
                 }),
             })
 
+            const data = await res.json().catch(() => null) as { message?: string; slug?: string } | null
             if (!res.ok) {
-                throw new Error("Failed to create project")
+                throw new Error(data?.message || "Failed to create project")
             }
-
-            const data = await res.json()
             setIsCreateOpen(false)
             setSelectedTemplate(null)
 
             if (data?.slug) {
+                setOwnedProjectCount((prev) => prev + 1)
                 router.push(`/projects/${data.slug}`)
                 return
             }
@@ -240,12 +293,17 @@ export default function TemplateCards({ canSeed = true }: Props) {
             router.push("/projects")
         } catch (error) {
             console.error("Template project creation failed:", error)
+            toast.error(error instanceof Error ? error.message : "Failed to create project")
         } finally {
             setSubmitting(false)
         }
     }
 
     const handleCreateTemplate = async (values: { title: string; description: string }) => {
+        if (templateLimitReached) {
+            toast.error("Template limit reached for your plan.")
+            return
+        }
         setSubmitting(true)
         try {
             const res = await fetchWithAuth("/api/templates", {
@@ -263,6 +321,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
             loadTemplates(true)
         } catch (error) {
             console.error("Template creation failed:", error)
+            toast.error(error instanceof Error ? error.message : "Failed to create template")
         } finally {
             setSubmitting(false)
         }
@@ -308,16 +367,26 @@ export default function TemplateCards({ canSeed = true }: Props) {
                 const payload = await res.json().catch(() => null) as { message?: string } | null
                 throw new Error(payload?.message || "Failed to delete template")
             }
+            setTemplates((prev) => prev.filter((template) => template.id !== templateToDelete.id))
             setTemplateToDelete(null)
-            loadTemplates(true)
+            toast.success("Template deleted")
         } catch (error) {
             console.error("Template deletion failed:", error)
+            toast.error(error instanceof Error ? error.message : "Failed to delete template")
         } finally {
             setSubmitting(false)
         }
     }
 
     const handleSeedTemplates = async () => {
+        if (!canSeedDefaults) {
+            toast.error("Default templates are not available on your plan.")
+            return
+        }
+        if (seedRemaining <= 0) {
+            toast.error("Template limit reached for your plan.")
+            return
+        }
         setSubmitting(true)
         try {
             const existingIds = new Set(
@@ -329,6 +398,10 @@ export default function TemplateCards({ canSeed = true }: Props) {
             )
             if (selectedSeedKeys.length === 0) {
                 toast.error("Select at least one template")
+                return
+            }
+            if (selectedSeedKeys.length > seedRemaining) {
+                toast.error(`You can only add ${seedRemaining} more template${seedRemaining === 1 ? "" : "s"}.`)
                 return
             }
             if (toCreate.length > 0) {
@@ -405,6 +478,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
                     <Button
                         variant="outline"
                         onClick={() => setShowSeedPrompt(true)}
+                        disabled={!canSeedDefaults || seedRemaining <= 0}
                     >
                         <LayoutPanelTop />
                         Default templates
@@ -412,9 +486,14 @@ export default function TemplateCards({ canSeed = true }: Props) {
                     <Button
                         variant="gradient"
                         onClick={() => {
+                            if (templateLimitReached) {
+                                toast.error("Template limit reached for your plan.")
+                                return
+                            }
                             setEditingTemplate(null)
                             setShowTemplateModal(true)
                         }}
+                        disabled={submitting}
                     >
                         <Plus strokeWidth={2} /> New Template
                     </Button>                    
@@ -427,14 +506,15 @@ export default function TemplateCards({ canSeed = true }: Props) {
                         icon={<LayoutPanelTop />}
                         title="No templates yet"
                         description="Add your own template or seed the predefined set to get started."
-                        buttonText="Load default templates"
-                        onClick={() => setShowSeedPrompt(true)}
+                        buttonText={canSeedDefaults && seedRemaining > 0 ? "Load default templates" : undefined}
+                        onClick={canSeedDefaults && seedRemaining > 0 ? () => setShowSeedPrompt(true) : undefined}
                     />
                 </div>
             ) : viewMode === "grid" ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
                     {templates.map((template, index) => {
                         const avatarClassName = AVATAR_COLOR_CLASSES[index % AVATAR_COLOR_CLASSES.length]
+                        const isTemplateLocked = lockedTemplateIds.has(template.id)
                         return (
                             <Card
                                 key={template.id}
@@ -454,6 +534,13 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                             />
                                         </div>
                                     </div>
+                                     <div className="flex items-center gap-2">
+                                     {isTemplateLocked ? (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">
+                                                <Lock className="size-3" />
+                                                Locked
+                                            </span>
+                                        ) : null}
                                      <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="-mt-2 -mr-1">
@@ -463,6 +550,10 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                             <DropdownMenuContent align="end" className="rounded-lg">
                                                 <DropdownMenuItem
                                                     onSelect={() => {
+                                                        if (isTemplateLocked) {
+                                                            notifyTemplateLocked()
+                                                            return
+                                                        }
                                                         setEditingTemplate(template)
                                                         setShowTemplateModal(true)
                                                     }}
@@ -474,6 +565,10 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                             <DropdownMenuItem
                                                 variant="destructive"
                                                 onSelect={() => {
+                                                    if (isTemplateLocked) {
+                                                        notifyTemplateLocked()
+                                                        return
+                                                    }
                                                     if (template.projectsCreated > 0) {
                                                         toast.error("This template has active projects. Remove projects first.")
                                                         return
@@ -487,6 +582,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                             </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
+                                     </div>
                                 </CardHeader>
 
                                 <CardContent className="flex-1 mb-3 px-5">
@@ -510,7 +606,13 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                                     variant="outline"
                                                     size="icon"
                                                     className="text-xs rounded-full"
-                                                    onClick={() => router.push(`/templates/${encodeURIComponent(template.id)}`)}
+                                                    onClick={() => {
+                                                        if (isTemplateLocked) {
+                                                            notifyTemplateLocked()
+                                                            return
+                                                        }
+                                                        router.push(`/templates/${encodeURIComponent(template.id)}`)
+                                                    }}
                                                 >
                                                     <List className="text-primary" strokeWidth={2} />
                                                 </Button>
@@ -520,16 +622,24 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                             </TooltipContent>
                                         </Tooltip>
                                         <Tooltip>
-                                            <TooltipTrigger asChild>
+                                        <TooltipTrigger asChild>
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
                                                     className="text-xs rounded-full"
                                                     onClick={() => {
+                                                        if (isTemplateLocked) {
+                                                            notifyTemplateLocked()
+                                                            return
+                                                        }
+                                                        if (projectLimitReached) {
+                                                            toast.error("Project limit reached for your plan.")
+                                                            return
+                                                        }
                                                         setSelectedTemplate(template)
-                                                        setIsCreateOpen(true)
-                                                    }}
-                                                >
+                                                    setIsCreateOpen(true)
+                                                }}
+                                            >
                                                     <Plus className="text-primary" strokeWidth={2} />
                                                 </Button>
                                             </TooltipTrigger>
@@ -557,71 +667,111 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {templates.map((template) => (
-                                    <TableRow key={template.id}>
-                                        <TableCell className="font-medium">
-                                            <Link href={`/templates/${encodeURIComponent(template.id)}`} className="hover:underline">
-                                                {template.title}
-                                            </Link>
-                                        </TableCell>
-                                        <TableCell className="text-muted-foreground">{template.description}</TableCell>
-                                        <TableCell>{template.projectsCreated}</TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => router.push(`/templates/${encodeURIComponent(template.id)}`)}
-                                                >
-                                                    Manage
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    onClick={() => {
-                                                        setSelectedTemplate(template)
-                                                        setIsCreateOpen(true)
+                                {templates.map((template) => {
+                                    const isTemplateLocked = lockedTemplateIds.has(template.id)
+                                    return (
+                                        <TableRow key={template.id}>
+                                            <TableCell className="font-medium">
+                                                <Link
+                                                    href={`/templates/${encodeURIComponent(template.id)}`}
+                                                    className={`hover:underline ${isTemplateLocked ? "pointer-events-none text-muted-foreground" : ""}`}
+                                                    onClick={(event) => {
+                                                        if (isTemplateLocked) {
+                                                            event.preventDefault()
+                                                            notifyTemplateLocked()
+                                                        }
                                                     }}
                                                 >
-                                                    New Project
-                                                </Button>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                            <MoreHorizontal className="size-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="rounded-lg">
-                                                        <DropdownMenuItem
-                                                            onSelect={() => {
-                                                                setEditingTemplate(template)
-                                                                setShowTemplateModal(true)
-                                                            }}
-                                                            className="text-xs!"
-                                                        >
-                                                            <Pencil />
-                                                            Edit
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem
-                                                            variant="destructive"
-                                                            onSelect={() => {
-                                                                if (template.projectsCreated > 0) {
-                                                                    toast.error("This template has active projects. Remove projects first.")
-                                                                    return
-                                                                }
-                                                                setTemplateToDelete(template)
-                                                            }}
-                                                            className="text-xs!"
-                                                        >
-                                                            <Trash2 />
-                                                            Delete
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                                    {template.title}
+                                                </Link>
+                                                {isTemplateLocked ? (
+                                                    <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-200">
+                                                        <Lock className="size-3" />
+                                                        Locked
+                                                    </span>
+                                                ) : null}
+                                            </TableCell>
+                                            <TableCell className="text-muted-foreground">{template.description}</TableCell>
+                                            <TableCell>{template.projectsCreated}</TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                            if (isTemplateLocked) {
+                                                                notifyTemplateLocked()
+                                                                return
+                                                            }
+                                                            router.push(`/templates/${encodeURIComponent(template.id)}`)
+                                                        }}
+                                                    >
+                                                        Manage
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        onClick={() => {
+                                                            if (isTemplateLocked) {
+                                                                notifyTemplateLocked()
+                                                                return
+                                                            }
+                                                            if (projectLimitReached) {
+                                                                toast.error("Project limit reached for your plan.")
+                                                                return
+                                                            }
+                                                            setSelectedTemplate(template)
+                                                            setIsCreateOpen(true)
+                                                        }}
+                                                    >
+                                                        New Project
+                                                    </Button>
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                                <MoreHorizontal className="size-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" className="rounded-lg">
+                                                            <DropdownMenuItem
+                                                                onSelect={() => {
+                                                                    if (isTemplateLocked) {
+                                                                        notifyTemplateLocked()
+                                                                        return
+                                                                    }
+                                                                    setEditingTemplate(template)
+                                                                    setShowTemplateModal(true)
+                                                                }}
+                                                                className="text-xs!"
+                                                            >
+                                                                <Pencil />
+                                                                Edit
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem
+                                                                variant="destructive"
+                                                                onSelect={() => {
+                                                                    if (isTemplateLocked) {
+                                                                        notifyTemplateLocked()
+                                                                        return
+                                                                    }
+                                                                    if (template.projectsCreated > 0) {
+                                                                        toast.error("This template has active projects. Remove projects first.")
+                                                                        return
+                                                                    }
+                                                                    setTemplateToDelete(template)
+                                                                }}
+                                                                className="text-xs!"
+                                                            >
+                                                                <Trash2 />
+                                                                Delete
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                })}
                             </TableBody>
                         </Table>
                     </div>
@@ -652,58 +802,58 @@ export default function TemplateCards({ canSeed = true }: Props) {
                 </AlertDialogContent>
             </AlertDialog>
 
-            {isCreateOpen && selectedTemplate ? (
-                <ProjectModal
-                    key={selectedTemplate.id}
-                    open={isCreateOpen}
-                    onOpenChange={(open) => {
-                        setIsCreateOpen(open)
-                        if (!open) setSelectedTemplate(null)
-                    }}
-                    mode="create"
-                    templates={templates.map((template) => ({
-                        id: template.id,
-                        title: template.title,
-                    }))}
-                    fixedTemplateId={selectedTemplate.id}
-                    initialValues={{
-                        title: "",
-                        avatarSrc: "",
-                        templateId: selectedTemplate.id,
-                    }}
-                    loading={submitting}
-                    onSubmit={handleCreateProject}
-                />
-            ) : null}
-
-            {showTemplateModal ? (
-                <TemplateModal
-                    open={showTemplateModal}
-                    onOpenChange={(open) => {
-                        setShowTemplateModal(open)
-                        if (!open) setEditingTemplate(null)
-                    }}
-                    mode={editingTemplate ? "edit" : "create"}
-                    loading={submitting}
-                    initialValues={
-                        editingTemplate
-                            ? {
-                                title: editingTemplate.title,
-                                description: editingTemplate.description,
-                            }
-                            : undefined
+            <ProjectModal
+                key={selectedTemplate?.id ?? "create-project"}
+                open={Boolean(isCreateOpen && selectedTemplate)}
+                onOpenChange={(open) => {
+                    setIsCreateOpen(open)
+                    if (!open) {
+                        window.setTimeout(() => setSelectedTemplate(null), 300)
                     }
-                    onSubmit={(values) => {
-                        if (editingTemplate) {
-                            handleUpdateTemplate(values)
-                            return
-                        }
-                        handleCreateTemplate(values)
-                    }}
-                />
-            ) : null}
+                }}
+                mode="create"
+                templates={templates.map((template) => ({
+                    id: template.id,
+                    title: template.title,
+                }))}
+                fixedTemplateId={selectedTemplate?.id ?? ""}
+                initialValues={{
+                    title: "",
+                    avatarSrc: "",
+                    templateId: selectedTemplate?.id ?? "",
+                }}
+                loading={submitting}
+                onSubmit={handleCreateProject}
+            />
 
-            {canSeed ? (
+            <TemplateModal
+                open={showTemplateModal}
+                onOpenChange={(open) => {
+                    setShowTemplateModal(open)
+                    if (!open) {
+                        window.setTimeout(() => setEditingTemplate(null), 300)
+                    }
+                }}
+                mode={editingTemplate ? "edit" : "create"}
+                loading={submitting}
+                initialValues={
+                    editingTemplate
+                        ? {
+                            title: editingTemplate.title,
+                            description: editingTemplate.description,
+                        }
+                        : undefined
+                }
+                onSubmit={(values) => {
+                    if (editingTemplate) {
+                        handleUpdateTemplate(values)
+                        return
+                    }
+                    handleCreateTemplate(values)
+                }}
+            />
+
+            {canSeedDefaults ? (
                 <Dialog
                     open={showSeedPrompt}
                     onOpenChange={(open) => {
@@ -714,13 +864,13 @@ export default function TemplateCards({ canSeed = true }: Props) {
                         }
                     }}
                 >
-                    <DialogContent className="sm:max-w-lg overflow-hidden">
+                    <DialogContent className="sm:max-w-2xl overflow-hidden">
                         <DialogHeader>
                             <div>
-                                <DialogTitle>Add predefined templates?</DialogTitle>
-                                <DialogDescription>
+                                <DialogTitle>Select the templates you want to add</DialogTitle>
+                                {/* <DialogDescription>
                                     Select the templates you want to add.
-                                </DialogDescription>
+                                </DialogDescription> */}
                             </div>
                         </DialogHeader>
                         <div className="space-y-4">
@@ -736,12 +886,21 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                 </div>
                             ) : null}
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span className="text-[11px]">Choose the set to add</span>
+                                <span className="text-[11px]">
+                                    Choose up to {Number.isFinite(seedRemaining) ? seedRemaining : "all"} templates
+                                </span>
                                 <div className="flex items-center gap-2">
                                     <button
                                         type="button"
                                         className="rounded-full border border-transparent px-2 py-1 text-[11px] text-violet-700 hover:border-violet-200 hover:bg-violet-50 dark:hover:border-violet-500/30 dark:hover:bg-violet-500/10"
-                                        onClick={() => setSelectedSeedKeys(selectableSeedTemplates.map((t) => t.template_key ?? t.id))}
+                                        onClick={() => {
+                                            const keys = selectableSeedTemplates.map((t) => t.template_key ?? t.id)
+                                            if (seedRemaining !== Number.POSITIVE_INFINITY) {
+                                                setSelectedSeedKeys(keys.slice(0, seedRemaining))
+                                                return
+                                            }
+                                            setSelectedSeedKeys(keys)
+                                        }}
                                         disabled={loadingDefaults}
                                     >
                                         Select all ({selectedSeedKeys.length})
@@ -756,15 +915,16 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                     </button>
                                 </div>
                             </div>
-                            <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
+                            <div className="max-h-[45vh] grid grid-cols-2 gap-3 overflow-y-auto pr-1">
                                 {defaultTemplates.map((template: DefaultTemplate) => {
                                     const key = template.template_key ?? template.id
                                     const checked = selectedSeedKeys.includes(key)
                                     const isExisting = existingSeedIds.has(key)
+                                    const limitReached = !checked && selectedSeedKeys.length >= seedRemaining
                                     return (
                                         <label
                                             key={template.id}
-                                            className={`group flex items-center justify-between gap-4 rounded-xl border px-4 py-3 text-sm transition ${
+                                            className={`group flex items-center justify-between gap-4 rounded-xl border px-4 py-3 text-sm transition cursor-pointer ${
                                                 isExisting
                                                     ? "border-dashed border-zinc-200 bg-zinc-50 text-muted-foreground opacity-70 dark:border-white/10 dark:bg-white/5"
                                                     : checked
@@ -776,7 +936,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                                 type="checkbox"
                                                 className="sr-only"
                                                 checked={checked}
-                                                disabled={isExisting}
+                                                disabled={isExisting || limitReached}
                                                 onChange={(event) => {
                                                     const nextChecked = event.target.checked
                                                     setSelectedSeedKeys((prev) =>
@@ -787,8 +947,8 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                                 }}
                                             />
                                             <div className="min-w-0">
-                                                <p className="font-medium leading-5">{template.title}</p>
-                                                <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
+                                                <p className="text-xs font-medium leading-5">{template.title}</p>
+                                                <p className="text-[10px] text-muted-foreground line-clamp-2">{template.description}</p>
                                                 {isExisting ? (
                                                     <p className="text-[11px] text-emerald-600 mt-1">Already added</p>
                                                 ) : null}

@@ -199,7 +199,7 @@ export default function Page() {
       <EmptyState
         icon={<TriangleAlert className="text-destructive" />}
         title="Dashboard Unavailable"
-        description="Dashboard is available only to admins."
+        description="Dashboard is available only to team leads."
       />
     )
   }

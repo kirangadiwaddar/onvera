@@ -43,7 +43,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { BadgeCheck, Check, Copy, Crown, Download, Files, MoreHorizontal, NotebookText, Pen, Plus, Trash, Trash2, Users, X } from "lucide-react"
+import { BadgeCheck, Check, Copy, Crown, Download, Files, Lock, MoreHorizontal, NotebookText, Pen, Plus, Trash, Trash2, Users, X } from "lucide-react"
 
 import {
   Dialog,
@@ -79,6 +79,7 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
+import { canUseNotes, canUseTeams, getPlanLimits, normalizePlan } from "@/lib/billing/plans"
 
 const CUSTOM_SECTIONS_KEY = "__custom_sections"
 const DEFAULT_NOTE_REACTIONS: string[] = []
@@ -317,8 +318,22 @@ export default function ProjectDetailPage() {
   const [composerMentionIndex, setComposerMentionIndex] = useState(0)
   const [editCursor, setEditCursor] = useState<Record<string, number>>({})
   const [editMentionIndex, setEditMentionIndex] = useState<Record<string, number>>({})
+  const currentRole = (profile?.role || user?.user_metadata?.role || null) as string | null
+  const restrictedRole = currentRole === "project_member" || currentRole === "team_member"
+  const currentPlan = normalizePlan(
+    project?.plan ||
+      profile?.plan ||
+      (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
+  )
+  const planLimits = getPlanLimits(currentPlan)
+  const notesEnabled = canUseNotes(currentPlan)
+  const teamAccessEnabled = canUseTeams(currentPlan)
 
   const handleAddNote = async () => {
+    if (!notesEnabled) {
+      toast.error("Project notes are not available on this plan.")
+      return
+    }
     const trimmed = noteDraft.trim()
     if (!trimmed) return
     if (!slug) return
@@ -371,6 +386,10 @@ export default function ProjectDetailPage() {
   }
 
   const saveEditNote = async (noteId: string) => {
+    if (!notesEnabled) {
+      toast.error("Project notes are not available on this plan.")
+      return
+    }
     const draft = (editDrafts[noteId] || "").trim()
     if (!draft) return
     if (!slug) return
@@ -403,6 +422,10 @@ export default function ProjectDetailPage() {
   }
 
   const deleteNote = async (noteId: string) => {
+    if (!notesEnabled) {
+      toast.error("Project notes are not available on this plan.")
+      return
+    }
     if (!slug) return
     if (!window.confirm("Delete this note? This cannot be undone.")) return
 
@@ -423,6 +446,10 @@ export default function ProjectDetailPage() {
   }
 
   const toggleReaction = async (noteId: string, emoji: string) => {
+    if (!notesEnabled) {
+      toast.error("Project notes are not available on this plan.")
+      return
+    }
     if (!slug) return
     const key = `${noteId}:${emoji}`
     if (reactionSubmitting[key]) return
@@ -518,12 +545,13 @@ export default function ProjectDetailPage() {
   )
 
   useEffect(() => {
+    if (!notesEnabled) return
     if (typeof window === "undefined") return
     if (!slug) return
     const key = `onvera:project-notes-seen:${slug}`
     const stored = window.localStorage.getItem(key)
     setNotesSeenAt(stored)
-  }, [slug])
+  }, [notesEnabled, slug])
 
 
   const loadProject = useCallback(
@@ -598,8 +626,18 @@ export default function ProjectDetailPage() {
     if (!slug) return
     lastSeenStorageKeyRef.current = `project_client_submission_seen:${slug}`
     void loadProject()
+  }, [authLoading, loadProject, slug, user?.id])
+
+  useEffect(() => {
+    if (!notesEnabled) {
+      setNotes([])
+      return
+    }
+    if (authLoading) return
+    if (!user?.id) return
+    if (!slug) return
     void loadNotes(String(slug))
-  }, [authLoading, loadNotes, loadProject, slug, user?.id])
+  }, [authLoading, loadNotes, notesEnabled, slug, user?.id])
 
   useEffect(() => {
     if (!project) return
@@ -640,6 +678,7 @@ export default function ProjectDetailPage() {
   }, [loadProject, slug, supabase])
 
   useEffect(() => {
+    if (!notesEnabled) return
     if (!slug || !supabase) return
     const channel = supabase
       .channel(`project-notes-${slug}`)
@@ -653,12 +692,12 @@ export default function ProjectDetailPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [loadNotes, slug, supabase])
+  }, [loadNotes, notesEnabled, slug, supabase])
 
   useEffect(() => {
     if (authLoading) return
     if (!user?.id) return
-    if (!openInvite || inviteType !== "team") return
+    if (!openInvite || !teamAccessEnabled) return
     if (teams.length > 0) return
 
     const fetchTeams = async () => {
@@ -674,26 +713,34 @@ export default function ProjectDetailPage() {
     }
 
     fetchTeams()
-  }, [authLoading, inviteType, openInvite, teams.length, user?.id])
-
-  const currentRole = (profile?.role || user?.user_metadata?.role || null) as string | null
-  const restrictedRole = currentRole === "project_member" || currentRole === "team_member"
-  const isFreelancer = currentRole === "freelancer"
-
-  const availableTeams = teams.filter((team) => !project?.teamIds?.includes(team.id))
+  }, [authLoading, openInvite, teamAccessEnabled, teams.length, user?.id])
 
   useEffect(() => {
-    if (isFreelancer && inviteType === "team") {
+    if (!notesEnabled) {
+      setNotesOpen(false)
+      setShowNoteComposer(false)
+    }
+  }, [notesEnabled])
+
+  const availableTeams = teamAccessEnabled
+    ? teams.filter((team) => !project?.teamIds?.includes(team.id))
+    : []
+  const hasAvailableTeams = teamAccessEnabled && availableTeams.length > 0
+
+  useEffect(() => {
+    if ((!teamAccessEnabled || !hasAvailableTeams) && inviteType === "team") {
       setInviteType("member")
+      setSelectedTeamId("")
       return
     }
     if (!openInvite || inviteType !== "team") return
     if (!selectedTeamId && availableTeams.length > 0) {
       setSelectedTeamId(String(availableTeams[0].id))
     }
-  }, [availableTeams, inviteType, openInvite, selectedTeamId, isFreelancer])
+  }, [availableTeams, hasAvailableTeams, inviteType, openInvite, selectedTeamId, teamAccessEnabled])
 
-  const canEditProject = !restrictedRole
+  const isProjectLocked = Boolean(project?.isLocked)
+  const canEditProject = !restrictedRole && !isProjectLocked
   const submissions = project?.submissions ?? {}
   const templateSections = useMemo(
     () => project?.templateStructure || [],
@@ -714,7 +761,11 @@ export default function ProjectDetailPage() {
   const assignedTeams = Array.isArray(project?.teams)
     ? project!.teams.filter(Boolean)
     : []
+  const visibleTeams = teamAccessEnabled ? assignedTeams : []
   const externalMembers = project?.members?.filter((member) => member && member.isExternal) ?? []
+  const externalMemberLimit = planLimits.maxExternalMembersPerProject
+  const externalMemberLimitReached =
+    externalMemberLimit !== null && externalMembers.length >= externalMemberLimit
   const mentionCandidates = useMemo(() => {
     const candidates = new Map<string, { name: string; image?: string; email?: string }>()
     const currentUserEmail = (user?.email || "").toLowerCase()
@@ -728,7 +779,7 @@ export default function ProjectDetailPage() {
       candidates.set(key, { name, image: member.image, email: member.email })
     }
 
-    assignedTeams.forEach((team) => {
+    visibleTeams.forEach((team) => {
       addCandidate(team.lead as { name?: string; email?: string; image?: string })
       ;(team.members || []).forEach((member) =>
         addCandidate(member as { name?: string; email?: string; image?: string }),
@@ -739,7 +790,7 @@ export default function ProjectDetailPage() {
     )
 
     return Array.from(candidates.values()).sort((a, b) => a.name.localeCompare(b.name))
-  }, [assignedTeams, project?.members])
+  }, [project?.members, visibleTeams])
 
   const filteredComposerMentions = useMemo(() => {
     if (!composerMention?.active) return []
@@ -752,12 +803,14 @@ export default function ProjectDetailPage() {
 
   const latestNoteAt = useMemo(() => (notes.length > 0 ? notes[0].createdAt : null), [notes])
   const hasNewNotes = useMemo(() => {
+    if (!notesEnabled) return false
     if (!latestNoteAt) return false
     if (!notesSeenAt) return true
     return new Date(latestNoteAt).getTime() > new Date(notesSeenAt).getTime()
-  }, [latestNoteAt, notesSeenAt])
+  }, [latestNoteAt, notesEnabled, notesSeenAt])
 
   useEffect(() => {
+    if (!notesEnabled) return
     if (!notesOpen) return
     if (!latestNoteAt) return
     const nextSeen = latestNoteAt
@@ -765,7 +818,7 @@ export default function ProjectDetailPage() {
     if (typeof window !== "undefined" && slug) {
       window.localStorage.setItem(`onvera:project-notes-seen:${slug}`, nextSeen)
     }
-  }, [latestNoteAt, notesOpen, slug])
+  }, [latestNoteAt, notesEnabled, notesOpen, slug])
 
   const highlightMentions = (value: string) => {
     if (!value) return value
@@ -920,7 +973,7 @@ export default function ProjectDetailPage() {
         member.isLead && typeof member.email === "string" && member.email.toLowerCase() === currentEmail,
     ),
   )
-  const canManageChecklist = canEditProject || isLeadMember
+  const canManageChecklist = !isProjectLocked && (canEditProject || isLeadMember)
   const isProjectCompleted = project.status === "completed"
   const canSeeAccessToken = isLeadMember || !restrictedRole
   const inviteBaseUrl =
@@ -971,6 +1024,10 @@ export default function ProjectDetailPage() {
 
   const addExternalMember = async () => {
     if (!newMemberName || !newMemberDesignation || !newMemberEmail) return
+    if (externalMemberLimitReached) {
+      toast.error("External member limit reached for this plan.")
+      return
+    }
     setInviteSubmitting(true)
 
     const tokenBytes = new Uint8Array(12)
@@ -1080,6 +1137,7 @@ export default function ProjectDetailPage() {
 
   const addTeam = async () => {
     if (!selectedTeamId) return
+    if (!teamAccessEnabled) return
 
     const team = teams.find((t) => String(t.id) === selectedTeamId)
     if (!team) return
@@ -1385,6 +1443,12 @@ export default function ProjectDetailPage() {
             <CalendarCheck />{" "}
             {new Date(project.createdAt).toLocaleDateString("en-GB")}
           </Badge>
+          {isProjectLocked ? (
+            <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200 py-2 px-3">
+              <Lock className="size-4" />
+              Locked
+            </Badge>
+          ) : null}
           {canEditProject ? (
             <Select
               value={project.status}
@@ -1415,82 +1479,85 @@ export default function ProjectDetailPage() {
           {canManageChecklist ? (
             <ClientAccessModal projectSlug={project.slug} canManage={canManageChecklist} />
           ) : null}
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-xs"
-            onClick={() => setNotesOpen(true)}
-          >
-            <span className="relative inline-flex items-center gap-2">
-              <NotebookText />
-              Notes
-              {hasNewNotes ? (
-                <span className="h-2 w-2 rounded-full bg-orange-500" />
-              ) : null}
-            </span>
-          </Button>
+          {notesEnabled ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs"
+              onClick={() => setNotesOpen(true)}
+            >
+              <span className="relative inline-flex items-center gap-2">
+                <NotebookText />
+                Notes
+                {hasNewNotes ? (
+                  <span className="h-2 w-2 rounded-full bg-orange-500" />
+                ) : null}
+              </span>
+            </Button>
+          ) : null}
         </div>
       </div>
       <Separator className="mt-4 bg-border" />
 
-      <Sheet
-        open={notesOpen}
-        onOpenChange={(open) => {
-          setNotesOpen(open)
-          if (!open) {
-            setShowNoteComposer(false)
-          }
-        }}
-      >
-        <SheetContent
-          side="right"
-          className="w-[360px] max-w-[90vw]"
-          showCloseButton={false}
-          onOpenAutoFocus={(event) => event.preventDefault()}
+      {notesEnabled ? (
+        <Sheet
+          open={notesOpen}
+          onOpenChange={(open) => {
+            setNotesOpen(open)
+            if (!open) {
+              setShowNoteComposer(false)
+            }
+          }}
         >
-          <SheetHeader className="border-b border-zinc-100 dark:border-white/10">
-            <div className="flex items-center justify-between">
-              <div>
-                <SheetTitle className="text-sm">Notes</SheetTitle>
-                <p className="text-[11px] text-muted-foreground">
-                  Shared Notes of this project.
-                </p>
-              </div>
-              <TooltipProvider delayDuration={300}>
-                <div className="flex items-center gap-2 pr-1">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9 rounded-full focus-visible:ring-0 focus-visible:ring-offset-0"
-                        onClick={() => setShowNoteComposer(true)}
-                        aria-label="Add note"
-                      >
-                        <Plus className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">Add note</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <SheetClose asChild>
+          <SheetContent
+            side="right"
+            className="w-[360px] max-w-[90vw]"
+            showCloseButton={false}
+            onOpenAutoFocus={(event) => event.preventDefault()}
+          >
+            <SheetHeader className="border-b border-zinc-100 dark:border-white/10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <SheetTitle className="text-sm">Notes</SheetTitle>
+                  <p className="text-[11px] text-muted-foreground">
+                    Shared Notes of this project.
+                  </p>
+                </div>
+                <TooltipProvider delayDuration={300}>
+                  <div className="flex items-center gap-2 pr-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-9 w-9 rounded-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-800 focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200"
-                          aria-label="Close"
+                          className="h-9 w-9 rounded-full focus-visible:ring-0 focus-visible:ring-offset-0"
+                          onClick={() => setShowNoteComposer(true)}
+                          aria-label="Add note"
                         >
-                          <X className="size-4" />
+                          <Plus className="size-4" />
                         </Button>
-                      </SheetClose>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">Close</TooltipContent>
-                  </Tooltip>
-                </div>
-              </TooltipProvider>
-            </div>
-          </SheetHeader>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">Add note</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <SheetClose asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 rounded-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-800 focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200"
+                            aria-label="Close"
+                          >
+                            <X className="size-4" />
+                          </Button>
+                        </SheetClose>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">Close</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TooltipProvider>
+              </div>
+            </SheetHeader>
 
           <div className="px-4">          
             {showNoteComposer || noteDraft.trim() ? (
@@ -1837,8 +1904,9 @@ export default function ProjectDetailPage() {
 
             
           </div>
-        </SheetContent>
-      </Sheet>
+          </SheetContent>
+        </Sheet>
+      ) : null}
 
       <div className="px-7 py-0 grid grid-cols-3">
         <div className="left-block col-span-2 border-r border-zinc-100 dark:border-zinc-700 h-full py-5 pb-7 pr-5">
@@ -2071,28 +2139,36 @@ export default function ProjectDetailPage() {
         <div>
           <div className="title-flex flex items-center justify-between gap-3 mb-5">
             <h3 className="text-base font-medium">
-              {isFreelancer ? "Project Members" : "Teams & Members"}
+              {teamAccessEnabled ? "Teams & Members" : "Project Members"}
             </h3>
             {canEditProject && (
               <Button
                 size="sm"
                 variant="gradient"
                 onClick={() => {
-                  setInviteType(isFreelancer ? "member" : "member")
+                  if (!teamAccessEnabled && externalMemberLimitReached) {
+                    toast.error("External member limit reached for this plan.")
+                    return
+                  }
+                  setInviteType("member")
                   setOpenInvite(true)
                 }}
               >
                 <Plus className="h-4 w-4" />
-                {isFreelancer ? "Add Member" : "Add Team/Members"}
+                {teamAccessEnabled ? "Add Team/Members" : "Add Member"}
               </Button>
             )}
           </div>
 
-          {assignedTeams.length === 0 && externalMembers.length === 0 ? (
+          {visibleTeams.length === 0 && externalMembers.length === 0 ? (
             <EmptyState
               icon={<Users />}
               title="No members added"
-              description={isFreelancer ? "Invite external collaborators to this project." : "Create a team or invite external members to this project."}
+              description={
+                teamAccessEnabled
+                  ? "Create a team or invite external members to this project."
+                  : "Invite external collaborators to this project."
+              }
               // buttonText={canEditProject ? (isFreelancer ? "Add Member" : "Add Team/Members") : undefined}
               // onClick={() => {
               //   setInviteType(isFreelancer ? "member" : "member")
@@ -2114,7 +2190,7 @@ export default function ProjectDetailPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {!isFreelancer && assignedTeams.map((team) => {
+                  {visibleTeams.map((team) => {
                     if (!team) return null
                     const members = [
                       ...(team.lead ? [{ ...team.lead, isLead: true }] : []),
@@ -2328,32 +2404,31 @@ export default function ProjectDetailPage() {
       <Dialog open={openInvite} onOpenChange={setOpenInvite}>
         <DialogContent className="space-y-6">
           <DialogHeader>
-            <DialogTitle>Add Team or Member</DialogTitle>
+            <DialogTitle>{teamAccessEnabled ? "Add Team or Member" : "Add Member"}</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-3">
-            <Select
-              value={inviteType}
-              onValueChange={(value: "member" | "team") =>
-                setInviteType(value)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="member">
-                  Add External Member
-                </SelectItem>
-                {!isFreelancer && (
+            {hasAvailableTeams ? (
+              <Select
+                value={inviteType}
+                onValueChange={(value: "member" | "team") =>
+                  setInviteType(value)
+                }                
+              >
+                <SelectTrigger className="mb-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="member">
+                    Add External Member
+                  </SelectItem>
                   <SelectItem value="team">
                     Add Existing Team
                   </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
+                </SelectContent>
+              </Select>
+            ) : null}
 
-            {!isFreelancer && inviteType === "team" && (
+            {hasAvailableTeams && inviteType === "team" && (
               <div className="space-y-2">
                 <Label>Select Team</Label>
                 <Select
@@ -2376,10 +2451,14 @@ export default function ProjectDetailPage() {
                   ) : null}
                 </div>
               )}
-          </div>
 
           {inviteType === "member" && (
             <div className="space-y-3">
+              {externalMemberLimitReached ? (
+                <p className="text-xs text-destructive">
+                  External member limit reached for this plan.
+                </p>
+              ) : null}
               <div className="space-y-2">
                 <Label>Member Name</Label>
                 <Input
@@ -2421,7 +2500,11 @@ export default function ProjectDetailPage() {
               disabled={
                 inviteType === "team"
                   ? inviteSubmitting || !selectedTeamId || availableTeams.length === 0
-                  : inviteSubmitting || !newMemberName || !newMemberDesignation || !newMemberEmail
+                  : inviteSubmitting ||
+                    externalMemberLimitReached ||
+                    !newMemberName ||
+                    !newMemberDesignation ||
+                    !newMemberEmail
               }
             >
               {inviteSubmitting ? "Adding..." : <><Plus /> Add</>}
@@ -2430,7 +2513,14 @@ export default function ProjectDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!viewTeam} onOpenChange={(open) => { if (!open) setViewTeam(null) }}>
+      <Dialog
+        open={Boolean(viewTeam)}
+        onOpenChange={(open) => {
+          if (!open) {
+            window.setTimeout(() => setViewTeam(null), 300)
+          }
+        }}
+      >
         <DialogContent className="space-y-4 sm:max-w-5xl">
           <DialogHeader className="mb-0">
             <DialogTitle>{viewTeam?.name || "Team Members"}</DialogTitle>

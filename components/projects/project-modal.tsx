@@ -289,7 +289,7 @@ export function ProjectModal({
           <DialogFooter>
             <Button
               type="button"
-              variant="outline"
+              variant="destructiveLight"
               onClick={() => onOpenChange(false)}
               disabled={loading || uploadingLogo}
             >

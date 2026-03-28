@@ -153,6 +153,9 @@ html {
 input{
   box-shadow: none !important;
 }
+label {
+  @apply mb-1.5 inline-flex;
+}
 
 @layer base {
   * {

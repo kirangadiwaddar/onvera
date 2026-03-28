@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BadgeCheck,
   CheckCircle2,
+  CircleX,
   ChevronDown,
   FolderKanban,
   Lock,
@@ -29,6 +30,7 @@ import dashboardDark from "./assets/dashboard-dark.png"
 import dashboardLight from "./assets/dashboard-light.png"
 import { useAuth } from "@/components/providers/auth-provider"
 import { getDefaultPathForRole } from "@/lib/auth/roles"
+import { normalizePlan } from "@/lib/billing/plans"
 
 const stats = [
   { value: "4,200+", label: "Projects shipped" },
@@ -68,17 +70,15 @@ const clientPoints = [
 ]
 
 const roles = [
-  ["Admin", "Full workspace access", "Manage templates, teams, billing, and projects"],
-  ["Freelancer", "Solo workspace", "Run projects, invite external members, track approvals"],
-  ["Team Lead", "Assigned teams", "Review submissions, approve deliverables, lead updates"],
+  ["Team Lead", "Full workspace access", "Manage templates, teams, billing, and projects"],
   ["Team Member", "Assigned projects", "Update tasks, upload assets, collaborate on checklists"],
   ["Project Member", "Project-specific", "View progress, submit assets, respond to feedback"],
 ]
 
 const faqs = [
   {
-    q: "Is Onvera for both agencies and solo freelancers?",
-    a: "Yes. The experience works for agency workspaces and freelancer-led projects with tailored structure for both.",
+    q: "Is Onvera for teams and solo creators?",
+    a: "Yes. Start on the Free plan and scale up with Agency tiers as your team grows.",
   },
   {
     q: "Do clients need full accounts?",
@@ -126,6 +126,9 @@ function Grain() {
 
 export default function OnveraLandingV2Page() {
   const { user, profile } = useAuth()
+  const currentPlan = normalizePlan(
+    profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
+  )
   const [theme, setTheme] = useState<"light" | "dark">("dark")
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly")
   const [openFaq, setOpenFaq] = useState<number | null>(0)
@@ -136,13 +139,14 @@ export default function OnveraLandingV2Page() {
         name: "Free",
         price_monthly: 0,
         price_yearly: 0,
-        description: "Best to get started",
+        description: "For getting started",
         highlight: false,
         features: [
-          "1 active client/project",
-          "Basic onboarding workflow",
-          "Email notifications",
-          "Limited storage",
+          "1 Project",
+          "1 Template (default templates included)",
+          "No Team access",
+          "No Project notes",
+          "1 External member per project",
         ],
         cta: "Get Started",
       },
@@ -154,11 +158,11 @@ export default function OnveraLandingV2Page() {
         description: "For solo professionals",
         highlight: false,
         features: [
-          "Up to 5 clients/projects",
-          "Custom onboarding workflows",
-          "Email + reminders",
-          "File uploads",
-          "Basic templates",
+          "Up to 5 projects",
+          "Up to 5 templates (choose from all)",
+          "No team access",
+          "No project notes",
+          "Up to 5 external members per project",
         ],
         cta: "Start Free Trial",
       },
@@ -170,25 +174,27 @@ export default function OnveraLandingV2Page() {
         description: "For growing teams",
         highlight: true,
         features: [
-          "Unlimited clients/projects",
-          "Up to 10 team members",
-          "Advanced workflows",
-          "Custom branding",
-          "Analytics dashboard",
+          "Unlimited projects",
+          "Unlimited templates",
+          "Up to 5 teams",
+          "Project notes",
+          "Unlimited external members",
         ],
         cta: "Get Started",
       },
       {
-        id: "pro",
-        name: "Pro Agency",
+        id: "agency_pro",
+        name: "Agency Pro",
         price_monthly: null ,
         price_yearly: null,
         description: "For scaling agencies",
         highlight: false,
         features: [
-          "Unlimited clients/projects",
-          "Unlimited team members",
-          "White-label platform",
+          "Unlimited projects",
+          "Unlimited templates",
+          "Unlimited teams",
+          "Project notes",
+          "Unlimited external members",
         ],
         cta: "Contact Sales",
       },
@@ -328,7 +334,7 @@ export default function OnveraLandingV2Page() {
               transition={{ duration: 0.6 }}
               className="mt-6 max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl"
             >
-              A modern client OS - <span className="bg-gradient-to-tr from-violet-400  to-violet-700 bg-clip-text text-transparent">Onboarding System</span> for agencies and freelancers.
+              A modern client OS - <span className="bg-gradient-to-tr from-violet-400  to-violet-700 bg-clip-text text-transparent">Onboarding System</span> for teams and creators.
             </motion.h1>
 
             <p className="mt-6 max-w-2xl text-sm text-zinc-600 dark:text-white/70">
@@ -690,7 +696,7 @@ export default function OnveraLandingV2Page() {
               A clear access map for every role.
             </h2>
             <p className="mt-4 max-w-2xl text-zinc-600 dark:text-white/70">
-              Keep responsibilities obvious with a structured permissions table for agencies, freelancers, leads, teams, and project members.
+              Keep responsibilities obvious with a structured permissions table for team leads, team members, and project members.
             </p>
           </div>
 
@@ -738,10 +744,10 @@ export default function OnveraLandingV2Page() {
             <div className="mt-5 lg:flex lg:flex-wrap items-center justify-between gap-4 relative z-10">
               <div>
                 <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                  Flexible plans for agency and freelancer teams.
+                  Flexible plans for every team.
                 </h2>
                 <p className="mt-4 text-zinc-600 dark:text-white/70">
-                  Choose the workflow that matches how you deliver projects, from solo studios to full teams.
+                  Choose the plan that matches how you deliver projects, from solo work to full teams.
                 </p>
               </div>
               <div className="mt-5 inline-flex items-center justify-start gap-2 rounded-full border border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/5 p-1">
@@ -772,7 +778,7 @@ export default function OnveraLandingV2Page() {
             <div className="lg:grid lg:gap-6 lg:grid-cols-2 space-y-5 lg:space-y-0">
               {pricingPlans.map((plan) => {
                 const rawPrice = billingCycle === "annual" ? plan.price_yearly : plan.price_monthly
-                const isContactOnly = plan.id === "pro" || rawPrice === null
+                const isContactOnly = plan.id === "agency_pro" || rawPrice === null
                 const price = rawPrice ?? 0
                 const isFree = price === 0
                 const priceSuffix =
@@ -825,15 +831,21 @@ export default function OnveraLandingV2Page() {
                         {billingNote ? (
                           <p className="text-sm text-zinc-600 dark:text-white/70">{billingNote}</p>
                         ) : null}
-                        {plan.features.map((item) => (
+                        {plan.features.map((item) => {
+                          const isNegative = item.toLowerCase().startsWith("no ")
+                          return (
                           <div
                             key={item}
                             className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 px-4 py-3 text-sm text-zinc-600 dark:text-white/70"
                           >
-                            <CheckCircle2 className="h-4 w-4 text-zinc-600 dark:text-white/70" />
+                            {isNegative ? (
+                              <CircleX className="h-4 w-4 text-red-500" />
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4 text-zinc-600 dark:text-white/70" />
+                            )}
                             {item}
                           </div>
-                        ))}
+                        )})}
                       </div>
 
                       <a
@@ -863,7 +875,7 @@ export default function OnveraLandingV2Page() {
             <div>
               <h2 className="text-2xl font-semibold">Select the plan that fits your team</h2>
               <p className="mt-3 text-sm text-zinc-600 dark:text-white/70">
-                Flexible tiers for solo freelancers, studios, and multi-team agencies.
+                Flexible tiers for solo creators, studios, and multi-team organizations.
               </p>
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/5 p-1 text-xs">
@@ -893,7 +905,8 @@ export default function OnveraLandingV2Page() {
               const rawPrice = billingCycle === "annual" ? plan.price_yearly : plan.price_monthly
               const price = rawPrice ?? 0
               const suffix = billingCycle === "annual" ? "/year" : "/month"
-              const isContactOnly = plan.id === "pro" || rawPrice === null
+              const isContactOnly = plan.id === "agency_pro" || rawPrice === null
+              const isCurrentPlan = Boolean(user?.id) && currentPlan === plan.id
               return (
                 <div
                   key={plan.id}
@@ -917,16 +930,27 @@ export default function OnveraLandingV2Page() {
                     </div>
                   ) : null}
                   <div className="mt-5 space-y-2 text-xs text-zinc-600 dark:text-white/70">
-                    {plan.features.map((feature) => (
-                      <div key={feature} className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        {feature}
-                      </div>
-                    ))}
+                    {plan.features.map((feature) => {
+                      const isNegative = feature.toLowerCase().startsWith("no ")
+                      return (
+                        <div key={feature} className="flex items-center gap-2">
+                          {isNegative ? (
+                            <CircleX className="h-4 w-4 text-red-500" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          )}
+                          {feature}
+                        </div>
+                      )
+                    })}
                   </div>
                   <div className="flex-1 flex items-end">
-                    <Button className="mt-6 w-full rounded-full" variant={plan.highlight ? "gradient" : "outline"}>
-                      {plan.cta}
+                    <Button
+                      className="mt-6 w-full rounded-full"
+                      variant={plan.highlight ? "gradient" : "outline"}
+                      disabled={isCurrentPlan}
+                    >
+                      {isCurrentPlan ? "Current plan" : plan.cta}
                     </Button>
                   </div>
                 </div>
@@ -983,7 +1007,7 @@ export default function OnveraLandingV2Page() {
               Turn onboarding into your competitive advantage.
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-zinc-600 dark:text-white/70 sm:text-lg">
-              Give every client a premium first impression with structured onboarding, clean approvals, and a workspace that feels built for modern agencies.
+              Give every client a premium first impression with structured onboarding, clean approvals, and a workspace that feels built for modern teams.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <a

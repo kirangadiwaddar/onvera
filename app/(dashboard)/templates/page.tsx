@@ -14,7 +14,7 @@ export default function Page() {
     profile?.role ||
     (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null) ||
     null
-  const canAccessTemplates = currentRole === "agency" || currentRole === "freelancer"
+  const canAccessTemplates = currentRole === "team_lead" || currentRole === "super_admin"
 
   if (loading) {
     return (
@@ -30,7 +30,7 @@ export default function Page() {
       <EmptyState
       icon={<TriangleAlert className='text-destructive' />}
         title="Templates Unavailable"
-        description="Templates are available only to admins."
+        description="Templates are available only to team leads and admins."
       />
     )
   }

@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bell, ChevronsUpDown, CircleUserRound, LogOut, CheckCheck, Trash2 } from "lucide-react"
+import { Bell, ChevronsUpDown, CircleUserRound, LogOut, CheckCheck, Trash2, CreditCard } from "lucide-react"
 import { USER_ROLE_LABELS, isUserRole } from "@/lib/auth/roles"
 import { AccountSettingsModal } from "@/components/account/account-settings-modal"
 import { RecentActivity } from "@/components/dashboard/recentActivity"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { createClient } from "@/lib/supabase/client"
+import Link from "next/link"
 
 import {
   Avatar,
@@ -62,6 +63,8 @@ export function NavUser({
   user,
   role,
   managedByLabel,
+  managedByPrefix = "Managed by",
+  hideManagedBy = false,
   onLogout,
 }: {
   user: {
@@ -71,17 +74,20 @@ export function NavUser({
   }
   role?: string | null
   managedByLabel?: string | null
+  managedByPrefix?: string
+  hideManagedBy?: boolean
   onLogout?: () => Promise<void> | void
 }) {
   const { isMobile } = useSidebar()
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [showAccountDialog, setShowAccountDialog] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [activities, setActivities] = useState<Activity[]>([])
   const [loadingActivities, setLoadingActivities] = useState(false)
   const [seenAt, setSeenAt] = useState<string | null>(null)
   const [hiddenIds, setHiddenIds] = useState<string[]>([])
-  const roleLabel = role === "admin" ? "Admin" : role && isUserRole(role) ? USER_ROLE_LABELS[role] : "User"
+  const roleLabel = role === "super_admin" ? "Super Admin" : role && isUserRole(role) ? USER_ROLE_LABELS[role] : "User"
   const managedBy = managedByLabel || roleLabel
   const storageBase = user.email ? `notifications:${user.email}` : "notifications:anonymous"
   const hiddenKey = `${storageBase}:hidden`
@@ -194,16 +200,23 @@ export function NavUser({
 
   return (
     <>
-    <div className="text-center group-data-[collapsible=icon]:hidden">
-      <div className="inline-block rounded-sm bg-violet-100 px-2 py-1 text-xs capitalize text-primary dark:bg-violet-500/15">Managed by - <span className="text-violet-900 font-semibold capitalize dark:text-violet-200">{managedBy}</span></div>
-    </div> 
+    {!hideManagedBy ? (
+      <div className="text-center group-data-[collapsible=icon]:hidden">
+        <div className="inline-block rounded-sm bg-violet-100 px-2 py-1 text-xs capitalize text-primary dark:bg-violet-500/15">
+          {managedByPrefix} -{" "}
+          <span className="text-violet-900 font-semibold capitalize dark:text-violet-200">
+            {managedBy}
+          </span>
+        </div>
+      </div>
+    ) : null}
       <SidebarMenu>
         <SidebarMenuItem>
-          <DropdownMenu>
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton
                 size="lg"
-                className="pl-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground bg-white rounded-full border border-violet-100 dark:border-white/10 dark:bg-white/5"
+                className="pl-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground bg-white rounded-2xl border border-violet-100 dark:border-white/10 dark:bg-white/5"
               >
                 
                 <Avatar className="h-8 w-8 rounded-full">
@@ -222,10 +235,10 @@ export function NavUser({
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-xl p-0"
-              side={isMobile ? "bottom" : "right"}
+              className="w-(--radix-dropdown-menu-trigger-width) min-w-54 rounded-xl p-0"
+              // side={isMobile ? "bottom" : "right"}
               align="end"
-              sideOffset={30}
+              // sideOffset={}
             >
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 p-3 text-left text-sm">
@@ -247,19 +260,24 @@ export function NavUser({
               <DropdownMenuGroup className="p-1">
                 <DropdownMenuItem
                   onSelect={(event) => {
-                    event.preventDefault()
                     setShowAccountDialog(true)
+                    setMenuOpen(false)
                   }}
                 >
                   <CircleUserRound />
                   Account
                 </DropdownMenuItem>
-                {/* <DropdownMenuItem asChild>
+                <DropdownMenuItem
+                  asChild
+                  onSelect={() => {
+                    setMenuOpen(false)
+                  }}
+                >
                   <Link href="/billing">
                     <CreditCard />
                     Billing
                   </Link>
-                </DropdownMenuItem> */}
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   variant="destructive"
                   onSelect={(event) => {

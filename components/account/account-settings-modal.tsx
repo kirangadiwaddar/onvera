@@ -33,6 +33,7 @@ import { toast } from "sonner"
 import { Separator } from "../ui/separator"
 import { UserPen, UserRoundPen, X } from "lucide-react"
 import { Spinner } from "../ui/spinner"
+import { normalizePlan } from "@/lib/billing/plans"
 
 type Props = {
   open: boolean
@@ -59,15 +60,18 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   const [resetHasData, setResetHasData] = useState(true)
   const [deleteConfirmText, setDeleteConfirmText] = useState("")
   const [resetCountdown, setResetCountdown] = useState(15)
-  const resetTimerRef = useRef<number | null>(null)
-  const resetOpenTimeoutRef = useRef<number | null>(null)
-  const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const currentRole =
     profile?.role ||
     (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null) ||
     null
-  const canDeleteAccount = currentRole === "agency" || currentRole === "freelancer"
+  const canDeleteAccount = currentRole === "super_admin"
   const canResetAccount = canDeleteAccount
+  const currentPlan = normalizePlan(
+    profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
+  )
+  const resetTimerRef = useRef<number | null>(null)
+  const resetOpenTimeoutRef = useRef<number | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement | null>(null)
 
   const displayInitial = useMemo(() => {
     const initialName =
@@ -107,6 +111,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     }
   }, [displayInitial.initialAvatar, displayInitial.initialName, open])
 
+
   const trimmedAvatarUrl = avatarUrl.trim()
   const hasAvatar =
     !avatarRemoved &&
@@ -130,7 +135,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     const fallbackRole =
       profile?.role ||
       (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null) ||
-      "agency"
+      "team_lead"
 
     const { error: metadataError } = await supabase.auth.updateUser({
       data: {
@@ -246,6 +251,7 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       setSavingPassword(false)
     }
   }
+
 
   const handleDeleteAccount = async () => {
     if (!user?.id) return
@@ -393,14 +399,18 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
           </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-violet-50 p-2 rounded-lg gap-2 h-auto! dark:bg-violet-500/20" variant="default">
-            <TabsTrigger className="rounded-sm font-normal cursor-pointer data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="profile">
-              Profile
-            </TabsTrigger>
-            <TabsTrigger className="rounded-sm font-normal cursor-pointer data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="security">
-              Security
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <TabsList className="bg-violet-50 p-2 rounded-lg gap-2 h-auto! dark:bg-violet-500/20" variant="default">
+              <TabsTrigger className="rounded-sm font-normal cursor-pointer data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="profile">
+                Profile
+              </TabsTrigger>
+              <TabsTrigger className="rounded-sm font-normal cursor-pointer data-[state=active]:bg-violet-500 data-[state=active]:text-white dark:data-[state=active]:bg-violet-400 dark:data-[state=active]:text-white" value="security">
+                Security
+              </TabsTrigger>
+            </TabsList>
+
+            {null}
+          </div>
 
           <TabsContent value="profile" className="py-5">
             <FieldGroup>
@@ -504,13 +514,10 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                     placeholder="https://example.com/avatar.png"
                   />
                 </Field>
-              </div>
+              </div>              
 
               <div className="flex justify-end">
                 <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={handleSaveAvatar} disabled={savingAvatar}>
-                    {savingAvatar ? "Saving..." : "Save Avatar"}
-                  </Button>
                   <Button type="button" variant="gradient" onClick={handleSaveProfile} disabled={savingProfile}>
                     {savingProfile ? "Saving..." : "Save Profile"}
                   </Button>
