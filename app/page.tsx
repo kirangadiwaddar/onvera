@@ -253,11 +253,12 @@ export default function OnveraLandingV2Page() {
   return (
     <main className="min-h-screen bg-white dark:bg-[#030303] text-zinc-900 dark:text-white">
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.22),transparent_32%),radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.18),transparent_22%),radial-gradient(circle_at_50%_100%,rgba(16,185,129,0.12),transparent_28%)]" />
+        <div className="absolute inset-0 -z-0 bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.22),transparent_32%),radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.18),transparent_22%),radial-gradient(circle_at_50%_100%,rgba(16,185,129,0.12),transparent_28%)]" />
         <Grain />
+        
 
         <header className="fixed top-0 right-0 left-0 z-50 border-b border-black/10 dark:border-white/10 bg-white/80 dark:bg-black/35 backdrop-blur-xl">
-          <div className="mx-auto grid grid-cols-2 lg:grid-cols-3 w-full items-center justify-between px-5 lg:px-20 py-4">
+          <div className="mx-auto max-w-7xl px-5 grid grid-cols-2 lg:grid-cols-3 w-full items-center justify-between  py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center">
                 <Logo width={40} height={40} />
@@ -324,7 +325,11 @@ export default function OnveraLandingV2Page() {
           </div>
         </header>
 
-        <section className="mt-10 relative mx-auto grid w-full items-center gap-16 px-5 lg:px-20 pb-20 pt-24 lg:grid-cols-[1.05fr_.95fr] lg:pb-28 lg:pt-28">
+        <div className="content-wrapper px-5 lg:max-w-7xl mx-auto relative z-10">
+
+        
+
+        <section className="mt-10 relative mx-auto grid w-full items-center gap-16  pb-20 pt-24 lg:grid-cols-[1.05fr_.95fr] lg:pb-28 lg:pt-28">
           <div>
             <SectionBadge>Premium onboarding workspace</SectionBadge>
 
@@ -462,10 +467,9 @@ export default function OnveraLandingV2Page() {
             </div>
           </motion.div>
         </section>
-      </div>
 
 
-      <section id="stats" className="mx-auto w-full px-5 py-10 lg:px-20 scroll-mt-24">
+      <section id="stats" className="mx-auto w-full py-10 scroll-mt-24">
         <motion.div>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
 
@@ -497,7 +501,7 @@ export default function OnveraLandingV2Page() {
         </motion.div>
       </section>
 
-      <section id="demo" className="mx-auto w-full px-5 lg:px-20 py-8  lg:py-16 scroll-mt-24">
+      <section id="demo" className="mx-auto w-full  py-8  lg:py-16 scroll-mt-24">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
           <div
             className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl"
@@ -613,7 +617,7 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section id="features" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16 scroll-mt-24">
+      <section id="features" className="mx-auto w-full  py-8 lg:py-16 scroll-mt-24">
         <div className="grid gap-6 lg:grid-cols-3">
           <div
             className="rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04] p-8 lg:col-span-2"
@@ -686,7 +690,7 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section id="experience" className="mx-auto w-full px-5 lg:px-20 py-8  lg:py-16 scroll-mt-24">
+      <section id="experience" className="mx-auto w-full  py-8  lg:py-16 scroll-mt-24">
         <div
           className="overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/[0.04]"
         >
@@ -723,152 +727,8 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      {/* <section id="pricing" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16 scroll-mt-24">
-        <div className="lg:grid lg:grid-cols-3 space-y-5 lg:space-y-0 gap-6">
-          <div
-            className="relative overflow-hidden rounded-[2rem] border border-black/10 dark:border-white/10 bg-white/4 p-8 shrink-0"
-          >
-            <div
-              className="absolute inset-0 z-0"
-              style={{
-                background: `
-                        radial-gradient(ellipse 120% 80% at 70% 20%, rgba(255, 20, 147, 0.15), transparent 50%),
-                        radial-gradient(ellipse 100% 60% at 30% 10%, rgba(0, 255, 255, 0.12), transparent 60%),
-                        radial-gradient(ellipse 90% 70% at 50% 0%, rgba(138, 43, 226, 0.18), transparent 65%),
-                        radial-gradient(ellipse 110% 50% at 80% 30%, rgba(255, 215, 0, 0.08), transparent 40%),
-                        transparent
-                      `,
-              }}
-            />
-            <SectionBadge>Pricing</SectionBadge>
-            <div className="mt-5 lg:flex lg:flex-wrap items-center justify-between gap-4 relative z-10">
-              <div>
-                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                  Flexible plans for every team.
-                </h2>
-                <p className="mt-4 text-zinc-600 dark:text-white/70">
-                  Choose the plan that matches how you deliver projects, from solo work to full teams.
-                </p>
-              </div>
-              <div className="mt-5 inline-flex items-center justify-start gap-2 rounded-full border border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/5 p-1">
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle("monthly")}
-                  className={`rounded-full px-4 py-1.5 text-xs transition cursor-pointer ${billingCycle === "monthly"
-                      ? "bg-violet-500 text-white"
-                      : "text-zinc-600 dark:text-white/70"
-                    }`}
-                >
-                  Monthly
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle("annual")}
-                  className={`rounded-full px-4 py-1.5 text-xs transition cursor-pointer ${billingCycle === "annual"
-                      ? "bg-violet-500 text-white"
-                      : "text-zinc-600 dark:text-white/70"
-                    }`}
-                >
-                  Annual
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="lg:col-span-2">
-            <div className="lg:grid lg:gap-6 lg:grid-cols-2 space-y-5 lg:space-y-0">
-              {pricingPlans.map((plan) => {
-                const rawPrice = billingCycle === "annual" ? plan.price_yearly : plan.price_monthly
-                const isContactOnly = plan.id === "agency_pro" || rawPrice === null
-                const price = rawPrice ?? 0
-                const isFree = price === 0
-                const priceSuffix =
-                  !isContactOnly && !isFree ? (billingCycle === "annual" ? "/year" : "/month") : ""
-                const billingNote = isContactOnly
-                  ? null
-                  : isFree
-                    ? "No credit card required"
-                    : billingCycle === "annual"
-                      ? "Billed yearly"
-                      : "Billed monthly"
 
-                return (
-                  <div
-                    key={plan.id}
-                    className={`group relative overflow-hidden rounded-[2rem] border bg-white shadow-[0_20px_40px_rgba(15,23,42,0.08)] dark:bg-[#0a0a0a] ${
-                      plan.highlight
-                        ? "border-violet-400/70 dark:border-violet-400/50"
-                        : "border-black/10 dark:border-white/10"
-                    }`}
-                  >
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(124,58,237,0.18),transparent_70%)] opacity-70" />
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[radial-gradient(circle_at_bottom,rgba(59,130,246,0.14),transparent_70%)] opacity-50" />
-                    <div className="relative rounded-[1.5rem] p-6">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="inline-flex rounded-full border border-black/10 dark:border-white/10 bg-gradient-to-r from-violet-100/80 to-fuchsia-100/80 px-3 py-1 text-xs font-normal text-black shadow-[0_4px_12px_rgba(124,58,237,0.08)]">
-                            {plan.name}
-                          </div>
-                          <p className="mt-3 text-sm text-zinc-600 dark:text-white/70">{plan.description}</p>
-                        </div>
-                        {plan.highlight ? (
-                          <div className="rounded-full border border-violet-200/70 bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-700 dark:border-violet-500/40 dark:text-violet-200">
-                            Most popular
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <div className="mt-6 grid gap-3">
-                        {!isContactOnly ? (
-                          <div className="mt-2 flex items-end gap-2">
-                            <h3 className="text-4xl font-semibold text-zinc-900 dark:text-white">
-                              {formatPrice(price)}
-                            </h3>
-                            {priceSuffix ? (
-                              <span className="pb-1 text-sm text-zinc-500 dark:text-white/60">{priceSuffix}</span>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        {billingNote ? (
-                          <p className="text-sm text-zinc-600 dark:text-white/70">{billingNote}</p>
-                        ) : null}
-                        {plan.features.map((item) => {
-                          const isNegative = item.toLowerCase().startsWith("no ")
-                          return (
-                          <div
-                            key={item}
-                            className="flex items-center gap-3 rounded-2xl border border-black/10 dark:border-white/10 px-4 py-3 text-sm text-zinc-600 dark:text-white/70"
-                          >
-                            {isNegative ? (
-                              <CircleX className="h-4 w-4 text-red-500" />
-                            ) : (
-                              <CheckCircle2 className="h-4 w-4 text-zinc-600 dark:text-white/70" />
-                            )}
-                            {item}
-                          </div>
-                        )})}
-                      </div>
-
-                      <a
-                        href="/register"
-                        className={`mt-6 inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition hover:scale-[1.02] ${
-                          plan.highlight
-                            ? "bg-violet-500 text-white"
-                            : "border border-black/10 dark:border-white/10 text-zinc-700 dark:text-white/80"
-                        }`}
-                      >
-                        {plan.cta}
-                        <ArrowRight className="h-4 w-4" />
-                      </a>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      </section> */}
-
-      <section id="pricing" className="mx-auto w-full px-5 lg:px-20 py-8 lg:py-16 scroll-mt-24">
+      <section id="pricing" className="mx-auto w-full  py-8 lg:py-16 scroll-mt-24">
         <div className="rounded-[32px] border border-black/10 dark:border-white/10 bg-white/80 dark:bg-white/5 p-8">
           <SectionBadge>Pricing</SectionBadge>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
@@ -996,7 +856,7 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <section className="mx-auto w-full px-5 lg:px-20 pb-10 pt-6 lg:pb-16">
+      <section className="mx-auto w-full  pb-10 pt-6 lg:pb-16">
         <div
           className="relative overflow-hidden rounded-[2.5rem] border border-black/10 dark:border-white/10 bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.18),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-8 text-center sm:p-12"
         >
@@ -1028,8 +888,11 @@ export default function OnveraLandingV2Page() {
         </div>
       </section>
 
-      <footer className="">
-        <div className="mx-auto w-full px-5 lg:px-20 py-6 border-t border-black/10 dark:border-white/10 bg-white/80 dark:bg-white/5 p-6 text-xs text-zinc-600 dark:text-white/60">
+      </div>
+      </div>
+
+      <footer className="py-6 border-t border-black/10 dark:border-white/10 bg-white/10 dark:bg-white/5 p-6 text-xs text-zinc-600 dark:text-white/60">
+        <div className="mx-auto max-w-7xl  px-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center">

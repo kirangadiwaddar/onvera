@@ -281,6 +281,7 @@ export function RegisterForm({
               <PasswordInput
                 id="password"
                 name="password"
+                placeholder="Write Password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
@@ -293,6 +294,7 @@ export function RegisterForm({
               <PasswordInput
                 id="confirm-password"
                 name="confirm-password"
+                placeholder="Write Password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
                  required
@@ -302,60 +304,23 @@ export function RegisterForm({
         ) : (
           <>
             <Field>
-                <FieldLabel htmlFor="otp-0" className="w-full justify-center mb-2">Email Verification Code</FieldLabel>
-            
-              <div className="mt-2 flex items-center justify-center gap-2 mb-5">
-                {Array.from({ length: 8 }).map((_, index) => {
-                  const value = otpCode[index] ?? ""
-                  const inputId = `otp-${index}`
-                  return (
-                    <input
-                      key={index}
-                      id={inputId}
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      aria-label={`Digit ${index + 1}`}
-                      className="border-input h-12 w-12 rounded-lg border bg-white text-center text-lg font-semibold shadow-xs outline-none transition focus:border-ring focus:ring-[3px] focus:ring-ring/30 dark:bg-input/30"
-                      maxLength={1}
-                      value={value}
-                      onChange={(event) => {
-                        const next = event.target.value.replace(/\\D/g, "")
-                        const codeArray = otpCode.split("")
-                        if (next) {
-                          codeArray[index] = next
-                          setOtpCode(codeArray.join("").slice(0, 8))
-                          const nextInput = event.currentTarget
-                            .nextElementSibling as HTMLInputElement | null
-                          nextInput?.focus()
-                        } else {
-                          codeArray[index] = ""
-                          setOtpCode(codeArray.join("").slice(0, 8))
-                        }
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Backspace" && !value) {
-                          const prevInput = event.currentTarget
-                            .previousElementSibling as HTMLInputElement | null
-                          prevInput?.focus()
-                        }
-                      }}
-                      onPaste={(event) => {
-                        const pasted = event.clipboardData
-                          .getData("text")
-                          .replace(/\\D/g, "")
-                          .slice(0, 8)
-                        if (!pasted) return
-                        setOtpCode(pasted)
-                        event.preventDefault()
-                        const lastIndex = Math.min(pasted.length - 1, 7)
-                        const inputs = event.currentTarget.parentElement?.querySelectorAll("input")
-                        const target = inputs?.[lastIndex] as HTMLInputElement | undefined
-                        target?.focus()
-                      }}
-                      required={index === 0}
-                    />
-                  )
-                })}
+              <FieldLabel htmlFor="otp" className="w-full justify-center mb-2">Email Verification Code</FieldLabel>
+
+              <div className="mt-2 mb-5 flex items-center justify-center">
+                <Input
+                  id="otp"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={otpCode}
+                  maxLength={8}
+                  onChange={(event) => {
+                    const next = event.target.value.replace(/\\D/g, "").slice(0, 8)
+                    setOtpCode(next)
+                  }}
+                  className="h-12 max-w-[220px] text-center text-lg font-semibold tracking-[0.4em]"
+                  placeholder="••••••••"
+                  required
+                />
               </div>
               <FieldDescription className="mt-3 text-center">
                 We sent a one-time code to <span className="font-medium text-primary">{pendingEmail}</span>.
@@ -364,7 +329,7 @@ export function RegisterForm({
             <div className="flex items-center justify-between">
               <Button
                 variant="secondary"
-                className="text-xs font-medium text-violet-700"
+                className="text-xs font-medium text-violet-700 dark:text-white"
                 onClick={handleResendOtp}
                 disabled={resendLoading || resendCooldown > 0}
               >
