@@ -19,7 +19,7 @@ import {
 import { getAvatarColor } from "@/lib/get-avatar-colors"
 import { Button } from "@/components/ui/button"
 import { PasswordInput } from "@/components/ui/password-input"
-import { BadgeCheck, Check, Download, Files, Monitor, Moon, Sun } from "lucide-react"
+import { BadgeCheck, Check, Download, Files, Monitor, Moon, Sun, TriangleAlert } from "lucide-react"
 import { EmptyState } from "@/components/emptyState"
 import { Separator } from "@/components/ui/separator"
 import { LoadingState } from "@/components/loadingState"
@@ -497,7 +497,7 @@ export default function ClientOnboardingPage() {
   if (!project) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
-        <EmptyState title="Project Not Found" description="We couldn't find this project." />
+        <EmptyState icon={<TriangleAlert className="text-destructive" />} title="Project Not Found" description="We couldn't find this project." />
       </div>
     )
   }

@@ -43,7 +43,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { BadgeCheck, Check, Copy, Crown, Download, Files, Lock, MoreHorizontal, NotebookText, Pen, Plus, Trash, Trash2, Users, X } from "lucide-react"
+import { BadgeCheck, Check, Copy, Crown, Download, Files, Lock, MoreHorizontal, NotebookText, Pen, Plus, Trash, Trash2, TriangleAlert, Users, X } from "lucide-react"
 
 import {
   Dialog,
@@ -328,6 +328,17 @@ export default function ProjectDetailPage() {
   const planLimits = getPlanLimits(currentPlan)
   const notesEnabled = canUseNotes(currentPlan)
   const teamAccessEnabled = canUseTeams(currentPlan)
+
+  const refreshProject = async () => {
+    const response = await fetchWithAuth(`/api/projects/${slug}`, { cache: "no-store" })
+    if (!response.ok) return null
+    const data = await response.json().catch(() => null) as { project?: Project } | null
+    if (data?.project) {
+      setProject(data.project)
+      return data.project
+    }
+    return null
+  }
 
   const handleAddNote = async () => {
     if (!notesEnabled) {
@@ -739,6 +750,11 @@ export default function ProjectDetailPage() {
     }
   }, [availableTeams, hasAvailableTeams, inviteType, openInvite, selectedTeamId, teamAccessEnabled])
 
+  useEffect(() => {
+    if (!openInvite || teamAccessEnabled) return
+    void refreshProject()
+  }, [openInvite, teamAccessEnabled])
+
   const isProjectLocked = Boolean(project?.isLocked)
   const canEditProject = !restrictedRole && !isProjectLocked
   const submissions = project?.submissions ?? {}
@@ -762,7 +778,9 @@ export default function ProjectDetailPage() {
     ? project!.teams.filter(Boolean)
     : []
   const visibleTeams = teamAccessEnabled ? assignedTeams : []
-  const externalMembers = project?.members?.filter((member) => member && member.isExternal) ?? []
+  const externalMembers = Array.isArray(project?.extraMembers)
+    ? project!.extraMembers.filter((member) => member && member.isExternal && member.email)
+    : []
   const externalMemberLimit = planLimits.maxExternalMembersPerProject
   const externalMemberLimitReached =
     externalMemberLimit !== null && externalMembers.length >= externalMemberLimit
@@ -962,7 +980,7 @@ export default function ProjectDetailPage() {
   if (!project) {
     return (
       <div className="p-6">
-        <EmptyState title="Project Not Found" description="We couldn't find this project." />
+        <EmptyState icon={<TriangleAlert className="text-destructive" />} title="Project Not Found" description="We couldn't find this project." />
       </div>
     )
   }
@@ -1024,10 +1042,6 @@ export default function ProjectDetailPage() {
 
   const addExternalMember = async () => {
     if (!newMemberName || !newMemberDesignation || !newMemberEmail) return
-    if (externalMemberLimitReached) {
-      toast.error("External member limit reached for this plan.")
-      return
-    }
     setInviteSubmitting(true)
 
     const tokenBytes = new Uint8Array(12)
@@ -1044,7 +1058,16 @@ export default function ProjectDetailPage() {
       isExternal: true,
     }
 
-    const currentExtraMembers = Array.isArray(project.extraMembers) ? project.extraMembers : []
+    const latestProject = (await refreshProject()) || project
+    const currentExtraMembers = Array.isArray(latestProject.extraMembers) ? latestProject.extraMembers : []
+    if (planLimits.maxExternalMembersPerProject !== null) {
+      const currentCount = currentExtraMembers.filter((member) => member?.isExternal && member.email).length
+      if (currentCount >= planLimits.maxExternalMembersPerProject) {
+        toast.error("External member limit reached for this plan.")
+        setInviteSubmitting(false)
+        return
+      }
+    }
     const nextExtraMembers = [...currentExtraMembers, newMember]
 
     try {
@@ -1086,8 +1109,9 @@ export default function ProjectDetailPage() {
         const errorMessage = inviteData?.message || "Failed to send invite email"
         console.warn(errorMessage)
         toast.error(errorMessage)
+      } else {
+        toast.success("Member invited")
       }
-      toast.success("Member invited")
     } catch (error) {
       console.error("Failed to add external member:", error)
       toast.error(error instanceof Error ? error.message : "Failed to add external member")
@@ -2454,7 +2478,7 @@ export default function ProjectDetailPage() {
 
           {inviteType === "member" && (
             <div className="space-y-3">
-              {externalMemberLimitReached ? (
+              {!inviteSubmitting && externalMemberLimitReached ? (
                 <p className="text-xs text-destructive">
                   External member limit reached for this plan.
                 </p>
