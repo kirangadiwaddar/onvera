@@ -166,7 +166,7 @@ export function LoginForm({
         {/* <FieldSeparator>OR</FieldSeparator> */}
         <Field>
           <FieldLabel htmlFor="email">Email</FieldLabel>
-          <Input id="email" name="email" type="email" placeholder="eg. email@example.com" required />
+          <Input id="email" name="email" type="email" placeholder="Write your email address" required />
         </Field>
         <Field>
           <div className="flex items-center">
@@ -178,7 +178,7 @@ export function LoginForm({
               Forgot your password?
             </Link>
           </div>
-          <PasswordInput id="password" name="password" required />
+          <PasswordInput id="password" name="password" placeholder="Write your password" required />
         </Field>
         {error && <p className="text-xs text-red-600">{error}</p>}
         <Field>
