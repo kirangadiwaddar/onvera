@@ -541,7 +541,12 @@ export async function PUT(
     return NextResponse.json({ message: "Teams are not available on your current plan." }, { status: 403 })
   }
   if (Array.isArray(body.extraMembers) && planLimits.maxExternalMembersPerProject !== null) {
-    if (body.extraMembers.length > planLimits.maxExternalMembersPerProject) {
+    const externalCount = body.extraMembers.filter((member) => {
+      if (!member || typeof member !== "object") return false
+      const raw = member as { email?: unknown }
+      return typeof raw.email === "string" && raw.email.trim()
+    }).length
+    if (externalCount > planLimits.maxExternalMembersPerProject) {
       return NextResponse.json(
         { message: "External member limit reached for this project." },
         { status: 403 },

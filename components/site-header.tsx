@@ -217,7 +217,7 @@ export function SiteHeader() {
             <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <Button
                   className={cn(
                     "ml-1 flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white/80 text-zinc-500 transition hover:text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:text-white/60 dark:hover:text-white",
                   )}
@@ -230,7 +230,7 @@ export function SiteHeader() {
                   ) : (
                     <Monitor className="h-4 w-4" />
                   )}
-                </button>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-36">
                 <DropdownMenuItem onSelect={() => setTheme("light")}>

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { CheckCircle2, CircleX, Infinity } from "lucide-react"
+import { CheckCircle2, CircleX, Infinity, LockKeyhole } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useAuth } from "@/components/providers/auth-provider"
+import { EmptyState } from "@/components/emptyState"
 import { createClient } from "@/lib/supabase/client"
 import { getPlanLimits, normalizePlan, PLAN_IDS, PLAN_LABELS } from "@/lib/billing/plans"
 import { toast } from "sonner"
@@ -35,6 +36,7 @@ export default function BillingPage() {
   const canManagePlan = profile?.role === "super_admin"
   const stripeLinked = Boolean(profile?.stripe_customer_id || profile?.stripe_subscription_id)
   const isFreePlan = currentPlan === "free"
+  const isSuperAdmin = profile?.role === "super_admin"
   const renderLimit = (value: number | null) =>
     value === null ? <Infinity className="inline h-4 w-4 align-middle" /> : value
 
@@ -163,6 +165,16 @@ export default function BillingPage() {
       active = false
     }
   }, [user?.id])
+
+  if (!isSuperAdmin) {
+    return (
+        <EmptyState
+          icon={<LockKeyhole className="h-6 w-6 text-destructive" />}
+          title="Billing is managed by your admin"
+          description="Only workspace admins can view and update billing settings."
+        />
+    )
+  }
 
   if (isFreePlan) {
     return (

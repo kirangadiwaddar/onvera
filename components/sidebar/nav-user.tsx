@@ -267,17 +267,19 @@ export function NavUser({
                   <CircleUserRound />
                   Account
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  asChild
-                  onSelect={() => {
-                    setMenuOpen(false)
-                  }}
-                >
-                  <Link href="/billing">
-                    <CreditCard />
-                    Billing
-                  </Link>
-                </DropdownMenuItem>
+                {role === "super_admin" ? (
+                  <DropdownMenuItem
+                    asChild
+                    onSelect={() => {
+                      setMenuOpen(false)
+                    }}
+                  >
+                    <Link href="/billing">
+                      <CreditCard />
+                      Billing
+                    </Link>
+                  </DropdownMenuItem>
+                ) : null}
                 <DropdownMenuItem
                   variant="destructive"
                   onSelect={(event) => {

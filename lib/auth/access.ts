@@ -2,6 +2,7 @@ import type { RequestIdentity } from "@/lib/auth/request-identity"
 
 type MemberLike = {
   email?: string
+  accessToken?: string | null
 }
 
 type TeamLike = {
@@ -38,7 +39,9 @@ function isMemberInProject(project: ProjectLike, teams: TeamLike[], email: strin
   const target = normalizeEmail(email)
   if (!target) return false
 
-  const inExtra = (project.extraMembers || []).some((member) => normalizeEmail(member.email) === target)
+  const inExtra = (project.extraMembers || []).some(
+    (member) => normalizeEmail(member.email) === target && !member.accessToken,
+  )
   if (inExtra) return true
 
   return teams

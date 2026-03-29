@@ -64,11 +64,17 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
     profile?.role ||
     (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null) ||
     null
-  const canDeleteAccount = currentRole === "super_admin"
-  const canResetAccount = canDeleteAccount
+  const canDeleteAccount = Boolean(
+    currentRole === "super_admin" ||
+    currentRole === "team_lead" ||
+    currentRole === "team_member" ||
+    currentRole === "project_member",
+  )
+  const canResetAccount = currentRole === "super_admin"
   const currentPlan = normalizePlan(
     profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
   )
+  const deleteConfirmEmail = (typeof user?.email === "string" ? user.email : "").trim().toLowerCase()
   const resetTimerRef = useRef<number | null>(null)
   const resetOpenTimeoutRef = useRef<number | null>(null)
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
@@ -624,14 +630,14 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                 This will delete your account and all associated data. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <div className="space-y-2 px-5">
+            <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Type <span className="font-semibold text-foreground">DELETE</span> to confirm.
+                Type <span className="font-semibold text-destructive">{user?.email || "your email"}</span> to confirm.
               </p>
               <Input
                 value={deleteConfirmText}
                 onChange={(event) => setDeleteConfirmText(event.target.value)}
-                placeholder="DELETE"
+                placeholder="you@example.com"
               />
             </div>
             <AlertDialogFooter>
@@ -639,7 +645,11 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
               <AlertDialogAction
                 variant="destructive"
                 onClick={() => void handleDeleteAccount()}
-                disabled={deletingAccount || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
+                disabled={
+                  deletingAccount ||
+                  !deleteConfirmEmail ||
+                  deleteConfirmText.trim().toLowerCase() !== deleteConfirmEmail
+                }
               >
                 {deletingAccount ? "Deleting..." : "Delete"}
               </AlertDialogAction>

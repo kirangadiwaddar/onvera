@@ -283,6 +283,8 @@ export default function TeamDetailPage() {
       const errorMessage = inviteData?.message || "Failed to send invite email"
       console.warn(errorMessage)
       window.alert(errorMessage)
+    } else {
+      window.alert("Member invited")
     }
 
     setMemberName("")
@@ -414,7 +416,7 @@ export default function TeamDetailPage() {
   }
 
   if (!team) {
-    return <EmptyState title="Team Not Found" description="We couldn't find this team." />
+    return <EmptyState icon={<TriangleAlert className="text-destructive" />} title="Team Not Found" description="We couldn't find this team." />
   }
 
   const formattedDate = new Date(team.createdAt).toLocaleDateString("en-GB")
