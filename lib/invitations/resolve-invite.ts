@@ -32,7 +32,7 @@ export type InviteMatch = {
   contextId: number
   contextSlug: string
   contextName: string
-  memberRole: "team_member" | "project_member"
+  memberRole: "team_lead" | "team_member" | "project_member"
   member: Member
   memberLocation: "team_lead" | "team_member" | "project_member"
   memberIndex?: number
@@ -72,7 +72,7 @@ export async function resolveInviteByToken(token: string): Promise<InviteMatch |
         contextId: team.id,
         contextSlug: team.slug,
         contextName: team.name,
-        memberRole: "team_member",
+        memberRole: "team_lead",
         member: { ...lead, isLead: true },
         memberLocation: "team_lead",
       }

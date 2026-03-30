@@ -73,6 +73,34 @@ type TemplateRow = {
 
 const normalizeEmail = (value?: string | null) => (value || "").trim().toLowerCase()
 
+async function findUserIdByEmail(
+  admin: ReturnType<typeof createAdminClient>,
+  email?: string | null,
+) {
+  const target = normalizeEmail(email)
+  if (!admin || !target) return null
+  let page = 1
+  const perPage = 1000
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
+    if (error) {
+      console.error("Supabase listUsers failed:", error.message)
+      return null
+    }
+    const users = Array.isArray((data as { users?: unknown })?.users)
+      ? (data as { users: Array<{ id: string; email?: string | null }> }).users
+      : Array.isArray(data)
+        ? (data as Array<{ id: string; email?: string | null }>)
+        : []
+    const match = users.find((user) => normalizeEmail(user.email) === target)
+    if (match?.id) return match.id
+    const nextPage = (data as { nextPage?: number | null } | null)?.nextPage
+    if (!nextPage) break
+    page = nextPage
+  }
+  return null
+}
+
 const isTeamMember = (team: TeamRow, email?: string | null) => {
   const target = normalizeEmail(email)
   if (!target) return false
@@ -362,6 +390,7 @@ export async function PUT(
   if (currentTeam.createdBy !== identity.userId) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 })
   }
+  const previousLeadEmail = normalizeEmail(currentTeam.lead?.email ?? null)
 
   const body = (await request.json().catch(() => null)) as
     | {
@@ -419,6 +448,52 @@ export async function PUT(
 
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 500 })
+  }
+
+  const leadEmail =
+    updatePayload.lead && typeof updatePayload.lead === "object"
+      ? normalizeEmail((updatePayload.lead as { email?: string | null }).email)
+      : null
+  const leadChanged = previousLeadEmail && previousLeadEmail !== leadEmail
+  if (leadEmail) {
+    const leadUserId = await findUserIdByEmail(admin, leadEmail)
+    if (leadUserId) {
+      const { data: leadProfile } = await admin
+        .from("profiles")
+        .select("role")
+        .eq("id", leadUserId)
+        .maybeSingle()
+      const currentRole = typeof leadProfile?.role === "string" ? leadProfile.role : null
+      if (currentRole !== "super_admin" && currentRole !== "team_lead") {
+        await admin
+          .from("profiles")
+          .update({ role: "team_lead" })
+          .eq("id", leadUserId)
+        await admin.auth.admin.updateUserById(leadUserId, {
+          user_metadata: { role: "team_lead" },
+        })
+      }
+    }
+  }
+  if (leadChanged) {
+    const prevLeadUserId = await findUserIdByEmail(admin, previousLeadEmail)
+    if (prevLeadUserId) {
+      const { data: prevProfile } = await admin
+        .from("profiles")
+        .select("role")
+        .eq("id", prevLeadUserId)
+        .maybeSingle()
+      const prevRole = typeof prevProfile?.role === "string" ? prevProfile.role : null
+      if (prevRole !== "super_admin") {
+        await admin
+          .from("profiles")
+          .update({ role: "team_member" })
+          .eq("id", prevLeadUserId)
+        await admin.auth.admin.updateUserById(prevLeadUserId, {
+          user_metadata: { role: "team_member" },
+        })
+      }
+    }
   }
 
   const { projects, teams: allTeams, templates } = await getStoreData({ bypassCache: true, includeRegisteredEmails: true })

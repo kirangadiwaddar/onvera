@@ -8,6 +8,8 @@ export type TeamMember = {
   isRegistered?: boolean
   memberType?: "team_lead"
   isLead?: boolean
+  invitedByEmail?: string
+  invitedByRole?: "team_lead" | "super_admin"
 }
 
 export type TeamLead = {
@@ -20,6 +22,8 @@ export type TeamLead = {
   isRegistered?: boolean
   memberType?: "team_lead"
   isLead?: boolean
+  invitedByEmail?: string
+  invitedByRole?: "team_lead" | "super_admin"
 }
 
 export type Team = {

@@ -89,7 +89,11 @@ export default function Page() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<ProjectItem | null>(null)
   const [deletingProject, setDeletingProject] = useState<ProjectItem | null>(null)
-  const isReadOnlyRole = profile?.role === "project_member" || profile?.role === "team_member"
+  const isReadOnlyRole =
+    profile?.role === "project_member" ||
+    profile?.role === "team_member" ||
+    profile?.role === "team_lead"
+  const canManageProjects = profile?.role === "super_admin"
   const currentPlan = normalizePlan(
     profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
   )
@@ -461,7 +465,7 @@ export default function Page() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              {!isReadOnlyRole && (
+              {canManageProjects && (
                 <Button
                   variant="gradient"
                   onClick={handleOpenCreate}
@@ -503,8 +507,8 @@ export default function Page() {
                     avatarSrc={project.avatarSrc}
                     members={project.members}
                     isLocked={lockedProjectIds.has(project.id)}
-                    onEdit={isReadOnlyRole || lockedProjectIds.has(project.id) ? undefined : () => setEditingProject(project)}
-                    onDelete={isReadOnlyRole || lockedProjectIds.has(project.id) ? undefined : () => setDeletingProject(project)}
+                    onEdit={!canManageProjects || lockedProjectIds.has(project.id) ? undefined : () => setEditingProject(project)}
+                    onDelete={!canManageProjects || lockedProjectIds.has(project.id) ? undefined : () => setDeletingProject(project)}
                   />
                 ))}
               </div>
@@ -585,7 +589,7 @@ export default function Page() {
                               : "-"}
                           </TableCell>
                         <TableCell className="text-right">
-                          {!isReadOnlyRole && !lockedProjectIds.has(project.id) ? (
+                          {canManageProjects && !lockedProjectIds.has(project.id) ? (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -658,7 +662,7 @@ export default function Page() {
         </div>
       )}
 
-      {!isReadOnlyRole ? (
+      {canManageProjects ? (
         <ProjectModal
           open={isCreateOpen}
           onOpenChange={setIsCreateOpen}
@@ -669,7 +673,7 @@ export default function Page() {
         />
       ) : null}
 
-      {!isReadOnlyRole ? (
+      {canManageProjects ? (
         <ProjectModal
           open={Boolean(editingProject)}
           onOpenChange={(open) => {
@@ -694,7 +698,7 @@ export default function Page() {
         />
       ) : null}
 
-      {!isReadOnlyRole && <DeleteProjectAlert
+      {canManageProjects && <DeleteProjectAlert
         open={!!deletingProject}
         onOpenChange={(open) => {
           if (!open) setDeletingProject(null)

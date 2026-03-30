@@ -320,6 +320,7 @@ export default function ProjectDetailPage() {
   const [editMentionIndex, setEditMentionIndex] = useState<Record<string, number>>({})
   const currentRole = (profile?.role || user?.user_metadata?.role || null) as string | null
   const restrictedRole = currentRole === "project_member" || currentRole === "team_member"
+  const isSuperAdmin = currentRole === "super_admin"
   const currentPlan = normalizePlan(
     project?.plan ||
       profile?.plan ||
@@ -648,6 +649,18 @@ export default function ProjectDetailPage() {
     if (!user?.id) return
     if (!slug) return
     void loadNotes(String(slug))
+  }, [authLoading, loadNotes, notesEnabled, slug, user?.id])
+
+  useEffect(() => {
+    if (!notesEnabled) return
+    if (authLoading) return
+    if (!user?.id) return
+    if (!slug) return
+    if (typeof window === "undefined") return
+    const interval = window.setInterval(() => {
+      void loadNotes(String(slug))
+    }, 10000)
+    return () => window.clearInterval(interval)
   }, [authLoading, loadNotes, notesEnabled, slug, user?.id])
 
   useEffect(() => {
@@ -993,7 +1006,7 @@ export default function ProjectDetailPage() {
   )
   const canManageChecklist = !isProjectLocked && (canEditProject || isLeadMember)
   const isProjectCompleted = project.status === "completed"
-  const canSeeAccessToken = isLeadMember || !restrictedRole
+  const canSeeAccessToken = currentRole === "super_admin"
   const inviteBaseUrl =
     typeof window !== "undefined" ? `${window.location.origin}/invite` : ""
   const buildInviteUrl = (token?: string | null) => {
@@ -2261,7 +2274,7 @@ export default function ProjectDetailPage() {
                             <Button size="sm" variant="secondary" onClick={() => setViewTeam(team)}>
                               View Members
                             </Button>
-                            {canEditProject ? (
+                            {isSuperAdmin ? (
                               <AlertDialog
                                 open={openRemoveTeamId === team.id}
                                 onOpenChange={(open) => {
@@ -2366,7 +2379,7 @@ export default function ProjectDetailPage() {
                         </TableCell>
                       )}
                       <TableCell className="text-right">
-                        {canEditProject && member.isExternal && (
+                        {isSuperAdmin && member.isExternal && (
                           <AlertDialog
                             open={openRemoveMemberId === member.id}
                             onOpenChange={(open) => {

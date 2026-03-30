@@ -43,7 +43,7 @@ export function RegisterForm({
   const inviteRoleParam = searchParams.get("role")
   const inviteRole =
     inviteRoleParam && isUserRole(inviteRoleParam) &&
-    (inviteRoleParam === "project_member" || inviteRoleParam === "team_member")
+    (inviteRoleParam === "project_member" || inviteRoleParam === "team_member" || inviteRoleParam === "team_lead")
       ? inviteRoleParam
       : null
 
