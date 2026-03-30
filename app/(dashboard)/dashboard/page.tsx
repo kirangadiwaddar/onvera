@@ -111,8 +111,7 @@ export default function Page() {
     }
   }, [])
 
-  const isRestricted =
-    effectiveRole === "project_member" || effectiveRole === "team_member"
+  const isRestricted = effectiveRole !== "super_admin"
 
   const supabase = useMemo(() => {
     try {
@@ -199,7 +198,7 @@ export default function Page() {
       <EmptyState
         icon={<TriangleAlert className="text-destructive" />}
         title="Dashboard Unavailable"
-        description="Dashboard is available only to team leads."
+        description="Dashboard is available only to workspace admins."
       />
     )
   }

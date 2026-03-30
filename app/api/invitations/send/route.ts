@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     | {
         email?: string
         name?: string
-        memberRole?: "project_member" | "team_member"
+        memberRole?: "team_lead" | "project_member" | "team_member"
         token?: string
         contextName?: string
         contextType?: "project" | "team"

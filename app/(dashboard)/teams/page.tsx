@@ -28,8 +28,13 @@ export default function Page() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingTeam, setEditingTeam] = useState<Team | null>(null)
   const [deletingTeam, setDeletingTeam] = useState<Team | null>(null)
-  const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
+  const isReadOnlyRole =
+    profile?.role === "team_member" ||
+    profile?.role === "project_member" ||
+    profile?.role === "team_lead"
   const isProjectMember = profile?.role === "project_member"
+  const isSuperAdmin = profile?.role === "super_admin"
+  const canManageTeams = isSuperAdmin
   const currentPlan = normalizePlan(
     profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
   )
@@ -37,7 +42,7 @@ export default function Page() {
   const planAllowsTeams = canUseTeams(currentPlan)
   const ownedTeamsCount = teams.filter((team) => team.createdBy === user?.id).length
   const teamLimitReached = planLimits.maxTeams !== null && ownedTeamsCount >= planLimits.maxTeams
-  const createTeamDisabled = isReadOnlyRole || submitting
+  const createTeamDisabled = !canManageTeams || submitting
   const lockedTeamIds = useMemo(() => {
     if (planLimits.maxTeams === null) return new Set<number>()
     const owned = teams
@@ -65,9 +70,9 @@ export default function Page() {
       setLoadingTeams(false)
       return
     }
-    if (!planAllowsTeams && !isReadOnlyRole) return
+    if (!planAllowsTeams && isSuperAdmin) return
     void loadTeams()
-  }, [authLoading, isReadOnlyRole, planAllowsTeams, user?.id])
+  }, [authLoading, planAllowsTeams, isSuperAdmin, user?.id])
 
   if (authLoading) {
     return (
@@ -171,7 +176,7 @@ export default function Page() {
     }
   }
 
-  if (!planAllowsTeams && !isReadOnlyRole) {
+  if (!planAllowsTeams && isSuperAdmin) {
     return (
       <EmptyState
        icon={<TriangleAlert className="text-destructive" />}
@@ -232,7 +237,7 @@ export default function Page() {
                     <List className="size-4" />
                   </Button>
                 </div>
-                {!isReadOnlyRole && (
+                {canManageTeams && (
                   <Button
                     variant="gradient"
                     onClick={handleOpenCreateTeam}
@@ -266,12 +271,12 @@ export default function Page() {
                 projectsAssigned={team.projectsAssigned}
                 isLocked={lockedTeamIds.has(team.id)}
                 onEdit={
-                  isReadOnlyRole || lockedTeamIds.has(team.id)
+                  !canManageTeams || lockedTeamIds.has(team.id)
                     ? undefined
                     : (selectedTeam) => setEditingTeam(selectedTeam)
                 }
                 onDelete={
-                  isReadOnlyRole || lockedTeamIds.has(team.id)
+                  !canManageTeams || lockedTeamIds.has(team.id)
                     ? undefined
                     : (selectedTeam) => setDeletingTeam(selectedTeam)
                 }
@@ -315,7 +320,7 @@ export default function Page() {
                             <Button size="sm" variant="outline" asChild>
                               <Link href={`/teams/${team.slug}`}>View</Link>
                             </Button>
-                            {!isReadOnlyRole && !lockedTeamIds.has(team.id) && (
+                            {canManageTeams && !lockedTeamIds.has(team.id) && (
                               <>
                                 <Button
                                   size="sm"
@@ -345,7 +350,7 @@ export default function Page() {
         )}
       </div>
 
-      {!isReadOnlyRole ? (
+      {canManageTeams ? (
         <TeamModal
           open={isCreateOpen}
           onOpenChange={setIsCreateOpen}
@@ -355,7 +360,7 @@ export default function Page() {
         />
       ) : null}
 
-      {!isReadOnlyRole ? (
+      {canManageTeams ? (
         <TeamModal
           open={Boolean(editingTeam)}
           onOpenChange={(open) => {
@@ -378,15 +383,17 @@ export default function Page() {
         />
       ) : null}
 
-      {!isReadOnlyRole && <DeleteTeamAlert
-        open={!!deletingTeam}
-        onOpenChange={(open) => {
-          if (!open) setDeletingTeam(null)
-        }}
-        teamName={deletingTeam?.name}
-        loading={submitting}
-        onConfirm={handleDeleteTeam}
-      />}
+      {canManageTeams && (
+        <DeleteTeamAlert
+          open={!!deletingTeam}
+          onOpenChange={(open) => {
+            if (!open) setDeletingTeam(null)
+          }}
+          teamName={deletingTeam?.name}
+          loading={submitting}
+          onConfirm={handleDeleteTeam}
+        />
+      )}
     </>
   )
 }

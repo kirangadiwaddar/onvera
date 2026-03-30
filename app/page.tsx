@@ -515,7 +515,7 @@ export default function OnveraLandingV2Page() {
             </p>
 
             <div
-              className="mt-10 overflow-hidden bg-white dark:bg-[#0a0a0a]"
+              className="mt-10 overflow-hidden rounded-2xl bg-white dark:bg-[#0a0a0a]"
             >
               <div className="rounded-[1.25rem] border border-black/10 dark:border-white/10  p-5 relative overflow-hidden">
                 {/* Prismatic Aurora Burst - Multi-layered Gradient */}

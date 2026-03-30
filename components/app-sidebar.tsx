@@ -196,6 +196,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ? data.navMain.filter((item) => item.url === "/projects" || (canAccessTeams && item.url === "/teams"))
       : currentRole === "team_member"
         ? data.navMain.filter((item) => item.url === "/projects" || item.url === "/teams")
+        : currentRole === "team_lead"
+          ? data.navMain.filter((item) => item.url === "/projects" || item.url === "/teams")
         : planAllowsTeams
           ? data.navMain
           : data.navMain.filter((item) => item.url !== "/teams")

@@ -107,7 +107,12 @@ export default function TeamDetailPage() {
   const [membersPage, setMembersPage] = useState(1)
   const [is2xl, setIs2xl] = useState(false)
   const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
+  const isSuperAdmin = profile?.role === "super_admin"
+  const isTeamLead = profile?.role === "team_lead"
   const isProjectMember = profile?.role === "project_member"
+  const currentEmail = (user?.email || "").trim().toLowerCase()
+  const canInviteMembers = isSuperAdmin || isTeamLead
+  const canAssignProjects = isSuperAdmin
   const currentPlan = normalizePlan(
     profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
   )
@@ -145,7 +150,7 @@ export default function TeamDetailPage() {
       return
     }
     if (!slug) return
-    if (!planAllowsTeams && !isReadOnlyRole) {
+    if (!planAllowsTeams && isSuperAdmin) {
       setLoading(false)
       return
     }
@@ -205,6 +210,14 @@ export default function TeamDetailPage() {
     () => teamMembers.slice(membersStartIndex, membersEndIndex),
     [teamMembers, membersStartIndex, membersEndIndex]
   )
+  const canDeleteMember = (member: TeamMember) => {
+    if (isSuperAdmin) return true
+    if (isTeamLead) return !!member.invitedByEmail && member.invitedByEmail === currentEmail
+    return false
+  }
+  const canSetLead = isSuperAdmin
+  const showMemberActions = isSuperAdmin || isTeamLead
+  const memberTableCols = 5 + (isSuperAdmin ? 1 : 0) + (showMemberActions ? 1 : 0)
 
   useEffect(() => {
     setMembersPage(1)
@@ -254,6 +267,8 @@ export default function TeamDetailPage() {
       image: "",
       email: memberEmail.trim().toLowerCase(),
       accessToken,
+      invitedByEmail: currentEmail || undefined,
+      invitedByRole: isSuperAdmin ? "super_admin" : isTeamLead ? "team_lead" : undefined,
     }
 
     const members = team.members ?? []
@@ -272,7 +287,7 @@ export default function TeamDetailPage() {
       body: JSON.stringify({
         email: newMember.email,
         name: newMember.name,
-        memberRole: "team_member",
+        memberRole: memberPosition === "lead" ? "team_lead" : "team_member",
         token: newMember.accessToken,
         contextName: team.name,
         contextType: "team",
@@ -282,9 +297,9 @@ export default function TeamDetailPage() {
     if (!inviteResponse.ok || inviteData?.sent === false) {
       const errorMessage = inviteData?.message || "Failed to send invite email"
       console.warn(errorMessage)
-      window.alert(errorMessage)
+      toast.error(errorMessage)
     } else {
-      window.alert("Member invited")
+      toast.success("Member invited")
     }
 
     setMemberName("")
@@ -401,7 +416,7 @@ export default function TeamDetailPage() {
     )
   }
 
-  if (!planAllowsTeams && !isReadOnlyRole) {
+  if (!planAllowsTeams && isSuperAdmin) {
     return (
       <EmptyState
        icon={<TriangleAlert className="text-destructive" />}
@@ -421,7 +436,7 @@ export default function TeamDetailPage() {
 
   const formattedDate = new Date(team.createdAt).toLocaleDateString("en-GB")
   const adminName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Admin"
-  const adminRoleLabel = "Team Lead"
+  const adminRoleLabel = isSuperAdmin ? "Super Admin" : "Team Lead"
   const assignableProjects = allProjects.filter((project) => {
     const notAssigned = !project.teamIds?.includes(team.id)
     const matchesSearch = project.title.toLowerCase().includes(assignSearch.toLowerCase())
@@ -451,7 +466,7 @@ export default function TeamDetailPage() {
       <div className="space-y-6 p-6">
         <div className="flex items-center gap-10 justify-between">
           <h2 className="text-lg font-semibold">Team Members</h2>
-          {!isReadOnlyRole && (
+          {canInviteMembers && (
             <Button variant="gradient" onClick={() => setOpenInvite(true)}>
               <Plus /> Invite Member
             </Button>
@@ -466,13 +481,14 @@ export default function TeamDetailPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Designation</TableHead>
                 <TableHead>Position</TableHead>
-                {!isReadOnlyRole && <TableHead>Access Token</TableHead>}
-                {!isReadOnlyRole && <TableHead className="text-right">Actions</TableHead>}
+                <TableHead>Status</TableHead>
+                {isSuperAdmin && <TableHead>Access Token</TableHead>}
+                {showMemberActions && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
 
             <TableBody>
-              {!isReadOnlyRole && (
+              {isSuperAdmin && (
               <TableRow className="bg-zinc-50/70 dark:bg-white/5">
                 <TableCell className="flex items-center gap-3 py-4">
                   <Tooltip>
@@ -496,8 +512,13 @@ export default function TeamDetailPage() {
                 <TableCell>
                   <Badge className="bg-zinc-900 text-white border border-zinc-800">Admin</Badge>
                 </TableCell>
-                {!isReadOnlyRole && <TableCell>-</TableCell>}
-                {!isReadOnlyRole && (
+                <TableCell>
+                  <Badge className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                    Active
+                  </Badge>
+                </TableCell>
+                {isSuperAdmin && <TableCell>-</TableCell>}
+                {isSuperAdmin && (
                   <TableCell className="text-right text-xs text-muted-foreground">Owner Access</TableCell>
                 )}
               </TableRow>
@@ -529,7 +550,18 @@ export default function TeamDetailPage() {
                       <Crown className="size-3.5" /> Lead
                     </Badge>
                   </TableCell>
-                  {!isReadOnlyRole && (
+                  <TableCell>
+                    {(team.lead.isRegistered ?? !team.lead.accessToken) ? (
+                      <Badge className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                        Active
+                      </Badge>
+                    ) : (
+                      <Badge className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                        Pending
+                      </Badge>
+                    )}
+                  </TableCell>
+                  {isSuperAdmin && (
                     <TableCell>
                       {team.lead.accessToken ? (
                         <Button
@@ -546,7 +578,7 @@ export default function TeamDetailPage() {
                       ) : "-"}
                     </TableCell>
                   )}
-                  {!isReadOnlyRole && (
+                  {isSuperAdmin && (
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Button
@@ -557,23 +589,11 @@ export default function TeamDetailPage() {
                         >
                           Make Member
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="destructiveLight"
-                          disabled={savingTeam}
-                          onClick={() =>
-                            setPendingMemberDelete({
-                              id: team.lead!.id,
-                              name: team.lead!.name,
-                              email: team.lead!.email,
-                              isLead: true,
-                            })
-                          }
-                        >
-                          <Trash2 className="dark:text-white" />
-                        </Button>
                       </div>
                     </TableCell>
+                  )}
+                  {showMemberActions && !isSuperAdmin && (
+                    <TableCell className="text-right">-</TableCell>
                   )}
                 </TableRow>
               ) : null}
@@ -603,7 +623,18 @@ export default function TeamDetailPage() {
                     <TableCell>
                       <Badge variant="secondary">Member</Badge>
                     </TableCell>
-                    {!isReadOnlyRole && (
+                    <TableCell>
+                      {(member.isRegistered ?? !member.accessToken) ? (
+                        <Badge className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                          Active
+                        </Badge>
+                      ) : (
+                        <Badge className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                          Pending
+                        </Badge>
+                      )}
+                    </TableCell>
+                    {isSuperAdmin && (
                       <TableCell>
                         {member.accessToken ? (
                           <Button
@@ -620,40 +651,48 @@ export default function TeamDetailPage() {
                         ) : "-"}
                       </TableCell>
                     )}
-                    {!isReadOnlyRole && (
+                    {showMemberActions && (
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={savingTeam || !!team.lead}
-                            onClick={() => void handleSetLead(member)}
-                          >
-                            <UserRoundCheck /> Set Lead
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructiveLight"
-                            disabled={savingTeam}
-                            onClick={() =>
-                              setPendingMemberDelete({
-                                id: member.id,
-                                name: member.name,
-                                email: member.email,
-                                isLead: false,
-                              })
-                            }
-                          >
-                            <Trash2 className="dark:text-white" />
-                          </Button>
-                        </div>
+                        {canSetLead || canDeleteMember(member) ? (
+                          <div className="flex items-center justify-end gap-2">
+                            {canSetLead && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={savingTeam || !!team.lead}
+                                onClick={() => void handleSetLead(member)}
+                              >
+                                <UserRoundCheck /> Set Lead
+                              </Button>
+                            )}
+                            {canDeleteMember(member) && (
+                              <Button
+                                size="sm"
+                                variant="destructiveLight"
+                                disabled={savingTeam}
+                                onClick={() =>
+                                  setPendingMemberDelete({
+                                    id: member.id,
+                                    name: member.name,
+                                    email: member.email,
+                                    isLead: false,
+                                  })
+                                }
+                              >
+                                <Trash2 className="dark:text-white" />
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          "-"
+                        )}
                       </TableCell>
                     )}
                   </TableRow>
                 ))
               ) : !team.lead ? (
                 <TableRow>
-                  <TableCell colSpan={isReadOnlyRole ? 4 : 6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={memberTableCols} className="text-center py-8 text-muted-foreground">
                     No team members added
                   </TableCell>
                 </TableRow>
@@ -722,7 +761,7 @@ export default function TeamDetailPage() {
                 <List className="size-4" />
               </Button>
             </div>
-            {!isReadOnlyRole && (
+            {canAssignProjects && (
               <Button variant="gradient" onClick={() => setOpenAssignProject(true)}>
                 <Plus /> Assign Project
               </Button>
@@ -746,7 +785,7 @@ export default function TeamDetailPage() {
                   members={project.members}
                   variant="compact"
                   footerAction={
-                    !isReadOnlyRole ? (
+                    canAssignProjects ? (
                       <Button
                         size="sm"
                         variant="destructiveLight"
@@ -768,7 +807,7 @@ export default function TeamDetailPage() {
                     <TableHead>Project</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    {canAssignProjects && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -806,8 +845,8 @@ export default function TeamDetailPage() {
                             })
                           : "-"}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {!isReadOnlyRole ? (
+                      {canAssignProjects && (
+                        <TableCell className="text-right">
                           <Button
                             size="sm"
                             variant="destructiveLight"
@@ -816,10 +855,8 @@ export default function TeamDetailPage() {
                           >
                             Unassign Team
                           </Button>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

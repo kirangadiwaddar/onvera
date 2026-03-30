@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import { normalizePlan } from "@/lib/billing/plans"
+import { isUserRole } from "@/lib/auth/roles"
 
 function parseAdminEmails() {
   const raw = process.env.ADMIN_EMAILS || ""
@@ -66,7 +67,7 @@ export async function PATCH(request: Request) {
   }
 
   const body = (await request.json().catch(() => null)) as
-    | { userId?: string; email?: string; plan?: string }
+    | { userId?: string; email?: string; plan?: string; role?: string }
     | null
 
   if (!body || typeof body !== "object") {
@@ -79,20 +80,30 @@ export async function PATCH(request: Request) {
   }
 
   const userId = body.userId
-  if (!userId || typeof body.plan !== "string") {
-    return NextResponse.json({ message: "Missing user or plan" }, { status: 400 })
+  if (!userId || (typeof body.plan !== "string" && typeof body.role !== "string")) {
+    return NextResponse.json({ message: "Missing user or update" }, { status: 400 })
   }
 
-  const normalizedPlan = normalizePlan(body.plan)
+  const updatePayload: { plan?: string; role?: string } = {}
+  if (typeof body.plan === "string") {
+    updatePayload.plan = normalizePlan(body.plan)
+  }
+  if (typeof body.role === "string") {
+    const normalizedRole = body.role.trim()
+    if (!isUserRole(normalizedRole)) {
+      return NextResponse.json({ message: "Invalid role" }, { status: 400 })
+    }
+    updatePayload.role = normalizedRole
+  }
 
   const { error } = await admin
     .from("profiles")
-    .update({ plan: normalizedPlan })
+    .update(updatePayload)
     .eq("id", userId)
 
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, plan: normalizedPlan })
+  return NextResponse.json({ ok: true, ...updatePayload })
 }

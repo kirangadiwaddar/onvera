@@ -13,7 +13,7 @@ type InviteInfo = {
   contextType: "team" | "project"
   contextName: string
   contextSlug: string
-  memberRole: "team_member" | "project_member"
+  memberRole: "team_lead" | "team_member" | "project_member"
   email: string | null
   name: string | null
   isLead?: boolean
