@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { FolderOpenDot, LayoutGrid, List, ListFilter, Lock, MoreVertical, PencilIcon, Plus, TrashIcon } from "lucide-react"
 
 import { ProjectCard } from "@/components/project-card"
@@ -46,6 +46,14 @@ import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
 import { getPlanLimits, normalizePlan } from "@/lib/billing/plans"
 
+type WorkspaceItem = {
+  id: string
+  name: string
+  email: string | null
+  plan: string | null
+  role: "super_admin" | "team_lead" | "team_member" | "project_member"
+}
+
 const statuses: Array<{ value: "all" | status; label: string }> = [
   { value: "all", label: "All" },
   { value: "ongoing", label: "Ongoing" },
@@ -79,6 +87,10 @@ export default function Page() {
   const [templates, setTemplates] = useState<TemplateOption[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
+  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
+  const workspaceSwitchTimerRef = useRef<number | null>(null)
 
   const [currentPage, setCurrentPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<"all" | status>("all")
@@ -89,22 +101,51 @@ export default function Page() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<ProjectItem | null>(null)
   const [deletingProject, setDeletingProject] = useState<ProjectItem | null>(null)
+  const ensureOwnerWorkspace = (items: WorkspaceItem[]) => {
+    if (!user?.id) return items
+    const ownsFlag =
+      typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
+    const ownsByProfile =
+      profile?.role === "super_admin" ||
+      (typeof user.user_metadata?.role === "string" && user.user_metadata.role === "super_admin")
+    if (!(ownsFlag || ownsByProfile)) return items
+    if (items.some((workspace) => workspace.id === user.id)) return items
+    const fallbackName =
+      profile?.full_name ||
+      user.user_metadata?.full_name ||
+      user.email?.split("@")[0] ||
+      "Workspace"
+    return [
+      {
+        id: user.id,
+        name: fallbackName,
+        email: user.email || null,
+        plan: profile?.plan || "free",
+        role: "super_admin",
+      },
+      ...items,
+    ]
+  }
+  const currentWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || null
+  const workspaceRole = currentWorkspace?.role || profile?.role || null
   const isReadOnlyRole =
-    profile?.role === "project_member" ||
-    profile?.role === "team_member" ||
-    profile?.role === "team_lead"
-  const canManageProjects = profile?.role === "super_admin"
+    workspaceRole === "project_member" ||
+    workspaceRole === "team_member" ||
+    workspaceRole === "team_lead"
+  const canManageProjects = workspaceRole === "super_admin"
   const currentPlan = normalizePlan(
-    profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
+    currentWorkspace?.plan || profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
   )
   const planLimits = getPlanLimits(currentPlan)
-  const ownedProjectCount = projects.filter((project) => project.createdBy === user?.id).length
+  const ownedProjectCount = projects.filter(
+    (project) => !selectedWorkspaceId || project.createdBy === selectedWorkspaceId,
+  ).length
   const projectLimitReached = planLimits.maxProjects !== null && ownedProjectCount >= planLimits.maxProjects
   const createProjectDisabled = isReadOnlyRole || submitting
   const lockedProjectIds = useMemo(() => {
     if (planLimits.maxProjects === null) return new Set<number>()
     const owned = projects
-      .filter((project) => project.createdBy === user?.id)
+      .filter((project) => !selectedWorkspaceId || project.createdBy === selectedWorkspaceId)
       .sort((a, b) => {
         const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0
         const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0
@@ -192,6 +233,54 @@ export default function Page() {
   }, [authLoading, user?.id])
 
   useEffect(() => {
+    if (authLoading || !user?.id) return
+    let active = true
+    const loadWorkspaces = async () => {
+      try {
+        const res = await fetchWithAuth("/api/workspaces", { cache: "no-store" })
+        const data = await res.json().catch(() => null) as { workspaces?: WorkspaceItem[] } | null
+        if (!active) return
+        let items = Array.isArray(data?.workspaces) ? data.workspaces : []
+        items = ensureOwnerWorkspace(items)
+        setWorkspaces(items)
+        const stored = typeof window !== "undefined" ? window.localStorage.getItem("onvera:workspace") : null
+        const preferred = stored && items.some((item) => item.id === stored) ? stored : null
+        const fallback = items[0]?.id || null
+        const nextId =
+          preferred ||
+          (items.some((item) => item.id === user.id) ? user.id : fallback)
+        setSelectedWorkspaceId(nextId)
+        setWorkspaceSwitching(false)
+      } catch {
+        setWorkspaces([])
+        setWorkspaceSwitching(false)
+      }
+    }
+    void loadWorkspaces()
+    const handleWorkspace = () => {
+      if (typeof window === "undefined") return
+      setWorkspaceSwitching(true)
+      if (workspaceSwitchTimerRef.current !== null) {
+        window.clearTimeout(workspaceSwitchTimerRef.current)
+      }
+      workspaceSwitchTimerRef.current = window.setTimeout(() => {
+        setWorkspaceSwitching(false)
+      }, 1000)
+      void loadWorkspaces()
+    }
+    window.addEventListener("workspace:changed", handleWorkspace)
+    window.addEventListener("storage", handleWorkspace)
+    return () => {
+      active = false
+      window.removeEventListener("workspace:changed", handleWorkspace)
+      window.removeEventListener("storage", handleWorkspace)
+      if (workspaceSwitchTimerRef.current !== null) {
+        window.clearTimeout(workspaceSwitchTimerRef.current)
+      }
+    }
+  }, [authLoading, user?.id])
+
+  useEffect(() => {
     if (typeof window === "undefined") return
     const media = window.matchMedia("(min-width: 1536px)")
     const update = () => setIs2xl(media.matches)
@@ -202,13 +291,16 @@ export default function Page() {
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
+      if (selectedWorkspaceId && project.createdBy !== selectedWorkspaceId) {
+        return false
+      }
       const statusMatch = statusFilter === "all" || project.status === statusFilter
       const templateMatch =
         templateFilter.includes("all") || templateFilter.includes(project.templateId)
 
       return statusMatch && templateMatch
     })
-  }, [projects, statusFilter, templateFilter])
+  }, [projects, selectedWorkspaceId, statusFilter, templateFilter])
 
   const ITEMS_PER_PAGE = projectsView === "table" ? 10 : is2xl ? 12 : 9
   const totalPages = Math.ceil(filteredProjects.length / ITEMS_PER_PAGE)
@@ -354,7 +446,9 @@ export default function Page() {
     }
   }
 
-  if (loading) {
+  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
+
+  if (loading || !workspaceReady) {
     return (
       <LoadingState
         title="Loading Projects..."

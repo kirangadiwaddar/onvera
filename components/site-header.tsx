@@ -206,12 +206,6 @@ export function SiteHeader() {
         <h1 className="text-base font-medium">{getTitle()}</h1>
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center gap-2">
-            <p className="text-[12px] uppercase text-zinc-600 dark:text-white/70" suppressHydrationWarning>
-              {dateLabel}
-            </p>
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-white/5 dark:text-violet-200">
-              <CalendarDays size={16} />
-            </span>
             <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />
             <NotificationBell />
             <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />

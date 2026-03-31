@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import type { Team, TeamMember } from "@/types/team"
 import type { Project } from "@/types/project"
@@ -64,6 +64,14 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { statusLabel, statusStyles } from "@/lib/project-status"
 
+type WorkspaceItem = {
+  id: string
+  name: string
+  email: string | null
+  plan: string | null
+  role: "super_admin" | "team_lead" | "team_member" | "project_member"
+}
+
 type TeamDetailResponse = {
   team: Team
   projects: Project[]
@@ -106,15 +114,46 @@ export default function TeamDetailPage() {
   const [projectsPage, setProjectsPage] = useState(1)
   const [membersPage, setMembersPage] = useState(1)
   const [is2xl, setIs2xl] = useState(false)
-  const isReadOnlyRole = profile?.role === "team_member" || profile?.role === "project_member"
-  const isSuperAdmin = profile?.role === "super_admin"
-  const isTeamLead = profile?.role === "team_lead"
-  const isProjectMember = profile?.role === "project_member"
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
+  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
+  const workspaceSwitchTimerRef = useRef<number | null>(null)
+  const ensureOwnerWorkspace = (items: WorkspaceItem[]) => {
+    if (!user?.id) return items
+    const ownsFlag =
+      typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
+    const ownsByProfile =
+      profile?.role === "super_admin" ||
+      (typeof user.user_metadata?.role === "string" && user.user_metadata.role === "super_admin")
+    if (!(ownsFlag || ownsByProfile)) return items
+    if (items.some((workspace) => workspace.id === user.id)) return items
+    const fallbackName =
+      profile?.full_name ||
+      user.user_metadata?.full_name ||
+      user.email?.split("@")[0] ||
+      "Workspace"
+    return [
+      {
+        id: user.id,
+        name: fallbackName,
+        email: user.email || null,
+        plan: profile?.plan || "free",
+        role: "super_admin",
+      },
+      ...items,
+    ]
+  }
+  const currentWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || null
+  const effectiveRole = currentWorkspace?.role || profile?.role || null
+  const isReadOnlyRole = effectiveRole === "team_member" || effectiveRole === "project_member"
+  const isSuperAdmin = effectiveRole === "super_admin"
+  const isTeamLead = effectiveRole === "team_lead"
+  const isProjectMember = effectiveRole === "project_member"
   const currentEmail = (user?.email || "").trim().toLowerCase()
   const canInviteMembers = isSuperAdmin || isTeamLead
   const canAssignProjects = isSuperAdmin
   const currentPlan = normalizePlan(
-    profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
+    currentWorkspace?.plan || profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
   )
   const planAllowsTeams = canUseTeams(currentPlan)
   const inviteBaseUrl =
@@ -163,6 +202,54 @@ export default function TeamDetailPage() {
         setLoading(false)
       })
   }, [authLoading, isReadOnlyRole, loadTeam, planAllowsTeams, slug, user?.id])
+
+  useEffect(() => {
+    if (authLoading || !user?.id) return
+    let active = true
+    const loadWorkspaces = async () => {
+      try {
+        const res = await fetchWithAuth("/api/workspaces", { cache: "no-store" })
+        const data = await res.json().catch(() => null) as { workspaces?: WorkspaceItem[] } | null
+        if (!active) return
+        let items = Array.isArray(data?.workspaces) ? data.workspaces : []
+        items = ensureOwnerWorkspace(items)
+        setWorkspaces(items)
+        const stored = typeof window !== "undefined" ? window.localStorage.getItem("onvera:workspace") : null
+        const preferred = stored && items.some((item) => item.id === stored) ? stored : null
+        const fallback = items[0]?.id || null
+        const nextId =
+          preferred ||
+          (items.some((item) => item.id === user.id) ? user.id : fallback)
+        setSelectedWorkspaceId(nextId)
+        setWorkspaceSwitching(false)
+      } catch {
+        setWorkspaces([])
+        setWorkspaceSwitching(false)
+      }
+    }
+    void loadWorkspaces()
+    const handleWorkspace = () => {
+      if (typeof window === "undefined") return
+      setWorkspaceSwitching(true)
+      if (workspaceSwitchTimerRef.current !== null) {
+        window.clearTimeout(workspaceSwitchTimerRef.current)
+      }
+      workspaceSwitchTimerRef.current = window.setTimeout(() => {
+        setWorkspaceSwitching(false)
+      }, 1000)
+      void loadWorkspaces()
+    }
+    window.addEventListener("workspace:changed", handleWorkspace)
+    window.addEventListener("storage", handleWorkspace)
+    return () => {
+      active = false
+      window.removeEventListener("workspace:changed", handleWorkspace)
+      window.removeEventListener("storage", handleWorkspace)
+      if (workspaceSwitchTimerRef.current !== null) {
+        window.clearTimeout(workspaceSwitchTimerRef.current)
+      }
+    }
+  }, [authLoading, user?.id])
 
   useEffect(() => {
     if (authLoading) return
@@ -397,7 +484,9 @@ export default function TeamDetailPage() {
     }
   }
 
-  if (authLoading) {
+  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
+
+  if (authLoading || !workspaceReady) {
     return (
       <LoadingState
         title="Loading Team"
@@ -432,6 +521,15 @@ export default function TeamDetailPage() {
 
   if (!team) {
     return <EmptyState icon={<TriangleAlert className="text-destructive" />} title="Team Not Found" description="We couldn't find this team." />
+  }
+  if (selectedWorkspaceId && team.createdBy && team.createdBy !== selectedWorkspaceId) {
+    return (
+      <EmptyState
+        icon={<TriangleAlert className="text-destructive" />}
+        title="Wrong workspace"
+        description="Switch the workspace from the sidebar to view this team."
+      />
+    )
   }
 
   const formattedDate = new Date(team.createdAt).toLocaleDateString("en-GB")

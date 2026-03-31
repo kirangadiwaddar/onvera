@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { LayoutGrid, List, Lock, Plus, Users, TriangleAlert } from "lucide-react"
 import Link from "next/link"
 
@@ -18,35 +18,76 @@ import { LoadingState } from "@/components/loadingState"
 import { EmptyState } from "@/components/emptyState"
 import { canUseTeams, getPlanLimits, normalizePlan } from "@/lib/billing/plans"
 
+type WorkspaceItem = {
+  id: string
+  name: string
+  email: string | null
+  plan: string | null
+  role: "super_admin" | "team_lead" | "team_member" | "project_member"
+}
+
 export default function Page() {
   const { profile, user, loading: authLoading } = useAuth()
   const [teams, setTeams] = useState<Team[]>([])
   const [loadingTeams, setLoadingTeams] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
+  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
+  const workspaceSwitchTimerRef = useRef<number | null>(null)
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingTeam, setEditingTeam] = useState<Team | null>(null)
   const [deletingTeam, setDeletingTeam] = useState<Team | null>(null)
+  const ensureOwnerWorkspace = (items: WorkspaceItem[]) => {
+    if (!user?.id) return items
+    const ownsFlag =
+      typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
+    const ownsByProfile =
+      profile?.role === "super_admin" ||
+      (typeof user.user_metadata?.role === "string" && user.user_metadata.role === "super_admin")
+    if (!(ownsFlag || ownsByProfile)) return items
+    if (items.some((workspace) => workspace.id === user.id)) return items
+    const fallbackName =
+      profile?.full_name ||
+      user.user_metadata?.full_name ||
+      user.email?.split("@")[0] ||
+      "Workspace"
+    return [
+      {
+        id: user.id,
+        name: fallbackName,
+        email: user.email || null,
+        plan: profile?.plan || "free",
+        role: "super_admin",
+      },
+      ...items,
+    ]
+  }
+  const currentWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || null
+  const workspaceRole = currentWorkspace?.role || profile?.role || null
   const isReadOnlyRole =
-    profile?.role === "team_member" ||
-    profile?.role === "project_member" ||
-    profile?.role === "team_lead"
-  const isProjectMember = profile?.role === "project_member"
-  const isSuperAdmin = profile?.role === "super_admin"
+    workspaceRole === "team_member" ||
+    workspaceRole === "project_member" ||
+    workspaceRole === "team_lead"
+  const isProjectMember = workspaceRole === "project_member"
+  const isSuperAdmin = workspaceRole === "super_admin"
   const canManageTeams = isSuperAdmin
   const currentPlan = normalizePlan(
-    profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
+    currentWorkspace?.plan || profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
   )
   const planLimits = getPlanLimits(currentPlan)
   const planAllowsTeams = canUseTeams(currentPlan)
-  const ownedTeamsCount = teams.filter((team) => team.createdBy === user?.id).length
+  const ownedTeamsCount = teams.filter(
+    (team) => !selectedWorkspaceId || team.createdBy === selectedWorkspaceId,
+  ).length
   const teamLimitReached = planLimits.maxTeams !== null && ownedTeamsCount >= planLimits.maxTeams
   const createTeamDisabled = !canManageTeams || submitting
   const lockedTeamIds = useMemo(() => {
     if (planLimits.maxTeams === null) return new Set<number>()
     const owned = teams
-      .filter((team) => team.createdBy === user?.id)
+      .filter((team) => !selectedWorkspaceId || team.createdBy === selectedWorkspaceId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     const locked = owned.slice(planLimits.maxTeams).map((team) => team.id)
     return new Set(locked)
@@ -73,6 +114,54 @@ export default function Page() {
     if (!planAllowsTeams && isSuperAdmin) return
     void loadTeams()
   }, [authLoading, planAllowsTeams, isSuperAdmin, user?.id])
+
+  useEffect(() => {
+    if (authLoading || !user?.id) return
+    let active = true
+    const loadWorkspaces = async () => {
+      try {
+        const res = await fetchWithAuth("/api/workspaces", { cache: "no-store" })
+        const data = await res.json().catch(() => null) as { workspaces?: WorkspaceItem[] } | null
+        if (!active) return
+        let items = Array.isArray(data?.workspaces) ? data.workspaces : []
+        items = ensureOwnerWorkspace(items)
+        setWorkspaces(items)
+        const stored = typeof window !== "undefined" ? window.localStorage.getItem("onvera:workspace") : null
+        const preferred = stored && items.some((item) => item.id === stored) ? stored : null
+        const fallback = items[0]?.id || null
+        const nextId =
+          preferred ||
+          (items.some((item) => item.id === user.id) ? user.id : fallback)
+        setSelectedWorkspaceId(nextId)
+        setWorkspaceSwitching(false)
+      } catch {
+        setWorkspaces([])
+        setWorkspaceSwitching(false)
+      }
+    }
+    void loadWorkspaces()
+    const handleWorkspace = () => {
+      if (typeof window === "undefined") return
+      setWorkspaceSwitching(true)
+      if (workspaceSwitchTimerRef.current !== null) {
+        window.clearTimeout(workspaceSwitchTimerRef.current)
+      }
+      workspaceSwitchTimerRef.current = window.setTimeout(() => {
+        setWorkspaceSwitching(false)
+      }, 1000)
+      void loadWorkspaces()
+    }
+    window.addEventListener("workspace:changed", handleWorkspace)
+    window.addEventListener("storage", handleWorkspace)
+    return () => {
+      active = false
+      window.removeEventListener("workspace:changed", handleWorkspace)
+      window.removeEventListener("storage", handleWorkspace)
+      if (workspaceSwitchTimerRef.current !== null) {
+        window.clearTimeout(workspaceSwitchTimerRef.current)
+      }
+    }
+  }, [authLoading, user?.id])
 
   if (authLoading) {
     return (
@@ -176,6 +265,17 @@ export default function Page() {
     }
   }
 
+  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
+
+  if (loadingTeams || !workspaceReady) {
+    return (
+      <LoadingState
+        title="Loading Teams"
+        description="Fetching your teams and assignments."
+      />
+    )
+  }
+
   if (!planAllowsTeams && isSuperAdmin) {
     return (
       <EmptyState
@@ -186,21 +286,12 @@ export default function Page() {
     )
   }
 
-  if (loadingTeams) {
-    return (
-      <LoadingState
-        title="Loading Teams"
-        description="Fetching your teams and assignments."
-      />
-    )
-  }
-
-  if (isProjectMember && teams.length === 0) {
+  if (isProjectMember) {
     return (
       <EmptyState
         icon={<TriangleAlert className="text-destructive" />}
-        title="Teams Unavailable"
-        description="Teams are available only to team leads and team members."
+        title="Teams are not available"
+        description="Your access level doesn’t include the Teams view."
       />
     )
   }
@@ -251,7 +342,7 @@ export default function Page() {
             <Separator className="my-0 bg-border" />
           </>
         ) : null}
-        {teams.length === 0 ? (
+        {teams.filter((team) => !selectedWorkspaceId || team.createdBy === selectedWorkspaceId).length === 0 ? (
           <div className="px-7">
             <EmptyState
               icon={<Users />}
@@ -263,7 +354,9 @@ export default function Page() {
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
-            {teams.map((team) => (
+            {teams
+              .filter((team) => !selectedWorkspaceId || team.createdBy === selectedWorkspaceId)
+              .map((team) => (
               <TeamCard
                 key={team.id}
                 slug={team.slug}
@@ -297,7 +390,9 @@ export default function Page() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {teams.map((team) => {
+                  {teams
+                    .filter((team) => !selectedWorkspaceId || team.createdBy === selectedWorkspaceId)
+                    .map((team) => {
                     const memberCount = (team.members?.length ?? 0) + (team.lead ? 1 : 0)
                     return (
                       <TableRow key={team.id}>

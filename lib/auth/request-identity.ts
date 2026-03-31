@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js"
 import type { UserRole } from "@/lib/auth/roles"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizePlan, type PlanId } from "@/lib/billing/plans"
+import { getStoreData } from "@/lib/server/data-store"
 
 export type RequestIdentity = {
   userId: string
@@ -9,6 +10,8 @@ export type RequestIdentity = {
   role: UserRole | null
   plan: PlanId
 }
+
+const normalizeEmail = (value?: string | null) => (value || "").trim().toLowerCase()
 
 function getBearerToken(request: Request) {
   const auth = request.headers.get("authorization") || ""
@@ -51,6 +54,46 @@ export async function getRequestIdentityFromRequest(request: Request): Promise<R
       .maybeSingle()
     role = (profile?.role || role || null) as UserRole | null
     plan = normalizePlan(profile?.plan ?? plan)
+  }
+
+  const workspaceIdRaw = request.headers.get("x-workspace-id")?.trim() || null
+  const workspaceId = workspaceIdRaw && workspaceIdRaw !== "__create__" ? workspaceIdRaw : null
+  if (workspaceId && admin) {
+    const { teams, projects } = await getStoreData()
+    const email = normalizeEmail(user.email)
+    const isOwner = user.id === workspaceId
+    const isLead = teams.some(
+      (team) => team.createdBy === workspaceId && normalizeEmail(team.lead?.email) === email,
+    )
+    const isTeamMember = teams.some(
+      (team) =>
+        team.createdBy === workspaceId &&
+        (team.members || []).some((member) => normalizeEmail(member.email) === email),
+    )
+    const isProjectMember = projects.some(
+      (project) =>
+        project.createdBy === workspaceId &&
+        (project.extraMembers || []).some((member) => normalizeEmail(member.email) === email),
+    )
+
+    if (isOwner || isLead || isTeamMember || isProjectMember) {
+      const { data: ownerProfile } = await admin
+        .from("profiles")
+        .select("plan")
+        .eq("id", workspaceId)
+        .maybeSingle()
+      plan = normalizePlan(ownerProfile?.plan ?? plan)
+
+      if (isOwner) {
+        role = "super_admin"
+      } else if (isLead) {
+        role = "team_lead"
+      } else if (isTeamMember) {
+        role = "team_member"
+      } else if (isProjectMember) {
+        role = "project_member"
+      }
+    }
   }
 
   return {

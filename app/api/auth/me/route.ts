@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getStoreData } from "@/lib/server/data-store"
+
+const normalizeEmail = (value?: string | null) => (value || "").trim().toLowerCase()
 
 export async function GET(request: Request) {
   try {
@@ -28,6 +31,34 @@ export async function GET(request: Request) {
       stripeSubscriptionId = profile?.stripe_subscription_id ?? null
     }
 
+    let workspaceRole: string | null = role
+    const email = normalizeEmail(identity.email)
+    if (email) {
+      const { teams, projects } = await getStoreData()
+      const isLeadInTeam = teams.some((team) => normalizeEmail(team.lead?.email) === email)
+      const isMemberInTeam = teams.some((team) =>
+        (team.members || []).some((member) => normalizeEmail(member.email) === email),
+      )
+      const isLeadInProject = projects.some((project) =>
+        (project.extraMembers || []).some(
+          (member) =>
+            normalizeEmail(member.email) === email &&
+            (member.memberType === "team_lead" || member.isLead === true),
+        ),
+      )
+      const isProjectMember = projects.some((project) =>
+        (project.extraMembers || []).some((member) => normalizeEmail(member.email) === email),
+      )
+
+      if (isLeadInTeam || isLeadInProject) {
+        workspaceRole = "team_lead"
+      } else if (isMemberInTeam) {
+        workspaceRole = "team_member"
+      } else if (isProjectMember) {
+        workspaceRole = "project_member"
+      }
+    }
+
     return NextResponse.json({
       user: {
         id: identity.userId,
@@ -39,6 +70,7 @@ export async function GET(request: Request) {
             id: identity.userId,
             fullName,
             role,
+            workspaceRole,
             plan,
             stripeCustomerId,
           stripeSubscriptionId,
