@@ -306,6 +306,7 @@ export default function ProjectDetailPage() {
   const [teams, setTeams] = useState<Team[]>([])
   const [statusUpdating, setStatusUpdating] = useState(false)
   const [savingSubmissions, setSavingSubmissions] = useState(false)
+  const [savingSectionId, setSavingSectionId] = useState<string | null>(null)
   const [downloadingAssets, setDownloadingAssets] = useState(false)
   const [inviteSubmitting, setInviteSubmitting] = useState(false)
   const [removingTeamId, setRemovingTeamId] = useState<number | null>(null)
@@ -1335,10 +1336,14 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const persistSubmissions = async (nextSubmissions: Record<string, unknown>) => {
+  const persistSubmissions = async (
+    nextSubmissions: Record<string, unknown>,
+    sourceSectionId: string | null = null,
+  ) => {
     if (!project) return
 
     setProject((prev) => (prev ? { ...prev, submissions: nextSubmissions } : prev))
+    setSavingSectionId(sourceSectionId)
     setSavingSubmissions(true)
     try {
       const response = await fetchWithAuth(`/api/projects/${project.slug}`, {
@@ -1367,6 +1372,7 @@ export default function ProjectDetailPage() {
       toast.error(message)
     } finally {
       setSavingSubmissions(false)
+      setSavingSectionId(null)
     }
   }
 
@@ -2131,8 +2137,8 @@ export default function ProjectDetailPage() {
                       canModerate={canManageChecklist}
                       isReadOnly={isProjectCompleted}
                       submissions={project.submissions}
-                      onSubmissionsChange={(next) => void persistSubmissions(next)}
-                      isSaving={savingSubmissions}
+                      onSubmissionsChange={(next) => void persistSubmissions(next, section.id)}
+                      isSaving={savingSubmissions && savingSectionId === section.id}
                       className={isCustom ? "custom-checklist-section" : undefined}
                     />
                   </div>

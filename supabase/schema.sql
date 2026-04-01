@@ -93,6 +93,25 @@ create table if not exists public.project_note_mentions (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  recipient_email text not null,
+  project_id bigint references public.projects(id) on delete set null,
+  project_slug text,
+  type text not null default 'info',
+  title text not null,
+  message text,
+  actor text,
+  status text not null default 'info',
+  metadata jsonb not null default '{}'::jsonb,
+  is_read boolean not null default false,
+  read_at timestamptz,
+  dismissed_at timestamptz,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
 alter table public.profiles enable row level security;
 alter table public.onboarding_tokens enable row level security;
 alter table public.templates enable row level security;
@@ -101,6 +120,7 @@ alter table public.projects enable row level security;
 alter table public.project_notes enable row level security;
 alter table public.project_note_reactions enable row level security;
 alter table public.project_note_mentions enable row level security;
+alter table public.notifications enable row level security;
 
 drop policy if exists "Users can view own profile" on public.profiles;
 create policy "Users can view own profile"
@@ -374,18 +394,42 @@ with check (
   )
 );
 
+drop policy if exists "Users can read own notifications" on public.notifications;
+create policy "Users can read own notifications"
+on public.notifications
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "Users can update own notifications" on public.notifications;
+create policy "Users can update own notifications"
+on public.notifications
+for update
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete own notifications" on public.notifications;
+create policy "Users can delete own notifications"
+on public.notifications
+for delete
+to authenticated
+using (auth.uid() = user_id);
+
 grant select on public.templates to anon, authenticated;
 grant select on public.teams to authenticated;
 grant select on public.projects to authenticated;
 grant select, insert on public.project_notes to authenticated;
 grant select, insert, delete on public.project_note_reactions to authenticated;
 grant select, insert on public.project_note_mentions to authenticated;
+grant select, update, delete on public.notifications to authenticated;
 
 revoke select on public.teams from anon;
 revoke select on public.projects from anon;
 revoke select on public.project_notes from anon;
 revoke select on public.project_note_reactions from anon;
 revoke select on public.project_note_mentions from anon;
+revoke select on public.notifications from anon;
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -427,6 +471,11 @@ create index if not exists idx_project_note_reactions_project_id on public.proje
 create index if not exists idx_project_note_mentions_note_id on public.project_note_mentions (note_id);
 create index if not exists idx_project_note_mentions_project_id on public.project_note_mentions (project_id);
 create index if not exists idx_project_note_mentions_email on public.project_note_mentions (mentioned_email);
+create index if not exists idx_notifications_recipient_email_created_at on public.notifications (recipient_email, created_at desc);
+create index if not exists idx_notifications_recipient_email_unread on public.notifications (recipient_email, is_read) where dismissed_at is null;
+create index if not exists idx_notifications_user_id_created_at on public.notifications (user_id, created_at desc);
+create index if not exists idx_notifications_user_id_unread on public.notifications (user_id, is_read) where dismissed_at is null;
+create index if not exists idx_notifications_project_id on public.notifications (project_id);
 create index if not exists idx_teams_slug on public.teams (slug);
 create index if not exists idx_teams_created_by on public.teams (created_by);
 
@@ -459,3 +508,11 @@ begin
   );
 end;
 $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.notifications;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end $$;
