@@ -574,9 +574,10 @@ export default function ProjectDetailPage() {
   }
 
   const loadNotes = useCallback(
-    async (currentSlug: string) => {
+    async (currentSlug: string, options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false
       try {
-        setNotesLoading(true)
+        if (!silent) setNotesLoading(true)
         const response = await fetchWithAuth(`/api/projects/${currentSlug}/notes`, { cache: "no-store" })
         const payload = await response.json().catch(() => null) as { notes?: ProjectNote[]; message?: string } | null
         if (!response.ok) {
@@ -584,11 +585,13 @@ export default function ProjectDetailPage() {
         }
         setNotes((payload?.notes || []) as ProjectNote[])
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Unable to load notes"
-        toast.error(message)
-        setNotes([])
+        if (!silent) {
+          const message = error instanceof Error ? error.message : "Unable to load notes"
+          toast.error(message)
+          setNotes([])
+        }
       } finally {
-        setNotesLoading(false)
+        if (!silent) setNotesLoading(false)
       }
     },
     [],
@@ -696,7 +699,7 @@ export default function ProjectDetailPage() {
     if (!slug) return
     if (typeof window === "undefined") return
     const interval = window.setInterval(() => {
-      void loadNotes(String(slug))
+      void loadNotes(String(slug), { silent: true })
     }, 10000)
     return () => window.clearInterval(interval)
   }, [authLoading, loadNotes, notesEnabled, slug, user?.id])
@@ -747,7 +750,7 @@ export default function ProjectDetailPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "project_notes", filter: `project_slug=eq.${slug}` },
-        () => void loadNotes(String(slug)),
+        () => void loadNotes(String(slug), { silent: true }),
       )
       .subscribe()
 
@@ -2178,22 +2181,20 @@ export default function ProjectDetailPage() {
                       setNewSectionTitle(e.target.value)
                     }
                   />
-                  <select
-                    className="w-[98%] border rounded-md p-2 text-sm border-none py-3 bg-transparent"
-                    value={newSectionType}
-                    onChange={(e) =>
-                      setNewSectionType(
-                        e.target.value as "textarea" | "url"
-                      )
-                    }
-                  >
-                    <option value="textarea">
-                      Textarea
-                    </option>
-                    <option value="url">
-                      File URL (Name + URL)
-                    </option>
-                  </select>
+                  <div className="">
+                    <Select
+                      value={newSectionType}
+                      onValueChange={(value) => setNewSectionType(value as "textarea" | "url")}
+                    >
+                      <SelectTrigger className="h-9 w-full text-xs border-0 rounded-none">
+                        <SelectValue placeholder="Select section type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="textarea">Textarea</SelectItem>
+                        <SelectItem value="url">File URL (Name + URL)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="flex gap-2 bg-zinc-50 border-t border-zinc-200 p-3 dark:border-white/10 dark:bg-white/5">
                   <Button onClick={addCustomSection} className="text-xs" size="sm">

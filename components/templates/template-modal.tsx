@@ -37,15 +37,29 @@ export function TemplateModal({
     [],
   )
   const [values, setValues] = useState<TemplateFormValues>(() => initialValues ?? emptyValues)
+  const [errors, setErrors] = useState<{ title?: string; description?: string }>({})
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
       setValues(initialValues ?? emptyValues)
+      setErrors({})
     }
     onOpenChange(nextOpen)
   }
 
   const handleSubmit = () => {
+    const nextErrors: { title?: string; description?: string } = {}
+    if (!values.title.trim()) {
+      nextErrors.title = "Template title is required."
+    }
+    if (!values.description.trim()) {
+      nextErrors.description = "Template description is required."
+    }
+    if (nextErrors.title || nextErrors.description) {
+      setErrors(nextErrors)
+      return
+    }
+    setErrors({})
     onSubmit(values)
   }
 
@@ -61,19 +75,37 @@ export function TemplateModal({
             <label className="text-xs font-medium text-muted-foreground">Template Title</label>
             <Input
               value={values.title}
-              onChange={(event) => setValues((prev) => ({ ...prev, title: event.target.value }))}
+              onChange={(event) => {
+                const nextTitle = event.target.value
+                setValues((prev) => ({ ...prev, title: nextTitle }))
+                if (errors.title && nextTitle.trim()) {
+                  setErrors((prev) => ({ ...prev, title: undefined }))
+                }
+              }}
               placeholder="Template name"
               className="w-full"
             />
+            {errors.title ? (
+              <p className="text-xs text-destructive">{errors.title}</p>
+            ) : null}
           </div>
           <div className="space-y-2 sm:col-span-2">
             <label className="text-xs font-medium text-muted-foreground">Description</label>
             <Textarea
               value={values.description}
-              onChange={(event) => setValues((prev) => ({ ...prev, description: event.target.value }))}
+              onChange={(event) => {
+                const nextDescription = event.target.value
+                setValues((prev) => ({ ...prev, description: nextDescription }))
+                if (errors.description && nextDescription.trim()) {
+                  setErrors((prev) => ({ ...prev, description: undefined }))
+                }
+              }}
               placeholder="Describe this template"
               className="w-full"
             />
+            {errors.description ? (
+              <p className="text-xs text-destructive">{errors.description}</p>
+            ) : null}
           </div>
         </div>
 
