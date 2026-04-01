@@ -14,19 +14,18 @@ export async function GET(request: Request) {
 
     let fullName: string | null = null
     let role: string | null = identity.role
-    let plan: string | null = identity.plan
+    const plan: string | null = identity.plan
     let stripeCustomerId: string | null = null
     let stripeSubscriptionId: string | null = null
     const admin = createAdminClient()
     if (admin) {
       const { data: profile } = await admin
         .from("profiles")
-        .select("full_name, role, plan, stripe_customer_id, stripe_subscription_id")
+        .select("full_name, role, stripe_customer_id, stripe_subscription_id")
         .eq("id", identity.userId)
         .maybeSingle()
       fullName = profile?.full_name ?? null
       role = profile?.role ?? role
-      plan = profile?.plan ?? plan
       stripeCustomerId = profile?.stripe_customer_id ?? null
       stripeSubscriptionId = profile?.stripe_subscription_id ?? null
     }

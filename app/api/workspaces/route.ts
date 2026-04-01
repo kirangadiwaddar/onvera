@@ -7,6 +7,7 @@ type WorkspaceItem = {
   id: string
   name: string
   email: string | null
+  avatar?: string | null
   plan: string | null
   role: "super_admin" | "team_lead" | "team_member" | "project_member"
 }
@@ -42,7 +43,9 @@ export async function GET(request: Request) {
 
   projects.forEach((project) => {
     if (!project.createdBy) return
-    const teamMatch = (project.teams || []).some((team) => {
+    const projectTeamIds = Array.isArray(project.teamIds) ? project.teamIds : []
+    const linkedTeams = teams.filter((team) => projectTeamIds.includes(team.id))
+    const teamMatch = linkedTeams.some((team) => {
       const leadMatch = normalizeEmail(team.lead?.email) === email
       const memberMatch = (team.members || []).some(
         (member) => normalizeEmail(member.email) === email,
@@ -81,6 +84,7 @@ export async function GET(request: Request) {
   })
 
   const emailById = new Map<string, string>()
+  const avatarById = new Map<string, string | null>()
   let page = 1
   const perPage = 1000
   while (true) {
@@ -90,16 +94,19 @@ export async function GET(request: Request) {
       break
     }
     const users = Array.isArray((data as { users?: unknown })?.users)
-      ? (data as { users: Array<{ id?: string; email?: string | null }> }).users
+      ? (data as { users: Array<{ id?: string; email?: string | null; user_metadata?: { avatar_url?: string | null } | null }> }).users
       : Array.isArray(data)
-        ? (data as Array<{ id?: string; email?: string | null }>)
+        ? (data as Array<{ id?: string; email?: string | null; user_metadata?: { avatar_url?: string | null } | null }>)
         : []
     users.forEach((user) => {
-      if (user?.id && user.email) {
-        if (workspaceIds.has(user.id)) {
-          emailById.set(user.id, user.email)
-        }
+      if (!user?.id || !workspaceIds.has(user.id)) return
+      if (user.email) {
+        emailById.set(user.id, user.email)
       }
+      avatarById.set(
+        user.id,
+        typeof user.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null,
+      )
     })
     const nextPage = (data as { nextPage?: number | null } | null)?.nextPage
     if (!nextPage) break
@@ -133,6 +140,7 @@ export async function GET(request: Request) {
       id,
       name,
       email: emailById.get(id) || null,
+      avatar: avatarById.get(id) ?? null,
       plan: planById.get(id) ?? null,
       role: workspaceRoleFor(id),
     }

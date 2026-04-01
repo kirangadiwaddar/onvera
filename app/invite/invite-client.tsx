@@ -70,10 +70,19 @@ export default function InviteClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       })
-      const data = await res.json().catch(() => null) as { accepted?: boolean; redirect?: string; message?: string } | null
+      const data = await res.json().catch(() => null) as {
+        accepted?: boolean
+        redirect?: string
+        workspaceId?: string | null
+        message?: string
+      } | null
       if (!res.ok || !data?.accepted) {
         setError(data?.message || "Failed to accept invite.")
         return
+      }
+      if (typeof window !== "undefined" && data.workspaceId) {
+        window.localStorage.setItem("onvera:workspace", data.workspaceId)
+        window.dispatchEvent(new Event("workspace:changed"))
       }
       const redirect = data.redirect || "/dashboard"
       router.replace(redirect)

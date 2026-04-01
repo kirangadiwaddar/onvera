@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   AccordionItem,
   AccordionContent,
@@ -22,6 +22,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Tooltip,
   TooltipContent,
@@ -91,6 +101,7 @@ export default function ChecklistSection({
   const [localRows, setLocalRows] = useState<{ name: string; url: string; isEditing: boolean }[]>([])
   const [dynamicDrafts, setDynamicDrafts] = useState<Record<string, { name: string; url: string }>>({})
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
+  const [completeConfirmOpen, setCompleteConfirmOpen] = useState(false)
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const [rejectTarget, setRejectTarget] = useState<
@@ -138,6 +149,11 @@ export default function ChecklistSection({
     !isReadOnly &&
     (canEdit || canModerate || (allStaticApproved && allDynamicApproved)) &&
     hasContent
+  const canUndoCompletion = canModerate
+  const patchSubmissions = useCallback((mutate: (prev: Submissions) => Submissions) => {
+    const next = mutate(submissions)
+    onSubmissionsChange?.(next)
+  }, [onSubmissionsChange, submissions])
 
   useEffect(() => {
     if (section.id !== "branding") return
@@ -147,36 +163,15 @@ export default function ChecklistSection({
       ...prev,
       [completionKey]: false,
     }))
-  }, [completionKey, completionValue, hasContent, section.id])
-
-  useEffect(() => {
-    if (!isSaving) {
-      setPendingActionId(null)
-    }
-  }, [isSaving])
-
-  useEffect(() => {
-    if (section.id !== "branding") return
-    setSelectedBrandingRows((prev) => {
-      const next = new Set<number>()
-      dynamicRows.forEach((_, idx) => {
-        if (prev.has(idx)) next.add(idx)
-      })
-      return next
-    })
-  }, [dynamicRows, section.id])
-
-  const patchSubmissions = (mutate: (prev: Submissions) => Submissions) => {
-    const next = mutate(submissions)
-    onSubmissionsChange?.(next)
-  }
+  }, [completionKey, completionValue, hasContent, patchSubmissions, section.id])
 
   const runAction = (actionId: string, action: () => void) => {
     setPendingActionId(actionId)
     action()
   }
 
-  const isActionPending = (actionId: string) => isSaving && pendingActionId === actionId
+  const activePendingActionId = isSaving ? pendingActionId : null
+  const isActionPending = (actionId: string) => activePendingActionId === actionId
 
   const handleBrandingFileAdded = (file: File) => {
     const canWrite = !isAgency || ((canEdit || canModerate) && brandingEdit)
@@ -258,6 +253,19 @@ export default function ChecklistSection({
       ...prev,
       [completionKey]: prev[completionKey] === true ? false : true,
     }))
+  }
+
+  const handleCompletionControl = () => {
+    if (isCompleted) {
+      if (!canUndoCompletion) return
+      runAction(`complete-${section.id}`, () => toggleSectionComplete())
+      return
+    }
+    if (canUndoCompletion) {
+      runAction(`complete-${section.id}`, () => toggleSectionComplete())
+      return
+    }
+    setCompleteConfirmOpen(true)
   }
 
   const hasSectionContent = (data: Submissions) => {
@@ -499,7 +507,7 @@ export default function ChecklistSection({
               Updated
             </Badge>
           ) : null}
-          {canShowCompletionControl && (allStaticApproved && allDynamicApproved) ? (
+          {canShowCompletionControl && (allStaticApproved && allDynamicApproved) && (!isCompleted || canUndoCompletion) ? (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -511,13 +519,13 @@ export default function ChecklistSection({
                       onClick={(event) => {
                         event.preventDefault()
                         event.stopPropagation()
-                        runAction(`complete-${section.id}`, () => toggleSectionComplete())
+                        handleCompletionControl()
                       }}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault()
                           event.stopPropagation()
-                          runAction(`complete-${section.id}`, () => toggleSectionComplete())
+                          handleCompletionControl()
                         }
                       }}
                       aria-label={isCompleted ? "Mark as incomplete" : "Mark as complete"}
@@ -1196,6 +1204,29 @@ export default function ChecklistSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={completeConfirmOpen} onOpenChange={setCompleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark section as completed?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Once you make it completed, it can&apos;t be undone from your side. Please review once before confirming.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="default"
+              disabled={isSaving}
+              onClick={() => {
+                setCompleteConfirmOpen(false)
+                runAction(`complete-${section.id}`, () => toggleSectionComplete())
+              }}
+            >
+              Mark completed
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AccordionItem>
   )
 }

@@ -35,7 +35,7 @@ export default function BillingPage() {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
   const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
   const workspaceSwitchTimerRef = useRef<number | null>(null)
-  const ensureOwnerWorkspace = (items: WorkspaceItem[]) => {
+  const ensureOwnerWorkspace = (items: WorkspaceItem[]): WorkspaceItem[] => {
     if (!user?.id) return items
     const ownsFlag =
       typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
@@ -49,16 +49,14 @@ export default function BillingPage() {
       user.user_metadata?.full_name ||
       user.email?.split("@")[0] ||
       "Workspace"
-    return [
-      {
-        id: user.id,
-        name: fallbackName,
-        email: user.email || null,
-        plan: profile?.plan || "free",
-        role: "super_admin",
-      },
-      ...items,
-    ]
+    const ownerWorkspace: WorkspaceItem = {
+      id: user.id,
+      name: String(fallbackName),
+      email: user.email || null,
+      plan: typeof profile?.plan === "string" ? profile.plan : "free",
+      role: "super_admin",
+    }
+    return [ownerWorkspace, ...items]
   }
   const [updatingPlan, setUpdatingPlan] = useState(false)
   const [usageLoading, setUsageLoading] = useState(false)

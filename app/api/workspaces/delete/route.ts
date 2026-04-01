@@ -139,7 +139,6 @@ export async function POST(request: Request) {
     await admin.auth.admin.updateUserById(userId, {
       user_metadata: {
         role: "project_member",
-        plan: "free",
       },
     })
 

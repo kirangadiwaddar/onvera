@@ -579,11 +579,12 @@ export async function PUT(
   const onlySubmissionsUpdate =
     Object.keys(body).length > 0 && Object.keys(body).every((key) => key === "submissions")
   const ownerAccess = currentProject.createdBy === identity.userId
+  const memberSubmissionsAccess = onlySubmissionsUpdate && visibleProjects.length > 0
 
   if (isLocked && !onlySubmissionsUpdate) {
     return NextResponse.json({ message: "Project is locked on your current plan." }, { status: 403 })
   }
-  if (!ownerAccess && !adminRole && (!leadAccess || !onlySubmissionsUpdate)) {
+  if (!memberSubmissionsAccess && !ownerAccess && !adminRole && !leadAccess) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 })
   }
   if (Array.isArray(body.teamIds) && !planLimits.teamAccess) {

@@ -30,13 +30,17 @@ import Link from "next/link"
 import { Button } from "./ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Spinner } from "@/components/ui/spinner"
 import { toast } from "sonner"
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
+import { getAvatarColor } from "@/lib/get-avatar-colors"
+import { Badge } from "./ui/badge"
+import { Separator } from "./ui/separator"
 
 type WorkspaceItem = {
   id: string
   name: string
   email: string | null
+  avatar?: string | null
   plan: string | null
   role: "super_admin" | "team_lead" | "team_member" | "project_member"
 }
@@ -174,30 +178,42 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     serverIdentity?.user?.email,
   ])
 
-  const ensureOwnerWorkspace = (items: WorkspaceItem[]) => {
+  const ensureOwnerWorkspace = (items: WorkspaceItem[]): WorkspaceItem[] => {
     if (!user?.id) return items
+    const ownerAvatar =
+      typeof user.user_metadata?.avatar_url === "string" && user.user_metadata.avatar_url.trim()
+        ? user.user_metadata.avatar_url
+        : null
     const ownsFlag =
       typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
     const ownsByProfile =
       profile?.role === "super_admin" ||
       (typeof user.user_metadata?.role === "string" && user.user_metadata.role === "super_admin")
     if (!(ownsFlag || ownsByProfile)) return items
-    if (items.some((workspace) => workspace.id === user.id)) return items
+    if (items.some((workspace) => workspace.id === user.id)) {
+      return items.map((workspace) =>
+        workspace.id === user.id
+          ? {
+              ...workspace,
+              avatar: workspace.avatar || ownerAvatar,
+            }
+          : workspace,
+      )
+    }
     const fallbackName =
       profile?.full_name ||
       user.user_metadata?.full_name ||
       user.email?.split("@")[0] ||
       "Workspace"
-    return [
-      {
-        id: user.id,
-        name: fallbackName,
-        email: user.email || null,
-        plan: profile?.plan || "free",
-        role: "super_admin",
-      },
-      ...items,
-    ]
+    const ownerWorkspace: WorkspaceItem = {
+      id: user.id,
+      name: String(fallbackName),
+      email: user.email || null,
+      avatar: ownerAvatar,
+      plan: typeof profile?.plan === "string" ? profile.plan : "free",
+      role: "super_admin",
+    }
+    return [ownerWorkspace, ...items]
   }
 
   useEffect(() => {
@@ -367,7 +383,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         {showWorkspaceSwitcher ? (
-          <div className="px-3 pb-2">
+          <div className="px-3 pb-2 flex flex-col">            
             <Select
               value={selectedWorkspaceId ?? ""}
               onValueChange={(value) => {
@@ -383,14 +399,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               }}
             >
               <div className="relative">
-                <SelectTrigger className="h-9 w-full text-xs pr-8">
+                <SelectTrigger className="h-9 w-full text-xs bg-white border-zinc-200 dark:border-zinc-700 shadow-none">
                   <SelectValue placeholder="Select workspace" />
                 </SelectTrigger>
               </div>
               <SelectContent>
                 {workspaces.map((workspace) => (
                   <SelectItem key={workspace.id} value={workspace.id}>
-                    {workspace.name}
+                     <Avatar className="h-5 w-5 rounded-full">
+                  <AvatarImage
+                    src={workspace.id === user?.id ? (avatar || workspace.avatar || undefined) : (workspace.avatar || undefined)}
+                    alt={workspace.name}
+                  />
+                  <AvatarFallback className={`rounded-full text-xs font-bold ${getAvatarColor(workspace.name)}`}>
+                    {(workspace.name || "W").charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                    {workspace.name}'s Workspace
                   </SelectItem>
                 ))}
                 {!ownsWorkspace ? (

@@ -41,6 +41,16 @@ type Props = {
   onOpenChange: (open: boolean) => void
 }
 
+type AccountDeleteImpact = {
+  ownedProjects: number
+  ownedTeams: number
+  ownedTemplates: number
+  ownedTokens: number
+  teamMemberships: number
+  projectMemberships: number
+  hasData: boolean
+}
+
 export function AccountSettingsModal({ open, onOpenChange }: Props) {
   const { user, profile, refreshProfile } = useAuth()
   const [activeTab, setActiveTab] = useState("profile")
@@ -58,6 +68,8 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   const [showWorkspaceRefreshPrompt, setShowWorkspaceRefreshPrompt] = useState(false)
   const [showResetDialog, setShowResetDialog] = useState(false)
   const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deleteCheckLoading, setDeleteCheckLoading] = useState(false)
+  const [deleteImpact, setDeleteImpact] = useState<AccountDeleteImpact | null>(null)
   const [deletingWorkspace, setDeletingWorkspace] = useState(false)
   const [resettingAccount, setResettingAccount] = useState(false)
   const [resetStatusLoading, setResetStatusLoading] = useState(false)
@@ -290,14 +302,27 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
   }
 
 
-  const handleDeleteAccount = async () => {
+  const handleDeleteAccount = async (forceDelete = false) => {
     if (!user?.id) return
     setDeletingAccount(true)
+    let closeDeleteDialog = forceDelete
     try {
       const response = await fetchWithAuth("/api/account/delete", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: forceDelete }),
       })
-      const payload = await response.json().catch(() => null) as { message?: string } | null
+      const payload = await response.json().catch(() => null) as {
+        message?: string
+        hasData?: boolean
+        impact?: AccountDeleteImpact
+      } | null
+      if (response.status === 409 && payload?.hasData) {
+        setDeleteImpact(payload.impact ?? null)
+        setShowDeleteDialog(true)
+        closeDeleteDialog = false
+        return
+      }
       if (!response.ok) {
         throw new Error(payload?.message || "Failed to delete account")
       }
@@ -310,8 +335,40 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
       toast.error(message)
     } finally {
       setDeletingAccount(false)
-      setShowDeleteDialog(false)
-      setDeleteConfirmText("")
+      if (closeDeleteDialog) {
+        setShowDeleteDialog(false)
+        setDeleteConfirmText("")
+        setDeleteImpact(null)
+      }
+    }
+  }
+
+  const handleDeleteClick = async () => {
+    if (!user?.id) return
+    setDeleteConfirmText("")
+    setDeleteImpact(null)
+    setDeleteCheckLoading(true)
+    try {
+      const response = await fetchWithAuth("/api/account/delete", { cache: "no-store" })
+      const payload = await response.json().catch(() => null) as {
+        message?: string
+        hasData?: boolean
+        impact?: AccountDeleteImpact
+      } | null
+      if (!response.ok) {
+        throw new Error(payload?.message || "Unable to verify account data")
+      }
+      if (!payload?.hasData) {
+        await handleDeleteAccount(false)
+        return
+      }
+      setDeleteImpact(payload.impact ?? null)
+      setShowDeleteDialog(true)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to verify account data"
+      toast.error(message)
+    } finally {
+      setDeleteCheckLoading(false)
     }
   }
 
@@ -672,10 +729,10 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
                       variant="destructive"
                       size="sm"
                       className="text-xs"
-                      onClick={() => setShowDeleteDialog(true)}
-                      disabled={deletingAccount}
+                      onClick={() => void handleDeleteClick()}
+                      disabled={deletingAccount || deleteCheckLoading}
                     >
-                      Delete account
+                      {deleteCheckLoading ? "Checking..." : "Delete account"}
                     </Button>
                   </div>
                 </>
@@ -710,11 +767,23 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+              <AlertDialogTitle>Delete your account and all related access?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will delete your account and all associated data. This action cannot be undone.
+                This action is permanent. You will lose your workspace data and access to all related teams and projects.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            {deleteImpact ? (
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+                <p className="font-medium">This account currently has associated data/access:</p>
+                <p className="mt-1">
+                  Projects owned: {deleteImpact.ownedProjects} | Teams owned: {deleteImpact.ownedTeams} | Templates
+                  owned: {deleteImpact.ownedTemplates}
+                </p>
+                <p className="mt-1">
+                  Team memberships: {deleteImpact.teamMemberships} | Project memberships: {deleteImpact.projectMemberships}
+                </p>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
                 Type <span className="font-semibold text-destructive">{user?.email || "your email"}</span> to confirm.
@@ -729,14 +798,14 @@ export function AccountSettingsModal({ open, onOpenChange }: Props) {
               <AlertDialogCancel disabled={deletingAccount}>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 variant="destructive"
-                onClick={() => void handleDeleteAccount()}
+                onClick={() => void handleDeleteAccount(true)}
                 disabled={
                   deletingAccount ||
                   !deleteConfirmEmail ||
                   deleteConfirmText.trim().toLowerCase() !== deleteConfirmEmail
                 }
               >
-                {deletingAccount ? "Deleting..." : "Delete"}
+                {deletingAccount ? "Deleting..." : "Delete permanently"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -118,7 +118,7 @@ export default function TeamDetailPage() {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
   const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
   const workspaceSwitchTimerRef = useRef<number | null>(null)
-  const ensureOwnerWorkspace = (items: WorkspaceItem[]) => {
+  const ensureOwnerWorkspace = (items: WorkspaceItem[]): WorkspaceItem[] => {
     if (!user?.id) return items
     const ownsFlag =
       typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
@@ -132,16 +132,14 @@ export default function TeamDetailPage() {
       user.user_metadata?.full_name ||
       user.email?.split("@")[0] ||
       "Workspace"
-    return [
-      {
-        id: user.id,
-        name: fallbackName,
-        email: user.email || null,
-        plan: profile?.plan || "free",
-        role: "super_admin",
-      },
-      ...items,
-    ]
+    const ownerWorkspace: WorkspaceItem = {
+      id: user.id,
+      name: String(fallbackName),
+      email: user.email || null,
+      plan: typeof profile?.plan === "string" ? profile.plan : "free",
+      role: "super_admin",
+    }
+    return [ownerWorkspace, ...items]
   }
   const currentWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || null
   const effectiveRole = currentWorkspace?.role || profile?.role || null
@@ -343,57 +341,64 @@ export default function TeamDetailPage() {
   const handleInviteMember = async () => {
     if (!team || !memberName.trim() || !memberRole.trim() || !memberEmail.trim()) return
 
-    const tokenBytes = new Uint8Array(12)
-    crypto.getRandomValues(tokenBytes)
-    const accessToken = Array.from(tokenBytes, (byte) => byte.toString(16).padStart(2, "0")).join("")
+    try {
+      setSavingTeam(true)
 
-    const newMember: TeamMember = {
-      id: Date.now(),
-      name: memberName.trim(),
-      role: memberRole.trim(),
-      image: "",
-      email: memberEmail.trim().toLowerCase(),
-      accessToken,
-      invitedByEmail: currentEmail || undefined,
-      invitedByRole: isSuperAdmin ? "super_admin" : isTeamLead ? "team_lead" : undefined,
-    }
+      const tokenBytes = new Uint8Array(12)
+      crypto.getRandomValues(tokenBytes)
+      const accessToken = Array.from(tokenBytes, (byte) => byte.toString(16).padStart(2, "0")).join("")
 
-    const members = team.members ?? []
+      const newMember: TeamMember = {
+        id: Date.now(),
+        name: memberName.trim(),
+        role: memberRole.trim(),
+        image: "",
+        email: memberEmail.trim().toLowerCase(),
+        accessToken,
+        invitedByEmail: currentEmail || undefined,
+        invitedByRole: isSuperAdmin ? "super_admin" : isTeamLead ? "team_lead" : undefined,
+      }
 
-    if (memberPosition === "lead" && !team.lead) {
-      await persistTeamMembers(newMember, members)
-    } else {
-      await persistTeamMembers(team.lead ?? null, [...members, newMember])
-    }
+      const inviteResponse = await fetchWithAuth("/api/invitations/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: newMember.email,
+          name: newMember.name,
+          memberRole: memberPosition === "lead" ? "team_lead" : "team_member",
+          token: newMember.accessToken,
+          contextName: team.name,
+          contextType: "team",
+        }),
+      })
+      const inviteData = await inviteResponse.json().catch(() => null) as { sent?: boolean; message?: string } | null
+      if (!inviteResponse.ok || inviteData?.sent === false) {
+        const errorMessage = inviteData?.message || "Failed to send invite email"
+        toast.error(errorMessage)
+        return
+      }
 
-    const inviteResponse = await fetchWithAuth("/api/invitations/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: newMember.email,
-        name: newMember.name,
-        memberRole: memberPosition === "lead" ? "team_lead" : "team_member",
-        token: newMember.accessToken,
-        contextName: team.name,
-        contextType: "team",
-      }),
-    })
-    const inviteData = await inviteResponse.json().catch(() => null) as { sent?: boolean; message?: string } | null
-    if (!inviteResponse.ok || inviteData?.sent === false) {
-      const errorMessage = inviteData?.message || "Failed to send invite email"
-      console.warn(errorMessage)
-      toast.error(errorMessage)
-    } else {
+      const members = team.members ?? []
+      if (memberPosition === "lead" && !team.lead) {
+        await persistTeamMembers(newMember, members)
+      } else {
+        await persistTeamMembers(team.lead ?? null, [...members, newMember])
+      }
+
       toast.success("Member invited")
+      setMemberName("")
+      setMemberEmail("")
+      setMemberRole("")
+      setMemberPosition("member")
+      setOpenInvite(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to invite member"
+      toast.error(message)
+    } finally {
+      setSavingTeam(false)
     }
-
-    setMemberName("")
-    setMemberEmail("")
-    setMemberRole("")
-    setMemberPosition("member")
-    setOpenInvite(false)
   }
 
   const handleRemoveMember = async (memberId: number, isLead: boolean) => {

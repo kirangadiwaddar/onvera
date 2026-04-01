@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   }
 
   await admin.auth.admin.updateUserById(identity.userId, {
-    user_metadata: { role: "super_admin", plan: "free" },
+    user_metadata: { role: "super_admin" },
   })
 
   return NextResponse.json({ created: true })
