@@ -39,6 +39,7 @@ export function SiteHeader() {
 
   // slug page = more than 1 segment
   const isDetailPage = segments.length > 1
+  const hideBackForPath = pathname === "/admin/plan-manager"
 
   // parent path (e.g., "/projects")
   const parentPath = "/" + segments[0]
@@ -186,7 +187,7 @@ export function SiteHeader() {
           className="mx-2 data-[orientation=vertical]:h-4"
         />
 
-        {isDetailPage && (<>
+        {isDetailPage && !hideBackForPath && (<>
           <Button variant="ghost"
             size="icon"
 
@@ -206,7 +207,6 @@ export function SiteHeader() {
         <h1 className="text-base font-medium">{getTitle()}</h1>
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center gap-2">
-            <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />
             <NotificationBell />
             <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />
             <DropdownMenu>
