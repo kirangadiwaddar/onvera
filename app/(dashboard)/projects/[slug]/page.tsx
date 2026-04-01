@@ -328,8 +328,6 @@ export default function ProjectDetailPage() {
   const [editMentionIndex, setEditMentionIndex] = useState<Record<string, number>>({})
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
-  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
-  const workspaceSwitchTimerRef = useRef<number | null>(null)
   const ensureOwnerWorkspace = (items: WorkspaceItem[]): WorkspaceItem[] => {
     if (!user?.id) return items
     const ownsFlag =
@@ -805,22 +803,13 @@ export default function ProjectDetailPage() {
           preferred ||
           (items.some((item) => item.id === user.id) ? user.id : fallback)
         setSelectedWorkspaceId(nextId)
-        setWorkspaceSwitching(false)
       } catch {
         setWorkspaces([])
-        setWorkspaceSwitching(false)
       }
     }
     void loadWorkspaces()
     const handleWorkspace = () => {
       if (typeof window === "undefined") return
-      setWorkspaceSwitching(true)
-      if (workspaceSwitchTimerRef.current !== null) {
-        window.clearTimeout(workspaceSwitchTimerRef.current)
-      }
-      workspaceSwitchTimerRef.current = window.setTimeout(() => {
-        setWorkspaceSwitching(false)
-      }, 1000)
       void loadWorkspaces()
     }
     window.addEventListener("workspace:changed", handleWorkspace)
@@ -829,9 +818,6 @@ export default function ProjectDetailPage() {
       active = false
       window.removeEventListener("workspace:changed", handleWorkspace)
       window.removeEventListener("storage", handleWorkspace)
-      if (workspaceSwitchTimerRef.current !== null) {
-        window.clearTimeout(workspaceSwitchTimerRef.current)
-      }
     }
   }, [authLoading, user?.id])
 
@@ -1072,9 +1058,7 @@ export default function ProjectDetailPage() {
     setShowCompletePrompt(false)
   }, [dismissedCompletePrompt, shouldPromptForCompletion])
 
-  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
-
-  if (loading || !workspaceReady) {
+  if (loading) {
     return (
       <div className="p-6">
         <LoadingState title="Loading Project" description="Fetching project details..." />

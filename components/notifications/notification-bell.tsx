@@ -70,7 +70,7 @@ export function NotificationBell() {
   const loadActivities = async () => {
     setLoadingActivities(true)
     try {
-      const res = await fetchWithAuth("/api/dashboard?limit=50", { cache: "no-store" })
+      const res = await fetchWithAuth("/api/dashboard-details?limit=50", { cache: "no-store" })
       const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
       setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
     } catch {

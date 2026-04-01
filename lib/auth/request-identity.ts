@@ -11,6 +11,11 @@ export type RequestIdentity = {
   plan: PlanId
 }
 
+type RequestIdentityOptions = {
+  resolveWorkspaceAccess?: boolean
+  includeProfileLookup?: boolean
+}
+
 const normalizeEmail = (value?: string | null) => (value || "").trim().toLowerCase()
 
 function getBearerToken(request: Request) {
@@ -20,14 +25,37 @@ function getBearerToken(request: Request) {
 }
 
 export async function getRequestIdentityFromRequest(request: Request): Promise<RequestIdentity | null> {
+  return getRequestIdentityFromRequestWithOptions(request, {})
+}
+
+const IDENTITY_CACHE_TTL_MS = 5_000
+const identityCache = new Map<string, { expiresAt: number; value: RequestIdentity | null }>()
+
+export async function getRequestIdentityFromRequestWithOptions(
+  request: Request,
+  options: RequestIdentityOptions,
+): Promise<RequestIdentity | null> {
   const token = getBearerToken(request)
   if (!token) return null
+  const resolveWorkspaceAccess = options.resolveWorkspaceAccess ?? true
+  const includeProfileLookup = options.includeProfileLookup ?? true
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
     return null
+  }
+
+  const workspaceIdRaw = request.headers.get("x-workspace-id")?.trim() || null
+  const workspaceId = workspaceIdRaw && workspaceIdRaw !== "__create__" ? workspaceIdRaw : null
+  const cacheKey = `${token}::${workspaceId || "-"}::${resolveWorkspaceAccess ? "workspace" : "base"}::${includeProfileLookup ? "profile" : "no-profile"}`
+  const cached = identityCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value
+  }
+  if (cached) {
+    identityCache.delete(cacheKey)
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -38,7 +66,10 @@ export async function getRequestIdentityFromRequest(request: Request): Promise<R
     data: { user },
   } = await supabase.auth.getUser(token)
 
-  if (!user) return null
+  if (!user) {
+    identityCache.set(cacheKey, { expiresAt: Date.now() + IDENTITY_CACHE_TTL_MS, value: null })
+    return null
+  }
 
   let role = (user.user_metadata?.role || null) as UserRole | null
   let plan = normalizePlan(
@@ -46,7 +77,7 @@ export async function getRequestIdentityFromRequest(request: Request): Promise<R
   )
 
   const admin = createAdminClient()
-  if (admin) {
+  if (admin && includeProfileLookup) {
     const { data: profile } = await admin
       .from("profiles")
       .select("role, plan")
@@ -56,9 +87,7 @@ export async function getRequestIdentityFromRequest(request: Request): Promise<R
     plan = normalizePlan(profile?.plan ?? plan)
   }
 
-  const workspaceIdRaw = request.headers.get("x-workspace-id")?.trim() || null
-  const workspaceId = workspaceIdRaw && workspaceIdRaw !== "__create__" ? workspaceIdRaw : null
-  if (workspaceId && admin) {
+  if (resolveWorkspaceAccess && workspaceId && admin) {
     const { teams, projects } = await getStoreData()
     const email = normalizeEmail(user.email)
     const isOwner = user.id === workspaceId
@@ -96,10 +125,12 @@ export async function getRequestIdentityFromRequest(request: Request): Promise<R
     }
   }
 
-  return {
+  const resolvedIdentity = {
     userId: user.id,
     email: user.email || null,
     role,
     plan,
   }
+  identityCache.set(cacheKey, { expiresAt: Date.now() + IDENTITY_CACHE_TTL_MS, value: resolvedIdentity })
+  return resolvedIdentity
 }

@@ -4,7 +4,7 @@ import TemplateCards from '@/components/templateCard'
 import { EmptyState } from '@/components/emptyState'
 import { LoadingState } from '@/components/loadingState'
 import { useAuth } from '@/components/providers/auth-provider'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Spinner } from '@/components/ui/spinner'
 import { TriangleAlert } from 'lucide-react'
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
@@ -21,8 +21,6 @@ export default function Page() {
   const { profile, user, loading } = useAuth()
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
-  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
-  const workspaceSwitchTimerRef = useRef<number | null>(null)
   const ensureOwnerWorkspace = (items: WorkspaceItem[]): WorkspaceItem[] => {
     if (!user?.id) return items
     const ownsFlag =
@@ -72,22 +70,13 @@ export default function Page() {
           preferred ||
           (items.some((item) => item.id === user.id) ? user.id : fallback)
         setSelectedWorkspaceId(nextId)
-        setWorkspaceSwitching(false)
       } catch {
         setWorkspaces([])
-        setWorkspaceSwitching(false)
       }
     }
     void loadWorkspaces()
     const handleWorkspace = () => {
       if (typeof window === "undefined") return
-      setWorkspaceSwitching(true)
-      if (workspaceSwitchTimerRef.current !== null) {
-        window.clearTimeout(workspaceSwitchTimerRef.current)
-      }
-      workspaceSwitchTimerRef.current = window.setTimeout(() => {
-        setWorkspaceSwitching(false)
-      }, 1000)
       void loadWorkspaces()
     }
     window.addEventListener("workspace:changed", handleWorkspace)
@@ -96,15 +85,10 @@ export default function Page() {
       active = false
       window.removeEventListener("workspace:changed", handleWorkspace)
       window.removeEventListener("storage", handleWorkspace)
-      if (workspaceSwitchTimerRef.current !== null) {
-        window.clearTimeout(workspaceSwitchTimerRef.current)
-      }
     }
   }, [loading, user?.id])
 
-  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
-
-  if (loading || !workspaceReady) {
+  if (loading) {
     return (
       <LoadingState
         title="Loading Templates"

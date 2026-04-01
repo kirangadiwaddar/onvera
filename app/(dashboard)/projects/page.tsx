@@ -1,13 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { FolderOpenDot, LayoutGrid, List, ListFilter, Lock, MoreVertical, PencilIcon, Plus, TrashIcon } from "lucide-react"
 
 import { ProjectCard } from "@/components/project-card"
 import { ProjectModal, type ProjectFormValues } from "@/components/projects/project-modal"
 import { DeleteProjectAlert } from "@/components/projects/delete-project-alert"
 import { EmptyState } from "@/components/emptyState"
-import { LoadingState } from "@/components/loadingState"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -45,6 +44,7 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
 import { getPlanLimits, normalizePlan } from "@/lib/billing/plans"
+import { Skeleton } from "@/components/ui/skeleton"
 
 type WorkspaceItem = {
   id: string
@@ -89,8 +89,6 @@ export default function Page() {
   const [submitting, setSubmitting] = useState(false)
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
-  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
-  const workspaceSwitchTimerRef = useRef<number | null>(null)
 
   const [currentPage, setCurrentPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<"all" | status>("all")
@@ -248,22 +246,13 @@ export default function Page() {
           preferred ||
           (items.some((item) => item.id === user.id) ? user.id : fallback)
         setSelectedWorkspaceId(nextId)
-        setWorkspaceSwitching(false)
       } catch {
         setWorkspaces([])
-        setWorkspaceSwitching(false)
       }
     }
     void loadWorkspaces()
     const handleWorkspace = () => {
       if (typeof window === "undefined") return
-      setWorkspaceSwitching(true)
-      if (workspaceSwitchTimerRef.current !== null) {
-        window.clearTimeout(workspaceSwitchTimerRef.current)
-      }
-      workspaceSwitchTimerRef.current = window.setTimeout(() => {
-        setWorkspaceSwitching(false)
-      }, 1000)
       void loadWorkspaces()
     }
     window.addEventListener("workspace:changed", handleWorkspace)
@@ -272,9 +261,6 @@ export default function Page() {
       active = false
       window.removeEventListener("workspace:changed", handleWorkspace)
       window.removeEventListener("storage", handleWorkspace)
-      if (workspaceSwitchTimerRef.current !== null) {
-        window.clearTimeout(workspaceSwitchTimerRef.current)
-      }
     }
   }, [authLoading, user?.id])
 
@@ -335,6 +321,21 @@ export default function Page() {
       return
     }
     setSubmitting(true)
+    const optimisticId = -Date.now()
+    const template = templates.find((item) => item.id === values.templateId)
+    const optimisticProject: ProjectItem = {
+      id: optimisticId,
+      slug: `optimistic-${optimisticId}`,
+      title: values.title,
+      templateId: values.templateId,
+      templateTitle: template?.title,
+      status: "waiting",
+      avatarSrc: values.avatarSrc || undefined,
+      createdAt: new Date().toISOString(),
+      members: [],
+      createdBy: user?.id || null,
+    }
+    setProjects((prev) => [optimisticProject, ...prev])
     try {
       const res = await fetchWithAuth("/api/projects", {
         method: "POST",
@@ -357,15 +358,17 @@ export default function Page() {
 
       if (payload && typeof payload === "object" && "slug" in payload) {
         setProjects((prev) => {
-          const without = prev.filter((item) => item.slug !== (payload as { slug: string }).slug)
+          const without = prev.filter((item) => item.id !== optimisticId)
           return [payload as ProjectItem, ...without]
         })
       } else {
+        setProjects((prev) => prev.filter((item) => item.id !== optimisticId))
         await loadProjects()
       }
       setIsCreateOpen(false)
       toast.success("Project created")
     } catch (error) {
+      setProjects((prev) => prev.filter((item) => item.id !== optimisticId))
       console.error("Create project failed:", error)
       toast.error(error instanceof Error ? error.message : "Failed to create project")
     } finally {
@@ -389,6 +392,21 @@ export default function Page() {
     if (!editingProject) return
 
     setSubmitting(true)
+    const previousProject = editingProject
+    const template = templates.find((item) => item.id === values.templateId)
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.slug === previousProject.slug
+          ? {
+              ...project,
+              title: values.title,
+              avatarSrc: values.avatarSrc || project.avatarSrc,
+              templateId: values.templateId,
+              templateTitle: template?.title || project.templateTitle,
+            }
+          : project,
+      ),
+    )
     try {
       const res = await fetchWithAuth(`/api/projects/${editingProject.slug}`, {
         method: "PUT",
@@ -407,11 +425,14 @@ export default function Page() {
         const payload = await res.json().catch(() => null) as { message?: string } | null
         throw new Error(payload?.message || "Failed to update project")
       }
-
-      await loadProjects()
       setEditingProject(null)
       toast.success("Project updated")
     } catch (error) {
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.slug === previousProject.slug ? previousProject : project,
+        ),
+      )
       console.error("Update project failed:", error)
       toast.error(error instanceof Error ? error.message : "Failed to update project")
     } finally {
@@ -423,8 +444,11 @@ export default function Page() {
     if (!deletingProject) return
 
     setSubmitting(true)
+    const projectToDelete = deletingProject
+    setDeletingProject(null)
+    setProjects((prev) => prev.filter((project) => project.id !== projectToDelete.id))
     try {
-      const res = await fetchWithAuth(`/api/projects/${deletingProject.slug}`, {
+      const res = await fetchWithAuth(`/api/projects/${projectToDelete.slug}`, {
         method: "DELETE",
       })
 
@@ -432,11 +456,9 @@ export default function Page() {
         const payload = await res.json().catch(() => null) as { message?: string } | null
         throw new Error(payload?.message || "Failed to delete project")
       }
-
-      setProjects((prev) => prev.filter((project) => project.id !== deletingProject.id))
-      setDeletingProject(null)
       toast.success("Project deleted")
     } catch (error) {
+      setProjects((prev) => [projectToDelete, ...prev])
       console.error("Delete project failed:", error)
       toast.error(error instanceof Error ? error.message : "Failed to delete project")
     } finally {
@@ -444,14 +466,19 @@ export default function Page() {
     }
   }
 
-  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
-
-  if (loading || !workspaceReady) {
+  if (loading) {
     return (
-      <LoadingState
-        title="Loading Projects..."
-        description="Fetching your projects, please wait."
-      />
+      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-7">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-4 w-64" />
+          <Skeleton className="h-9 w-28 rounded-full" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Skeleton className="h-44 rounded-2xl" />
+          <Skeleton className="h-44 rounded-2xl" />
+          <Skeleton className="h-44 rounded-2xl" />
+        </div>
+      </div>
     )
   }
 

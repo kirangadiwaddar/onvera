@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const safetyTimer = window.setTimeout(() => {
       setLoading(false)
-    }, 8000)
+    }, 1500)
 
     async function init() {
       try {
@@ -97,8 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false)
 
         if (initialSession?.user?.id) {
-          const data = await loadProfile(initialSession.user.id)
-          setProfile(data)
+          void loadProfile(initialSession.user.id).then((data) => {
+            setProfile(data)
+          })
         } else {
           setProfile(null)
         }
@@ -118,23 +119,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      void (async () => {
-        try {
-          setSession(nextSession)
-          setUser(nextSession?.user ?? null)
+      setSession(nextSession)
+      setUser(nextSession?.user ?? null)
+      setLoading(false)
 
-          if (nextSession?.user?.id) {
-            const data = await loadProfile(nextSession.user.id)
+      if (nextSession?.user?.id) {
+        void loadProfile(nextSession.user.id)
+          .then((data) => {
             setProfile(data)
-          } else {
-            setProfile(null)
-          }
-        } catch (error) {
-          console.error("Auth state handling failed:", error)
-        } finally {
-          setLoading(false)
-        }
-      })()
+          })
+          .catch((error) => {
+            console.error("Auth state handling failed:", error)
+          })
+      } else {
+        setProfile(null)
+      }
     })
 
     return () => {

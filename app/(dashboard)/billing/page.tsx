@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -33,8 +33,6 @@ export default function BillingPage() {
   const { profile, user, refreshProfile } = useAuth()
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
-  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
-  const workspaceSwitchTimerRef = useRef<number | null>(null)
   const ensureOwnerWorkspace = (items: WorkspaceItem[]): WorkspaceItem[] => {
     if (!user?.id) return items
     const ownsFlag =
@@ -220,22 +218,13 @@ export default function BillingPage() {
           preferred ||
           (items.some((item) => item.id === user.id) ? user.id : fallback)
         setSelectedWorkspaceId(nextId)
-        setWorkspaceSwitching(false)
       } catch {
         setWorkspaces([])
-        setWorkspaceSwitching(false)
       }
     }
     void loadWorkspaces()
     const handleWorkspace = () => {
       if (typeof window === "undefined") return
-      setWorkspaceSwitching(true)
-      if (workspaceSwitchTimerRef.current !== null) {
-        window.clearTimeout(workspaceSwitchTimerRef.current)
-      }
-      workspaceSwitchTimerRef.current = window.setTimeout(() => {
-        setWorkspaceSwitching(false)
-      }, 1000)
       void loadWorkspaces()
     }
     window.addEventListener("workspace:changed", handleWorkspace)
@@ -244,23 +233,8 @@ export default function BillingPage() {
       active = false
       window.removeEventListener("workspace:changed", handleWorkspace)
       window.removeEventListener("storage", handleWorkspace)
-      if (workspaceSwitchTimerRef.current !== null) {
-        window.clearTimeout(workspaceSwitchTimerRef.current)
-      }
     }
   }, [user?.id])
-
-  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
-
-  if (!workspaceReady) {
-    return (
-      <EmptyState
-        icon={<LockKeyhole className="h-6 w-6 text-destructive" />}
-        title="Loading billing"
-        description="Checking your workspace permissions."
-      />
-    )
-  }
 
   if (!isSuperAdmin) {
     return (

@@ -1,15 +1,46 @@
 import { NextResponse } from "next/server"
-import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import { getRequestIdentityFromRequestWithOptions } from "@/lib/auth/request-identity"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { getStoreData } from "@/lib/server/data-store"
 
-const normalizeEmail = (value?: string | null) => (value || "").trim().toLowerCase()
+type AuthMePayload = {
+  user: { id: string; email: string | null; fullName: string | null } | null
+  profile:
+    | {
+        id: string
+        fullName: string | null
+        role: string | null
+        workspaceRole: string | null
+        plan: string | null
+        stripeCustomerId: string | null
+        stripeSubscriptionId: string | null
+      }
+    | null
+}
+
+type AuthMeCacheEntry = {
+  expiresAt: number
+  payload: AuthMePayload
+}
+
+const AUTH_ME_CACHE_TTL_MS = 8_000
+const authMeCache = new Map<string, AuthMeCacheEntry>()
 
 export async function GET(request: Request) {
   try {
-    const identity = await getRequestIdentityFromRequest(request)
+    const identity = await getRequestIdentityFromRequestWithOptions(request, {
+      includeProfileLookup: false,
+    })
     if (!identity) {
       return NextResponse.json({ user: null, profile: null }, { status: 200 })
+    }
+    const workspaceId = request.headers.get("x-workspace-id")?.trim() || "-"
+    const cacheKey = `me:${identity.userId}:${identity.role ?? ""}:${identity.plan}:${workspaceId}`
+    const cached = authMeCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.payload)
+    }
+    if (cached) {
+      authMeCache.delete(cacheKey)
     }
 
     let fullName: string | null = null
@@ -30,41 +61,15 @@ export async function GET(request: Request) {
       stripeSubscriptionId = profile?.stripe_subscription_id ?? null
     }
 
-    let workspaceRole: string | null = role
-    const email = normalizeEmail(identity.email)
-    if (email) {
-      const { teams, projects } = await getStoreData()
-      const isLeadInTeam = teams.some((team) => normalizeEmail(team.lead?.email) === email)
-      const isMemberInTeam = teams.some((team) =>
-        (team.members || []).some((member) => normalizeEmail(member.email) === email),
-      )
-      const isLeadInProject = projects.some((project) =>
-        (project.extraMembers || []).some(
-          (member) =>
-            normalizeEmail(member.email) === email &&
-            (member.memberType === "team_lead" || member.isLead === true),
-        ),
-      )
-      const isProjectMember = projects.some((project) =>
-        (project.extraMembers || []).some((member) => normalizeEmail(member.email) === email),
-      )
+    const workspaceRole: string | null = identity.role
 
-      if (isLeadInTeam || isLeadInProject) {
-        workspaceRole = "team_lead"
-      } else if (isMemberInTeam) {
-        workspaceRole = "team_member"
-      } else if (isProjectMember) {
-        workspaceRole = "project_member"
-      }
-    }
-
-    return NextResponse.json({
+    const payload: AuthMePayload = {
       user: {
         id: identity.userId,
         email: identity.email,
         fullName,
       },
-          profile: role
+      profile: role
         ? {
             id: identity.userId,
             fullName,
@@ -72,10 +77,12 @@ export async function GET(request: Request) {
             workspaceRole,
             plan,
             stripeCustomerId,
-          stripeSubscriptionId,
-        }
-      : null,
-    })
+            stripeSubscriptionId,
+          }
+        : null,
+    }
+    authMeCache.set(cacheKey, { payload, expiresAt: Date.now() + AUTH_ME_CACHE_TTL_MS })
+    return NextResponse.json(payload)
   } catch {
     return NextResponse.json({ user: null, profile: null }, { status: 200 })
   }
