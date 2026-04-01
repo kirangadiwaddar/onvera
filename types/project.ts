@@ -21,6 +21,8 @@ export type Project = {
   submissions?: Record<string, unknown>
   updatedAt: string
   createdBy?: string | null
+  ownerName?: string | null
+  ownerEmail?: string | null
   plan?: PlanId
   isLocked?: boolean
 }

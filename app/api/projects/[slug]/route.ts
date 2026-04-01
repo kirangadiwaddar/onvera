@@ -27,6 +27,48 @@ const resolveTemplateKeyFromTitle = (title?: string) => {
   return Object.keys(templateStructure).find((key) => slugify(key) === normalizedTitle)
 }
 
+async function findEmailByUserId(
+  admin: ReturnType<typeof createAdminClient>,
+  userId?: string | null,
+) {
+  if (!admin || !userId) return null
+  let page = 1
+  const perPage = 1000
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
+    if (error) {
+      console.error("Supabase listUsers failed:", error.message)
+      return null
+    }
+    const users = Array.isArray((data as { users?: unknown })?.users)
+      ? (data as { users: Array<{ id?: string; email?: string | null }> }).users
+      : Array.isArray(data)
+        ? (data as Array<{ id?: string; email?: string | null }>)
+        : []
+    const match = users.find((user) => user?.id === userId)
+    if (match?.email) return match.email
+    const nextPage = (data as { nextPage?: number | null } | null)?.nextPage
+    if (!nextPage) break
+    page = nextPage
+  }
+  return null
+}
+
+async function getOwnerInfo(
+  admin: ReturnType<typeof createAdminClient>,
+  ownerId?: string | null,
+) {
+  if (!admin || !ownerId) return { ownerName: null, ownerEmail: null }
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("full_name")
+    .eq("id", ownerId)
+    .maybeSingle()
+  const ownerName = profile?.full_name ?? null
+  const ownerEmail = await findEmailByUserId(admin, ownerId)
+  return { ownerName, ownerEmail }
+}
+
 type ProjectRow = {
   id: number
   slug: string
@@ -402,7 +444,14 @@ export async function GET(
     projectRow.id,
     planLimits.maxProjects,
   )
-  const project = { ...normalizeProject(projectRow as ProjectRow), plan: ownerPlan, isLocked }
+  const ownerInfo = await getOwnerInfo(admin, projectRow.created_by ?? null)
+  const project = {
+    ...normalizeProject(projectRow as ProjectRow),
+    plan: ownerPlan,
+    isLocked,
+    ownerName: ownerInfo.ownerName,
+    ownerEmail: ownerInfo.ownerEmail,
+  }
 
   const candidateEmails = new Set<string>()
   teams.forEach((team) => {
@@ -530,11 +579,12 @@ export async function PUT(
   const onlySubmissionsUpdate =
     Object.keys(body).length > 0 && Object.keys(body).every((key) => key === "submissions")
   const ownerAccess = currentProject.createdBy === identity.userId
+  const memberSubmissionsAccess = onlySubmissionsUpdate && visibleProjects.length > 0
 
   if (isLocked && !onlySubmissionsUpdate) {
     return NextResponse.json({ message: "Project is locked on your current plan." }, { status: 403 })
   }
-  if (!ownerAccess && !adminRole && (!leadAccess || !onlySubmissionsUpdate)) {
+  if (!memberSubmissionsAccess && !ownerAccess && !adminRole && !leadAccess) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 })
   }
   if (Array.isArray(body.teamIds) && !planLimits.teamAccess) {

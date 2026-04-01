@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -21,22 +21,58 @@ import { getPlanLimits, normalizePlan, PLAN_IDS, PLAN_LABELS } from "@/lib/billi
 import { toast } from "sonner"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 
+type WorkspaceItem = {
+  id: string
+  name: string
+  email: string | null
+  plan: string | null
+  role: "super_admin" | "team_lead" | "team_member" | "project_member"
+}
+
 export default function BillingPage() {
   const { profile, user, refreshProfile } = useAuth()
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
+  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
+  const workspaceSwitchTimerRef = useRef<number | null>(null)
+  const ensureOwnerWorkspace = (items: WorkspaceItem[]): WorkspaceItem[] => {
+    if (!user?.id) return items
+    const ownsFlag =
+      typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
+    const ownsByProfile =
+      profile?.role === "super_admin" ||
+      (typeof user.user_metadata?.role === "string" && user.user_metadata.role === "super_admin")
+    if (!(ownsFlag || ownsByProfile)) return items
+    if (items.some((workspace) => workspace.id === user.id)) return items
+    const fallbackName =
+      profile?.full_name ||
+      user.user_metadata?.full_name ||
+      user.email?.split("@")[0] ||
+      "Workspace"
+    const ownerWorkspace: WorkspaceItem = {
+      id: user.id,
+      name: String(fallbackName),
+      email: user.email || null,
+      plan: typeof profile?.plan === "string" ? profile.plan : "free",
+      role: "super_admin",
+    }
+    return [ownerWorkspace, ...items]
+  }
   const [updatingPlan, setUpdatingPlan] = useState(false)
   const [usageLoading, setUsageLoading] = useState(false)
   const [projectCount, setProjectCount] = useState(0)
   const [templateCount, setTemplateCount] = useState(0)
   const [teamCount, setTeamCount] = useState(0)
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly")
+  const currentWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || null
   const currentPlan = normalizePlan(
-    profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
+    currentWorkspace?.plan || profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
   )
   const planLimits = useMemo(() => getPlanLimits(currentPlan), [currentPlan])
-  const canManagePlan = profile?.role === "super_admin"
+  const canManagePlan = currentWorkspace?.role === "super_admin" || profile?.role === "super_admin"
   const stripeLinked = Boolean(profile?.stripe_customer_id || profile?.stripe_subscription_id)
   const isFreePlan = currentPlan === "free"
-  const isSuperAdmin = profile?.role === "super_admin"
+  const isSuperAdmin = currentWorkspace?.role === "super_admin" || profile?.role === "super_admin"
   const renderLimit = (value: number | null) =>
     value === null ? <Infinity className="inline h-4 w-4 align-middle" /> : value
 
@@ -164,7 +200,67 @@ export default function BillingPage() {
     return () => {
       active = false
     }
+  }, [user?.id, selectedWorkspaceId])
+
+  useEffect(() => {
+    if (!user?.id) return
+    let active = true
+    const loadWorkspaces = async () => {
+      try {
+        const res = await fetchWithAuth("/api/workspaces", { cache: "no-store" })
+        const data = await res.json().catch(() => null) as { workspaces?: WorkspaceItem[] } | null
+        if (!active) return
+        let items = Array.isArray(data?.workspaces) ? data.workspaces : []
+        items = ensureOwnerWorkspace(items)
+        setWorkspaces(items)
+        const stored = typeof window !== "undefined" ? window.localStorage.getItem("onvera:workspace") : null
+        const preferred = stored && items.some((item) => item.id === stored) ? stored : null
+        const fallback = items[0]?.id || null
+        const nextId =
+          preferred ||
+          (items.some((item) => item.id === user.id) ? user.id : fallback)
+        setSelectedWorkspaceId(nextId)
+        setWorkspaceSwitching(false)
+      } catch {
+        setWorkspaces([])
+        setWorkspaceSwitching(false)
+      }
+    }
+    void loadWorkspaces()
+    const handleWorkspace = () => {
+      if (typeof window === "undefined") return
+      setWorkspaceSwitching(true)
+      if (workspaceSwitchTimerRef.current !== null) {
+        window.clearTimeout(workspaceSwitchTimerRef.current)
+      }
+      workspaceSwitchTimerRef.current = window.setTimeout(() => {
+        setWorkspaceSwitching(false)
+      }, 1000)
+      void loadWorkspaces()
+    }
+    window.addEventListener("workspace:changed", handleWorkspace)
+    window.addEventListener("storage", handleWorkspace)
+    return () => {
+      active = false
+      window.removeEventListener("workspace:changed", handleWorkspace)
+      window.removeEventListener("storage", handleWorkspace)
+      if (workspaceSwitchTimerRef.current !== null) {
+        window.clearTimeout(workspaceSwitchTimerRef.current)
+      }
+    }
   }, [user?.id])
+
+  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
+
+  if (!workspaceReady) {
+    return (
+      <EmptyState
+        icon={<LockKeyhole className="h-6 w-6 text-destructive" />}
+        title="Loading billing"
+        description="Checking your workspace permissions."
+      />
+    )
+  }
 
   if (!isSuperAdmin) {
     return (

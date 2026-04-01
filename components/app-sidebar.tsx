@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { FolderOpenDot, LayoutPanelTop, CirclePile, LayoutGrid, Sparkles } from "lucide-react"
+import { FolderOpenDot, LayoutPanelTop, CirclePile, LayoutGrid, Sparkles, RefreshCw } from "lucide-react"
 
 // import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/sidebar/nav-main"
@@ -20,12 +20,30 @@ import Logo from "./ui/logo"
 import { useAuth } from "./providers/auth-provider"
 import { NavProjects } from "./sidebar/nav-projects"
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import type { Team } from "@/types/team"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { createClient } from "@/lib/supabase/client"
 import { canUseTeams, normalizePlan, PLAN_LABELS } from "@/lib/billing/plans"
+import { USER_ROLE_LABELS, isUserRole } from "@/lib/auth/roles"
 import Link from "next/link"
 import { Button } from "./ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { toast } from "sonner"
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
+import { getAvatarColor } from "@/lib/get-avatar-colors"
+import { Badge } from "./ui/badge"
+import { Separator } from "./ui/separator"
+
+type WorkspaceItem = {
+  id: string
+  name: string
+  email: string | null
+  avatar?: string | null
+  plan: string | null
+  role: "super_admin" | "team_lead" | "team_member" | "project_member"
+}
 
 
 const data = {
@@ -59,17 +77,39 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { user, profile, loading: authLoading } = useAuth()
+  const { user, profile, loading: authLoading, refreshProfile } = useAuth()
+  const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [serverIdentity, setServerIdentity] = useState<{
     user: { email: string | null; fullName: string | null } | null
-    profile: { fullName: string | null; role?: string | null; plan?: string | null } | null
+    profile: {
+      fullName: string | null
+      role?: string | null
+      workspaceRole?: string | null
+      plan?: string | null
+    } | null
   } | null>(null)
   const [teamMembership, setTeamMembership] = useState<"none" | "member" | "lead">("none")
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false)
+  const [openCreateWorkspace, setOpenCreateWorkspace] = useState(false)
+  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
+  const [showRefreshPrompt, setShowRefreshPrompt] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+    if (typeof window === "undefined") return
+    const target = window.localStorage.getItem("onvera:post-refresh")
+    if (target) {
+      window.localStorage.removeItem("onvera:post-refresh")
+      router.replace(target)
+    }
+  }, [mounted, router])
 
   useEffect(() => {
     if (authLoading || !user?.id) return
@@ -138,6 +178,86 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     serverIdentity?.user?.email,
   ])
 
+  const ensureOwnerWorkspace = (items: WorkspaceItem[]): WorkspaceItem[] => {
+    if (!user?.id) return items
+    const ownerAvatar =
+      typeof user.user_metadata?.avatar_url === "string" && user.user_metadata.avatar_url.trim()
+        ? user.user_metadata.avatar_url
+        : null
+    const ownsFlag =
+      typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
+    const ownsByProfile =
+      profile?.role === "super_admin" ||
+      (typeof user.user_metadata?.role === "string" && user.user_metadata.role === "super_admin")
+    if (!(ownsFlag || ownsByProfile)) return items
+    if (items.some((workspace) => workspace.id === user.id)) {
+      return items.map((workspace) =>
+        workspace.id === user.id
+          ? {
+              ...workspace,
+              avatar: workspace.avatar || ownerAvatar,
+            }
+          : workspace,
+      )
+    }
+    const fallbackName =
+      profile?.full_name ||
+      user.user_metadata?.full_name ||
+      user.email?.split("@")[0] ||
+      "Workspace"
+    const ownerWorkspace: WorkspaceItem = {
+      id: user.id,
+      name: String(fallbackName),
+      email: user.email || null,
+      avatar: ownerAvatar,
+      plan: typeof profile?.plan === "string" ? profile.plan : "free",
+      role: "super_admin",
+    }
+    return [ownerWorkspace, ...items]
+  }
+
+  useEffect(() => {
+    if (!mounted || authLoading || !user?.id) return
+    let active = true
+    const loadWorkspaces = async () => {
+      try {
+        const res = await fetchWithAuth("/api/workspaces", { cache: "no-store" })
+        const data = await res.json().catch(() => null) as { workspaces?: WorkspaceItem[] } | null
+        if (!active) return
+        let items = Array.isArray(data?.workspaces) ? data.workspaces : []
+        items = ensureOwnerWorkspace(items)
+        setWorkspaces(items)
+        const stored = typeof window !== "undefined" ? window.localStorage.getItem("onvera:workspace") : null
+        const preferred = stored && items.some((item) => item.id === stored) ? stored : null
+        const fallback = items[0]?.id || null
+        const nextId =
+          preferred ||
+          (items.some((item) => item.id === user.id) ? user.id : fallback)
+        setSelectedWorkspaceId(nextId)
+        if (nextId && typeof window !== "undefined") {
+          window.localStorage.setItem("onvera:workspace", nextId)
+        }
+      } catch {
+        setWorkspaces([])
+      } finally {
+        if (active) setWorkspaceSwitching(false)
+      }
+    }
+    void loadWorkspaces()
+    const handleWorkspace = () => {
+      if (typeof window === "undefined") return
+      setWorkspaceSwitching(true)
+      void loadWorkspaces()
+    }
+    window.addEventListener("workspace:changed", handleWorkspace)
+    window.addEventListener("storage", handleWorkspace)
+    return () => {
+      active = false
+      window.removeEventListener("workspace:changed", handleWorkspace)
+      window.removeEventListener("storage", handleWorkspace)
+    }
+  }, [authLoading, mounted, user?.id])
+
   if (!mounted) {
     return null
   }
@@ -158,23 +278,51 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ? user.user_metadata.role
       : null
   const currentRole = profile?.role || serverIdentity?.profile?.role || metadataRole || null
-  const rawPlan = profile?.plan || serverIdentity?.profile?.plan || null
+  const workspaceRole = serverIdentity?.profile?.workspaceRole || null
+  const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || null
+  const isCreateWorkspaceView = selectedWorkspaceId === "__create__"
+  const effectiveRole = workspaceRole || currentRole
+  const ownsWorkspaceFlag =
+    typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
+  const ownsWorkspace =
+    !!user?.id &&
+    (ownsWorkspaceFlag ||
+      profile?.role === "super_admin" ||
+      (typeof user.user_metadata?.role === "string" && user.user_metadata.role === "super_admin") ||
+      workspaces.some((workspace) => workspace.id === user.id))
+  const isOwnerWorkspace = !!user?.id && !!selectedWorkspaceId && selectedWorkspaceId === user.id
+  const hasExternalWorkspace =
+    !!user?.id && workspaces.some((workspace) => workspace.id !== user.id)
+  const showWorkspaceSwitcher = hasExternalWorkspace
+  const displayRole =
+    isCreateWorkspaceView
+      ? "project_member"
+      : selectedWorkspace?.role || workspaceRole || currentRole
+  const rawPlan = isCreateWorkspaceView ? "free" : selectedWorkspace?.plan || profile?.plan || serverIdentity?.profile?.plan || null
   const currentPlan = rawPlan ? normalizePlan(rawPlan) : null
-  const roleReady = !authLoading && (!user || !!currentRole)
+  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
+  const roleReady = !authLoading && (!user || !!currentRole) && workspaceReady
   const managedByLabel =
-    currentRole === "super_admin"
-      ? currentPlan
-        ? `${PLAN_LABELS[currentPlan]}`
-        : null
-      : currentRole === "team_lead"
-        ? "Team Lead"
-      : currentRole === "team_member"
-        ? "Team Member"
-        : currentRole === "project_member"
-          ? "Project Member"
+    isOwnerWorkspace && currentPlan
+      ? `${PLAN_LABELS[currentPlan]}`
+      : effectiveRole === "super_admin"
+        ? currentPlan
+          ? `${PLAN_LABELS[currentPlan]}`
           : null
-  const managedByPrefix = currentRole === "super_admin" && currentPlan ? "Current Plan" : "Managed by"
-  const canAccessTeams = currentRole === "team_member" || teamMembership !== "none"
+        : isCreateWorkspaceView
+          ? "Collaborator"
+          : displayRole && isUserRole(displayRole)
+            ? USER_ROLE_LABELS[displayRole]
+            : "Collaborator"
+  const managedByPrefix =
+    isOwnerWorkspace && currentPlan
+      ? "Current Plan"
+      : effectiveRole === "super_admin" && currentPlan
+      ? "Current Plan"
+      : isCreateWorkspaceView
+        ? "Managed by"
+        : "Managed by"
+  const canAccessTeams = displayRole === "team_member" || displayRole === "team_lead" || teamMembership !== "none"
   const adminEmailList =
     typeof process.env.NEXT_PUBLIC_ADMIN_EMAILS === "string"
       ? process.env.NEXT_PUBLIC_ADMIN_EMAILS
@@ -188,15 +336,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     adminEmailList.includes(email.trim().toLowerCase())
 
   const planAllowsTeams = canUseTeams(currentPlan)
-  const showUpgradePrompt = currentRole === "super_admin" && currentPlan === "free"
-  const hideManagedBy = currentRole === "super_admin" && !currentPlan
+  const showUpgradePrompt = isOwnerWorkspace && currentPlan === "free" && !isCreateWorkspaceView
+  const hideManagedBy = effectiveRole === "super_admin" && !currentPlan
 
   const navItems = roleReady
-    ? currentRole === "project_member"
-      ? data.navMain.filter((item) => item.url === "/projects" || (canAccessTeams && item.url === "/teams"))
-      : currentRole === "team_member"
+    ? displayRole === "project_member"
+      ? data.navMain.filter((item) => item.url === "/projects")
+      : displayRole === "team_member"
         ? data.navMain.filter((item) => item.url === "/projects" || item.url === "/teams")
-        : currentRole === "team_lead"
+        : displayRole === "team_lead"
           ? data.navMain.filter((item) => item.url === "/projects" || item.url === "/teams")
         : planAllowsTeams
           ? data.navMain
@@ -206,7 +354,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     (item) => item.url !== "/admin/plan-manager" || isAdminEmail,
   )
 
-  const showOngoingProjects = roleReady
+  const showOngoingProjects = roleReady && !isCreateWorkspaceView
 
   const handleLogout = () => {
     const supabase = createClient()
@@ -234,11 +382,56 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
+        {showWorkspaceSwitcher ? (
+          <div className="px-3 pb-2 flex flex-col">            
+            <Select
+              value={selectedWorkspaceId ?? ""}
+              onValueChange={(value) => {
+                setWorkspaceSwitching(true)
+                setSelectedWorkspaceId(value)
+                if (value !== "__create__" && typeof window !== "undefined") {
+                  window.localStorage.setItem("onvera:workspace", value)
+                  window.dispatchEvent(new Event("workspace:changed"))
+                }
+                if (value === "__create__") {
+                  setOpenCreateWorkspace(true)
+                }
+              }}
+            >
+              <div className="relative">
+                <SelectTrigger className="h-9 w-full text-xs bg-white border-zinc-200 dark:border-zinc-700 shadow-none">
+                  <SelectValue placeholder="Select workspace" />
+                </SelectTrigger>
+              </div>
+              <SelectContent>
+                {workspaces.map((workspace) => (
+                  <SelectItem key={workspace.id} value={workspace.id}>
+                     <Avatar className="h-5 w-5 rounded-full">
+                  <AvatarImage
+                    src={workspace.id === user?.id ? (avatar || workspace.avatar || undefined) : (workspace.avatar || undefined)}
+                    alt={workspace.name}
+                  />
+                  <AvatarFallback className={`rounded-full text-xs font-bold ${getAvatarColor(workspace.name)}`}>
+                    {(workspace.name || "W").charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                    {workspace.name}'s Workspace
+                  </SelectItem>
+                ))}
+                {!ownsWorkspace ? (
+                  <SelectItem value="__create__">Create your own workspace</SelectItem>
+                ) : null}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
         {roleReady ? (
-          <>
-            <NavMain items={filteredNavItems} />
-            {showOngoingProjects ? <NavProjects /> : null}
-          </>
+          !isCreateWorkspaceView ? (
+            <>
+              <NavMain items={filteredNavItems} />
+              {showOngoingProjects ? <NavProjects /> : null}
+            </>
+          ) : null
         ) : (
           <div className="px-4 py-3 text-xs text-muted-foreground">Loading menu...</div>
         )}
@@ -264,13 +457,128 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ) : null}
         <NavUser
           user={{ name, email, avatar }}
-          role={currentRole}
+          role={displayRole}
           managedByLabel={managedByLabel}
           managedByPrefix={managedByPrefix}
           hideManagedBy={hideManagedBy}
           onLogout={handleLogout}
         />
       </SidebarFooter>
+      <Dialog open={openCreateWorkspace} onOpenChange={setOpenCreateWorkspace}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create your workspace</DialogTitle>
+          </DialogHeader>
+          <div className="pb-5 text-sm text-muted-foreground">
+            <p>Start a new workspace on this account with a Free plan and be a Super Admin.</p>
+          </div>
+          <DialogFooter>
+          {/* <div className="flex justify-end gap-2 pt-2"> */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setOpenCreateWorkspace(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="gradient"
+              disabled={creatingWorkspace}
+              onClick={async () => {
+                setCreatingWorkspace(true)
+                setWorkspaceSwitching(true)
+                const toastId = toast.loading("Workspace loading...")
+                try {
+                  const res = await fetchWithAuth("/api/workspaces/create", { method: "POST" })
+                  const data = await res.json().catch(() => null) as { message?: string } | null
+                  if (!res.ok) {
+                    throw new Error(data?.message || "Failed to create workspace")
+                  }
+                  await refreshProfile()
+                  let items: WorkspaceItem[] = []
+                  const maxAttempts = 6
+                  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                    const refreshed = await fetchWithAuth("/api/workspaces", { cache: "no-store" })
+                    const refreshedData = await refreshed.json().catch(() => null) as { workspaces?: WorkspaceItem[] } | null
+                    items = Array.isArray(refreshedData?.workspaces) ? refreshedData.workspaces : []
+                    if (user?.id && items.some((workspace) => workspace.id === user.id)) {
+                      break
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 400))
+                  }
+                  items = ensureOwnerWorkspace(items)
+                  setWorkspaces(items)
+                  if (user?.id) {
+                    setSelectedWorkspaceId(user.id)
+                    if (typeof window !== "undefined") {
+                      window.localStorage.setItem("onvera:workspace", user.id)
+                      window.localStorage.setItem("onvera:ownsWorkspace", "true")
+                      window.dispatchEvent(new Event("workspace:changed"))
+                    }
+                  }
+                  if (user?.id && !items.some((workspace) => workspace.id === user.id)) {
+                    setOpenCreateWorkspace(false)
+                    setShowRefreshPrompt(true)
+                  }
+                  try {
+                    const identityRes = await fetchWithAuth("/api/auth/me", { cache: "no-store" })
+                    if (identityRes.ok) {
+                      const identityData = await identityRes.json().catch(() => null)
+                      setServerIdentity(identityData)
+                    }
+                  } catch {
+                    // ignore
+                  }
+                  toast.success("Workspace ready", { id: toastId })
+                  setOpenCreateWorkspace(false)
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Failed to create workspace", { id: toastId })
+                } finally {
+                  setCreatingWorkspace(false)
+                  setWorkspaceSwitching(false)
+                }
+              }}
+            >
+              {creatingWorkspace ? "Creating..." : "Create workspace"}
+            </Button>
+          {/* </div> */}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showRefreshPrompt} onOpenChange={() => {}}>
+        <DialogContent
+          className="sm:max-w-md"
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 text-violet-700">
+                <RefreshCw className="h-4 w-4" />
+              </span>
+              Refresh to explore features
+            </DialogTitle>
+          </DialogHeader>
+          <div className="pb-4 text-sm text-muted-foreground">
+            Your workspace was created successfully. Please refresh once to load the latest access and features.
+          </div>
+          <DialogFooter>
+            <Button
+              size="sm"
+              variant="gradient"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.localStorage.setItem("onvera:post-refresh", "/dashboard")
+                  window.location.reload()
+                }
+              }}
+            >
+              Refresh now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sidebar>
   )
 }

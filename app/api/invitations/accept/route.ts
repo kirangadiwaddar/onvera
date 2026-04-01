@@ -59,17 +59,19 @@ export async function POST(request: Request) {
   }
 
   let alreadyHasAccess = false
+  let workspaceId: string | null = null
 
   if (invite.contextType === "team") {
     const { data: team } = await admin
       .from("teams")
-      .select("lead, members")
+      .select("lead, members, created_by")
       .eq("id", invite.contextId)
       .maybeSingle()
 
     if (!team) {
       return NextResponse.json({ message: "Team not found" }, { status: 404 })
     }
+    workspaceId = typeof team.created_by === "string" ? team.created_by : null
 
     const lead = team.lead as Member | null
     const members = Array.isArray(team.members) ? (team.members as Member[]) : []
@@ -109,13 +111,14 @@ export async function POST(request: Request) {
   } else {
     const { data: project } = await admin
       .from("projects")
-      .select("extra_members")
+      .select("extra_members, created_by")
       .eq("id", invite.contextId)
       .maybeSingle()
 
     if (!project) {
       return NextResponse.json({ message: "Project not found" }, { status: 404 })
     }
+    workspaceId = typeof project.created_by === "string" ? project.created_by : null
 
     const members = Array.isArray(project.extra_members)
       ? (project.extra_members as Member[])
@@ -167,6 +170,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     accepted: true,
     alreadyHasAccess,
+    workspaceId,
     redirect:
       invite.contextType === "team"
         ? `/teams/${invite.contextSlug}`

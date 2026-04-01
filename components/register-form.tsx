@@ -81,14 +81,13 @@ export function RegisterForm({
           return
         }
 
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        const { error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
           options: {
             data: {
               full_name: fullName,
               role,
-              plan: "free",
             },
           },
         })
@@ -224,6 +223,28 @@ export function RegisterForm({
             Enter your details to create a new account.
           </p>
         </div>
+        {(inviteRole || inviteToken) && step === "form" ? (
+          <div className="rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-orange-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-orange-100">
+            {/* <p className="font-medium">Invite details</p> */}
+            <div className="flex items-center gap-3">
+              {inviteRole ? (
+                <>
+                  <Input id="role" name="role" value={inviteRole} readOnly className="hidden" />
+                  <p>
+                    <span className="text-orange-900 dark:text-orange-100">Role:</span>{" "}
+                    <span className="font-medium">{USER_ROLE_LABELS[inviteRole]}</span>
+                  </p>
+                </>
+              ) : null}
+              {inviteToken ? (
+                <p className="break-all">
+                  <span className="text-orange-900 dark:text-orange-100">Token:</span>{" "}
+                  <span className="font-mono text-[11px]">{inviteToken}</span>
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         {/* <FieldSeparator></FieldSeparator> */}
         {step === "form" ? (
           <>
@@ -251,29 +272,6 @@ export function RegisterForm({
                 required
               />
             </Field>
-            {inviteRole ? (
-              <Field>
-                <FieldLabel htmlFor="role">Role</FieldLabel>
-                <>
-                  <Input
-                    id="role"
-                    name="role"
-                    value={inviteRole}
-                    readOnly
-                    className="hidden"
-                  />
-                  <div className="border-input w-full rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                    {USER_ROLE_LABELS[inviteRole]}
-                  </div>
-                </>
-              </Field>
-            ) : null}
-            {inviteToken && (
-              <Field>
-                <FieldLabel htmlFor="inviteToken">Invite Token</FieldLabel>
-                <Input id="inviteToken" name="inviteToken" type="text" value={inviteToken} readOnly />
-              </Field>
-            )}
             <Field>
               <div className="flex items-center">
                 <FieldLabel htmlFor="password">Password</FieldLabel>

@@ -266,6 +266,56 @@ type TeamRow = {
 
 const normalizeEmail = (value?: string | null) => (value || "").trim().toLowerCase()
 
+async function getUserDirectory(
+  admin: ReturnType<typeof createAdminClient>,
+  userIds: Array<string | null | undefined>,
+) {
+  const ids = Array.from(new Set(userIds.filter((id): id is string => Boolean(id))))
+  const nameById = new Map<string, string>()
+  const emailById = new Map<string, string>()
+  if (!admin || ids.length === 0) return { nameById, emailById }
+
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", ids)
+
+  if (Array.isArray(profiles)) {
+    profiles.forEach((profile) => {
+      if (profile?.id) {
+        nameById.set(profile.id, profile.full_name ?? "")
+      }
+    })
+  }
+
+  let page = 1
+  const perPage = 1000
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
+    if (error) {
+      console.error("Supabase listUsers failed:", error.message)
+      break
+    }
+    const users = Array.isArray((data as { users?: unknown })?.users)
+      ? (data as { users: Array<{ id?: string; email?: string | null }> }).users
+      : Array.isArray(data)
+        ? (data as Array<{ id?: string; email?: string | null }>)
+        : []
+    users.forEach((user) => {
+      const id = user?.id
+      const email = user?.email
+      if (id && email && ids.includes(id)) {
+        emailById.set(id, email)
+      }
+    })
+    const nextPage = (data as { nextPage?: number | null } | null)?.nextPage
+    if (!nextPage) break
+    page = nextPage
+  }
+
+  return { nameById, emailById }
+}
+
 const isTeamMemberInTeam = (team: SummaryTeamRow, email?: string | null) => {
   const target = normalizeEmail(email)
   if (!target) return false
@@ -355,6 +405,7 @@ async function getSummaryProjects(identity: RequestIdentity) {
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
     teamIds: project.teamIds,
+    createdBy: project.createdBy ?? null,
   }))
 }
 
@@ -580,9 +631,20 @@ export async function GET(request: Request) {
     return { ...project, submissions }
   })
 
-  const teamIds = Array.from(
-    new Set(normalizedProjects.flatMap((project) => project.teamIds ?? [])),
+  const { nameById, emailById } = await getUserDirectory(
+    admin,
+    normalizedProjects.map((project) => project.createdBy),
   )
+  const projectsWithOwners: Project[] = normalizedProjects.map((project) => {
+    const ownerId = project.createdBy || ""
+    return {
+      ...project,
+      ownerName: nameById.get(ownerId) || null,
+      ownerEmail: emailById.get(ownerId) || null,
+    }
+  })
+
+  const teamIds = Array.from(new Set(projectsWithOwners.flatMap((project) => project.teamIds ?? [])))
 
   const { data: teamRows, error: teamRowsError } = teamIds.length
     ? await admin
@@ -595,7 +657,7 @@ export async function GET(request: Request) {
     console.error("Supabase teams fetch failed:", teamRowsError.message)
   }
 
-  const templateIds = Array.from(new Set(normalizedProjects.map((project) => project.templateId).filter(Boolean)))
+  const templateIds = Array.from(new Set(projectsWithOwners.map((project) => project.templateId).filter(Boolean)))
 
   const templatesById = templateIds.length
     ? await admin
@@ -662,7 +724,7 @@ export async function GET(request: Request) {
     : []
 
   const payload = {
-    projects: normalizedProjects.map((project) =>
+    projects: projectsWithOwners.map((project) =>
       attachRelations(project, teams, templates, { includeTemplateStructure: false }),
     ),
   }

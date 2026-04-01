@@ -17,12 +17,21 @@ import { useAuth } from "@/components/providers/auth-provider"
 
 export function NavProjects() {
   const [projects, setProjects] = useState<
-    Array<Pick<Project, "id" | "slug" | "title" | "status" | "createdAt" | "updatedAt">>
+    Array<Pick<Project, "id" | "slug" | "title" | "status" | "createdAt" | "updatedAt" | "createdBy">>
   >([])
   const { user, loading: authLoading } = useAuth()
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
 
   useEffect(() => {
     if (authLoading || !user?.id) return
+    const handleWorkspace = () => {
+      if (typeof window === "undefined") return
+      const stored = window.localStorage.getItem("onvera:workspace")
+      setSelectedWorkspaceId(stored)
+    }
+    handleWorkspace()
+    window.addEventListener("workspace:changed", handleWorkspace)
+    window.addEventListener("storage", handleWorkspace)
     let isActive = true
     let intervalId: ReturnType<typeof setInterval> | null = null
     const POLL_INTERVAL_MS = 30000
@@ -36,13 +45,14 @@ export function NavProjects() {
         if (!res.ok) return
 
         const data = await res.json()
-        const allProjects: Array<Pick<Project, "id" | "slug" | "title" | "status" | "createdAt" | "updatedAt">> = Array.isArray(data)
+        const allProjects: Array<Pick<Project, "id" | "slug" | "title" | "status" | "createdAt" | "updatedAt" | "createdBy">> = Array.isArray(data)
           ? data
           : Array.isArray(data?.projects)
             ? data.projects
             : []
 
         const ongoingProjects = allProjects
+          .filter((project) => !selectedWorkspaceId || project.createdBy === selectedWorkspaceId)
           .filter((project) => project.status === "ongoing")
           .sort((a, b) => {
             const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime()
@@ -78,8 +88,10 @@ export function NavProjects() {
       if (intervalId) clearInterval(intervalId)
       window.removeEventListener("focus", handleFocus)
       document.removeEventListener("visibilitychange", handleVisibility)
+      window.removeEventListener("workspace:changed", handleWorkspace)
+      window.removeEventListener("storage", handleWorkspace)
     }
-  }, [authLoading, user?.id])
+  }, [authLoading, selectedWorkspaceId, user?.id])
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">

@@ -8,6 +8,148 @@ function isMissingCreatedBy(message?: string | null) {
   return Boolean(message && message.toLowerCase().includes("created_by"))
 }
 
+function normalizeEmail(value?: string | null) {
+  return (value || "").trim().toLowerCase()
+}
+
+type DeleteImpact = {
+  ownedProjects: number
+  ownedTeams: number
+  ownedTemplates: number
+  ownedTokens: number
+  teamMemberships: number
+  projectMemberships: number
+  hasData: boolean
+}
+
+type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>
+
+async function getDeleteImpact(
+  admin: AdminClient,
+  userId: string,
+  userEmail: string,
+): Promise<DeleteImpact> {
+  const [{ data: ownedProjects }, { data: ownedTeams }, { data: ownedTemplates }, { data: ownedTokens }] =
+    await Promise.all([
+      admin.from("projects").select("id").eq("created_by", userId),
+      admin.from("teams").select("id").eq("created_by", userId),
+      admin.from("templates").select("id").eq("created_by", userId),
+      admin.from("onboarding_tokens").select("id").eq("created_by", userId),
+    ])
+
+  const { data: teamRows } = await admin.from("teams").select("id,lead,members")
+  const teamMemberships = Array.isArray(teamRows)
+    ? teamRows.filter((team) => {
+        const leadEmail = normalizeEmail(typeof team.lead?.email === "string" ? team.lead.email : null)
+        if (leadEmail && leadEmail === userEmail) return true
+        const members = Array.isArray(team.members) ? team.members : []
+        return members.some(
+          (member) => normalizeEmail(typeof member?.email === "string" ? member.email : null) === userEmail,
+        )
+      }).length
+    : 0
+
+  const { data: projectRows } = await admin.from("projects").select("id,extra_members")
+  const projectMemberships = Array.isArray(projectRows)
+    ? projectRows.filter((project) => {
+        const members = Array.isArray(project.extra_members) ? project.extra_members : []
+        return members.some(
+          (member) => normalizeEmail(typeof member?.email === "string" ? member.email : null) === userEmail,
+        )
+      }).length
+    : 0
+
+  const impact: DeleteImpact = {
+    ownedProjects: Array.isArray(ownedProjects) ? ownedProjects.length : 0,
+    ownedTeams: Array.isArray(ownedTeams) ? ownedTeams.length : 0,
+    ownedTemplates: Array.isArray(ownedTemplates) ? ownedTemplates.length : 0,
+    ownedTokens: Array.isArray(ownedTokens) ? ownedTokens.length : 0,
+    teamMemberships,
+    projectMemberships,
+    hasData: false,
+  }
+  impact.hasData =
+    impact.ownedProjects > 0 ||
+    impact.ownedTeams > 0 ||
+    impact.ownedTemplates > 0 ||
+    impact.ownedTokens > 0 ||
+    impact.teamMemberships > 0 ||
+    impact.projectMemberships > 0
+
+  return impact
+}
+
+async function removeUserCollaborations(
+  admin: AdminClient,
+  userEmail: string,
+) {
+  if (!userEmail) return
+
+  const { data: teamRows } = await admin.from("teams").select("id,lead,members")
+  if (Array.isArray(teamRows)) {
+    for (const team of teamRows) {
+      const lead = team.lead && typeof team.lead === "object" ? { ...team.lead } : null
+      const members = Array.isArray(team.members) ? [...team.members] : []
+
+      const leadEmail = normalizeEmail(typeof lead?.email === "string" ? lead.email : null)
+      const nextLead = leadEmail === userEmail ? null : lead
+      const nextMembers = members.filter(
+        (member) => normalizeEmail(typeof member?.email === "string" ? member.email : null) !== userEmail,
+      )
+
+      const leadChanged = (lead && !nextLead) || (!lead && nextLead) || lead !== nextLead
+      const membersChanged = nextMembers.length !== members.length
+      if (!leadChanged && !membersChanged) continue
+
+      await admin
+        .from("teams")
+        .update({ lead: nextLead, members: nextMembers })
+        .eq("id", team.id)
+    }
+  }
+
+  const { data: projectRows } = await admin.from("projects").select("id,extra_members")
+  if (Array.isArray(projectRows)) {
+    for (const project of projectRows) {
+      const members = Array.isArray(project.extra_members) ? [...project.extra_members] : []
+      const nextMembers = members.filter(
+        (member) => normalizeEmail(typeof member?.email === "string" ? member.email : null) !== userEmail,
+      )
+      if (nextMembers.length === members.length) continue
+      await admin
+        .from("projects")
+        .update({ extra_members: nextMembers })
+        .eq("id", project.id)
+    }
+  }
+}
+
+export async function GET(request: Request) {
+  const identity = await getRequestIdentityFromRequest(request)
+  if (!identity) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+  }
+
+  if (!ALLOWED_ROLES.has(identity.role || "")) {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 })
+  }
+
+  const admin = createAdminClient()
+  if (!admin) {
+    return NextResponse.json({ message: "Supabase service key is not configured" }, { status: 500 })
+  }
+
+  try {
+    const userId = identity.userId
+    const userEmail = normalizeEmail(identity.email)
+    const impact = await getDeleteImpact(admin, userId, userEmail)
+    return NextResponse.json({ hasData: impact.hasData, impact })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to check account data"
+    return NextResponse.json({ message }, { status: 500 })
+  }
+}
+
 export async function POST(request: Request) {
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
@@ -25,85 +167,24 @@ export async function POST(request: Request) {
 
   try {
     const userId = identity.userId
-    const userEmail = (identity.email || "").trim().toLowerCase()
+    const userEmail = normalizeEmail(identity.email)
+    const body = (await request.json().catch(() => null)) as { force?: boolean } | null
+    const forceDelete = body?.force === true
+    const impact = await getDeleteImpact(admin, userId, userEmail)
 
-    if (identity.role !== "super_admin") {
-      if (!userEmail) {
-        return NextResponse.json({ message: "Missing account email" }, { status: 400 })
-      }
-
-      const [{ data: teamRows, error: teamError }, { data: ownedTeams, error: ownedTeamsError }] =
-        await Promise.all([
-          admin.from("teams").select("id,lead,members"),
-          admin.from("teams").select("id").eq("created_by", userId).limit(1),
-        ])
-
-      if (teamError || ownedTeamsError) {
-        throw new Error(teamError?.message || ownedTeamsError?.message || "Failed to check team access")
-      }
-
-      const isInTeam =
-        Array.isArray(teamRows) &&
-        teamRows.some((team) => {
-          const leadEmail = typeof team.lead?.email === "string" ? team.lead.email.trim().toLowerCase() : ""
-          if (leadEmail && leadEmail === userEmail) return true
-          const members = Array.isArray(team.members) ? team.members : []
-          return members.some(
-            (member) => typeof member?.email === "string" && member.email.trim().toLowerCase() === userEmail,
-          )
-        })
-
-      const ownsTeam = Array.isArray(ownedTeams) && ownedTeams.length > 0
-
-      let isInProject = false
-      const { data: projectRows, error: projectError } = await admin
-        .from("projects")
-        .select("id,extra_members")
-        .contains("extra_members", [{ email: userEmail }])
-
-      if (projectError) {
-        const { data: fallbackRows, error: fallbackError } = await admin
-          .from("projects")
-          .select("id,extra_members")
-
-        if (fallbackError) {
-          throw new Error(fallbackError.message)
-        }
-        isInProject =
-          Array.isArray(fallbackRows) &&
-          fallbackRows.some((project) => {
-            const members = Array.isArray(project.extra_members) ? project.extra_members : []
-            return members.some(
-              (member) =>
-                typeof member?.email === "string" && member.email.trim().toLowerCase() === userEmail,
-            )
-          })
-      } else {
-        isInProject = Array.isArray(projectRows) && projectRows.length > 0
-      }
-
-      const { data: ownedProjects, error: ownedProjectsError } = await admin
-        .from("projects")
-        .select("id")
-        .eq("created_by", userId)
-        .limit(1)
-
-      if (ownedProjectsError) {
-        throw new Error(ownedProjectsError.message)
-      }
-
-      const ownsProject = Array.isArray(ownedProjects) && ownedProjects.length > 0
-
-      if (isInTeam || isInProject || ownsTeam || ownsProject) {
-        return NextResponse.json(
-          {
-            message:
-              "You can't delete your account while you're part of a team or project. Leave all workspaces first.",
-          },
-          { status: 409 },
-        )
-      }
+    if (impact.hasData && !forceDelete) {
+      return NextResponse.json(
+        {
+          message:
+            "Deleting this account will remove your workspace data and revoke access to related teams/projects.",
+          hasData: true,
+          impact,
+        },
+        { status: 409 },
+      )
     }
+
+    await removeUserCollaborations(admin, userEmail)
 
     const { data: projects, error: projectsFetchError } = await admin
       .from("projects")
@@ -134,22 +215,28 @@ export async function POST(request: Request) {
       throw new Error(tokensByUserError.message)
     }
 
-    if (identity.role === "super_admin") {
-      const { error: projectsDeleteError } = await admin
-        .from("projects")
-        .delete()
-        .eq("created_by", userId)
-      if (projectsDeleteError && !isMissingCreatedBy(projectsDeleteError.message)) {
-        throw new Error(projectsDeleteError.message)
-      }
+    const { error: projectsDeleteError } = await admin
+      .from("projects")
+      .delete()
+      .eq("created_by", userId)
+    if (projectsDeleteError && !isMissingCreatedBy(projectsDeleteError.message)) {
+      throw new Error(projectsDeleteError.message)
+    }
 
-      const { error: teamsDeleteError } = await admin
-        .from("teams")
-        .delete()
-        .eq("created_by", userId)
-      if (teamsDeleteError && !isMissingCreatedBy(teamsDeleteError.message)) {
-        throw new Error(teamsDeleteError.message)
-      }
+    const { error: teamsDeleteError } = await admin
+      .from("teams")
+      .delete()
+      .eq("created_by", userId)
+    if (teamsDeleteError && !isMissingCreatedBy(teamsDeleteError.message)) {
+      throw new Error(teamsDeleteError.message)
+    }
+
+    const { error: templatesDeleteError } = await admin
+      .from("templates")
+      .delete()
+      .eq("created_by", userId)
+    if (templatesDeleteError && !isMissingCreatedBy(templatesDeleteError.message)) {
+      throw new Error(templatesDeleteError.message)
     }
 
     const { error: profileDeleteError } = await admin
@@ -165,7 +252,7 @@ export async function POST(request: Request) {
       throw new Error(userDeleteError.message)
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, hadData: impact.hasData })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to delete account"
     return NextResponse.json({ message }, { status: 500 })

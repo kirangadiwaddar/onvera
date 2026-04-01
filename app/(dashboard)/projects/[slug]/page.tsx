@@ -81,6 +81,14 @@ import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { canUseNotes, canUseTeams, getPlanLimits, normalizePlan } from "@/lib/billing/plans"
 
+type WorkspaceItem = {
+  id: string
+  name: string
+  email: string | null
+  plan: string | null
+  role: "super_admin" | "team_lead" | "team_member" | "project_member"
+}
+
 const CUSTOM_SECTIONS_KEY = "__custom_sections"
 const DEFAULT_NOTE_REACTIONS: string[] = []
 const DEFAULT_MENTION_LIMIT = 6
@@ -318,11 +326,41 @@ export default function ProjectDetailPage() {
   const [composerMentionIndex, setComposerMentionIndex] = useState(0)
   const [editCursor, setEditCursor] = useState<Record<string, number>>({})
   const [editMentionIndex, setEditMentionIndex] = useState<Record<string, number>>({})
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
+  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
+  const workspaceSwitchTimerRef = useRef<number | null>(null)
+  const ensureOwnerWorkspace = (items: WorkspaceItem[]): WorkspaceItem[] => {
+    if (!user?.id) return items
+    const ownsFlag =
+      typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
+    const ownsByProfile =
+      profile?.role === "super_admin" ||
+      (typeof user.user_metadata?.role === "string" && user.user_metadata.role === "super_admin")
+    if (!(ownsFlag || ownsByProfile)) return items
+    if (items.some((workspace) => workspace.id === user.id)) return items
+    const fallbackName =
+      profile?.full_name ||
+      user.user_metadata?.full_name ||
+      user.email?.split("@")[0] ||
+      "Workspace"
+    const ownerWorkspace: WorkspaceItem = {
+      id: user.id,
+      name: String(fallbackName),
+      email: user.email || null,
+      plan: typeof profile?.plan === "string" ? profile.plan : "free",
+      role: "super_admin",
+    }
+    return [ownerWorkspace, ...items]
+  }
   const currentRole = (profile?.role || user?.user_metadata?.role || null) as string | null
-  const restrictedRole = currentRole === "project_member" || currentRole === "team_member"
-  const isSuperAdmin = currentRole === "super_admin"
+  const currentWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || null
+  const effectiveRole = currentWorkspace?.role || currentRole
+  const restrictedRole = effectiveRole === "project_member" || effectiveRole === "team_member"
+  const isSuperAdmin = effectiveRole === "super_admin"
   const currentPlan = normalizePlan(
-    project?.plan ||
+    currentWorkspace?.plan ||
+      project?.plan ||
       profile?.plan ||
       (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
   )
@@ -746,6 +784,54 @@ export default function ProjectDetailPage() {
     }
   }, [notesEnabled])
 
+  useEffect(() => {
+    if (authLoading || !user?.id) return
+    let active = true
+    const loadWorkspaces = async () => {
+      try {
+        const res = await fetchWithAuth("/api/workspaces", { cache: "no-store" })
+        const data = await res.json().catch(() => null) as { workspaces?: WorkspaceItem[] } | null
+        if (!active) return
+        let items = Array.isArray(data?.workspaces) ? data.workspaces : []
+        items = ensureOwnerWorkspace(items)
+        setWorkspaces(items)
+        const stored = typeof window !== "undefined" ? window.localStorage.getItem("onvera:workspace") : null
+        const preferred = stored && items.some((item) => item.id === stored) ? stored : null
+        const fallback = items[0]?.id || null
+        const nextId =
+          preferred ||
+          (items.some((item) => item.id === user.id) ? user.id : fallback)
+        setSelectedWorkspaceId(nextId)
+        setWorkspaceSwitching(false)
+      } catch {
+        setWorkspaces([])
+        setWorkspaceSwitching(false)
+      }
+    }
+    void loadWorkspaces()
+    const handleWorkspace = () => {
+      if (typeof window === "undefined") return
+      setWorkspaceSwitching(true)
+      if (workspaceSwitchTimerRef.current !== null) {
+        window.clearTimeout(workspaceSwitchTimerRef.current)
+      }
+      workspaceSwitchTimerRef.current = window.setTimeout(() => {
+        setWorkspaceSwitching(false)
+      }, 1000)
+      void loadWorkspaces()
+    }
+    window.addEventListener("workspace:changed", handleWorkspace)
+    window.addEventListener("storage", handleWorkspace)
+    return () => {
+      active = false
+      window.removeEventListener("workspace:changed", handleWorkspace)
+      window.removeEventListener("storage", handleWorkspace)
+      if (workspaceSwitchTimerRef.current !== null) {
+        window.clearTimeout(workspaceSwitchTimerRef.current)
+      }
+    }
+  }, [authLoading, user?.id])
+
   const availableTeams = teamAccessEnabled
     ? teams.filter((team) => !project?.teamIds?.includes(team.id))
     : []
@@ -983,7 +1069,9 @@ export default function ProjectDetailPage() {
     setShowCompletePrompt(false)
   }, [dismissedCompletePrompt, shouldPromptForCompletion])
 
-  if (loading) {
+  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
+
+  if (loading || !workspaceReady) {
     return (
       <div className="p-6">
         <LoadingState title="Loading Project" description="Fetching project details..." />
@@ -997,6 +1085,17 @@ export default function ProjectDetailPage() {
       </div>
     )
   }
+  if (selectedWorkspaceId && project.createdBy && project.createdBy !== selectedWorkspaceId) {
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon={<TriangleAlert className="text-destructive" />}
+          title="Wrong workspace"
+          description="Switch the workspace from the sidebar to view this project."
+        />
+      </div>
+    )
+  }
   const currentEmail = (user?.email || "").toLowerCase()
   const isLeadMember = Boolean(
     project.members?.some(
@@ -1005,6 +1104,7 @@ export default function ProjectDetailPage() {
     ),
   )
   const canManageChecklist = !isProjectLocked && (canEditProject || isLeadMember)
+  const canSubmitChecklist = !isProjectLocked && (canManageChecklist || restrictedRole)
   const isProjectCompleted = project.status === "completed"
   const canSeeAccessToken = currentRole === "super_admin"
   const inviteBaseUrl =
@@ -2040,7 +2140,7 @@ export default function ProjectDetailPage() {
                     <ChecklistSection
                       section={section}
                       isAgency={true}
-                      canEdit={canManageChecklist}
+                      canEdit={canSubmitChecklist}
                       canModerate={canManageChecklist}
                       isReadOnly={isProjectCompleted}
                       submissions={project.submissions}

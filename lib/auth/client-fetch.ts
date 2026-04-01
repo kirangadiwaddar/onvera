@@ -41,6 +41,16 @@ export async function fetchWithAuth(input: RequestInfo | URL, init: RequestInit 
   if (session?.access_token) {
     headers.set("Authorization", `Bearer ${session.access_token}`)
   }
+  if (typeof window !== "undefined") {
+    const workspaceId = window.localStorage.getItem("onvera:workspace")
+    if (workspaceId && workspaceId !== "__create__") {
+      headers.set("x-workspace-id", workspaceId)
+    }
+  }
 
-  return fetch(input, { ...init, headers })
+  try {
+    return await fetch(input, { ...init, headers })
+  } catch {
+    return new Response(null, { status: 0, statusText: "Network error" })
+  }
 }
