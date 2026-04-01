@@ -7,6 +7,7 @@ import { ProjectCard } from "@/components/project-card"
 import { ProjectModal, type ProjectFormValues } from "@/components/projects/project-modal"
 import { DeleteProjectAlert } from "@/components/projects/delete-project-alert"
 import { EmptyState } from "@/components/emptyState"
+import { LoadingState } from "@/components/loadingState"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -44,7 +45,6 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
 import { getPlanLimits, normalizePlan } from "@/lib/billing/plans"
-import { Skeleton } from "@/components/ui/skeleton"
 
 type WorkspaceItem = {
   id: string
@@ -468,17 +468,10 @@ export default function Page() {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-7">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-4 w-64" />
-          <Skeleton className="h-9 w-28 rounded-full" />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <Skeleton className="h-44 rounded-2xl" />
-          <Skeleton className="h-44 rounded-2xl" />
-          <Skeleton className="h-44 rounded-2xl" />
-        </div>
-      </div>
+      <LoadingState
+        title="Loading Projects..."
+        description="Fetching your projects, please wait."
+      />
     )
   }
 
