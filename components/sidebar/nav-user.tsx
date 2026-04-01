@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bell, ChevronsUpDown, CircleUserRound, LogOut, CheckCheck, Trash2, CreditCard } from "lucide-react"
+import { ChevronsUpDown, CircleUserRound, LogOut, CheckCheck, Trash2, CreditCard } from "lucide-react"
 import { USER_ROLE_LABELS, isUserRole } from "@/lib/auth/roles"
 import { AccountSettingsModal } from "@/components/account/account-settings-modal"
 import { RecentActivity } from "@/components/dashboard/recentActivity"
@@ -55,8 +55,8 @@ type Activity = {
   project?: string | { title?: string }
   status: string
   actor?: "Admin" | "Client" | "Team Lead"
-  timestamp?: string
   created_at?: string
+  is_read?: boolean
 }
 
 export function NavUser({
@@ -68,6 +68,7 @@ export function NavUser({
   onLogout,
 }: {
   user: {
+    id?: string
     name: string
     email: string
     avatar?: string
@@ -85,13 +86,8 @@ export function NavUser({
   const [menuOpen, setMenuOpen] = useState(false)
   const [activities, setActivities] = useState<Activity[]>([])
   const [loadingActivities, setLoadingActivities] = useState(false)
-  const [seenAt, setSeenAt] = useState<string | null>(null)
-  const [hiddenIds, setHiddenIds] = useState<string[]>([])
   const roleLabel = role === "super_admin" ? "Super Admin" : role && isUserRole(role) ? USER_ROLE_LABELS[role] : "User"
   const managedBy = managedByLabel || roleLabel
-  const storageBase = user.email ? `notifications:${user.email}` : "notifications:anonymous"
-  const hiddenKey = `${storageBase}:hidden`
-  const seenKey = `${storageBase}:seen_at`
 
   const supabase = useMemo(() => {
     try {
@@ -101,101 +97,58 @@ export function NavUser({
     }
   }, [])
 
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    const storedHidden = window.localStorage.getItem(hiddenKey)
-    const storedSeenAt = window.localStorage.getItem(seenKey)
-    if (storedHidden) {
-      try {
-        const parsed = JSON.parse(storedHidden) as string[]
-        if (Array.isArray(parsed)) setHiddenIds(parsed)
-      } catch {
-        setHiddenIds([])
-      }
+  const loadActivities = async () => {
+    setLoadingActivities(true)
+    try {
+      const res = await fetchWithAuth("/api/notifications?limit=50", { cache: "no-store" })
+      const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
+      setActivities(Array.isArray(payload?.activities) ? payload.activities : [])
+    } catch {
+      setActivities([])
+    } finally {
+      setLoadingActivities(false)
     }
-    if (storedSeenAt) setSeenAt(storedSeenAt)
-  }, [hiddenKey, seenKey])
+  }
 
   useEffect(() => {
     if (!showNotifications) return
-    let ignore = false
-
-    const loadActivities = async () => {
-      setLoadingActivities(true)
-      try {
-        const res = await fetchWithAuth("/api/dashboard-details?limit=50", { cache: "no-store" })
-        const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
-        if (!ignore) {
-          setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
-        }
-      } catch {
-        if (!ignore) {
-          setActivities([])
-        }
-      } finally {
-        if (!ignore) {
-          setLoadingActivities(false)
-        }
-      }
-    }
-
     void loadActivities()
-
-    return () => {
-      ignore = true
-    }
   }, [showNotifications])
 
   useEffect(() => {
     if (!showNotifications || !supabase) return
+    const userId = user.id
+    if (!userId) return
     const channel = supabase
-      .channel(`notifications-${storageBase}`)
+      .channel(`notifications-${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "projects" },
-        () => {
-          void (async () => {
-            const res = await fetchWithAuth("/api/dashboard-details?limit=50", { cache: "no-store" })
-            const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
-            setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
-          })()
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "onboarding_tokens" },
-        () => {
-          void (async () => {
-            const res = await fetchWithAuth("/api/dashboard-details?limit=50", { cache: "no-store" })
-            const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
-            setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
-          })()
-        },
+        { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        () => void loadActivities(),
       )
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [showNotifications, storageBase, supabase])
+  }, [showNotifications, supabase, user.id])
 
-  const visibleActivities = activities.filter((activity) => !hiddenIds.includes(activity.id))
-
-  const handleMarkAllSeen = () => {
-    const now = new Date().toISOString()
-    setSeenAt(now)
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(seenKey, now)
-    }
+  const handleMarkAllSeen = async () => {
+    await fetchWithAuth("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "mark_all_read" }),
+    }).catch(() => null)
+    void loadActivities()
   }
 
-  const handleClearAll = () => {
-    const nextHidden = Array.from(new Set([...hiddenIds, ...activities.map((activity) => activity.id)]))
-    setHiddenIds(nextHidden)
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(hiddenKey, JSON.stringify(nextHidden))
-      window.dispatchEvent(new Event("notifications:updated"))
-    }
+  const handleClearAll = async () => {
+    await fetchWithAuth("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "dismiss_all" }),
+    }).catch(() => null)
+    void loadActivities()
   }
 
   return (
@@ -347,10 +300,9 @@ export function NavUser({
           </SheetHeader>
           <div className="px-4 h-[calc(100dvh-100px)] overflow-y-auto">
             <RecentActivity
-              activities={visibleActivities}
+              activities={activities}
               loading={loadingActivities}
               variant="list"
-              seenAfter={seenAt}
             />
           </div>
         </SheetContent>

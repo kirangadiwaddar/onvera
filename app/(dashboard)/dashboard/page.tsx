@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 
 import { SectionCards } from "@/components/dashboard/section-cards"
@@ -8,42 +8,38 @@ import { AlarmClockMinus, CalendarCheck, GalleryVerticalEnd, Pause, Timer, Trian
 import { LoadingState } from "@/components/loadingState"
 import { EmptyState } from "@/components/emptyState"
 import type { Project } from "@/types/project"
-import { Skeleton } from "@/components/ui/skeleton"
 
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/components/providers/auth-provider"
 
-function ChartPanelSkeleton() {
-  return <Skeleton className="h-[280px] w-full rounded-xl" />
-}
-
-function ActivityPanelSkeleton() {
-  return <Skeleton className="h-[360px] w-full rounded-2xl" />
-}
-
-function AttentionPanelSkeleton() {
-  return <Skeleton className="h-[360px] w-full rounded-2xl" />
-}
+const loadCompletedProjectsChart = () =>
+  import("@/components/dashboard/completedProjectsChart")
+const loadMonthlyProjectsChart = () =>
+  import("@/components/dashboard/monthlyProjects")
+const loadRecentActivity = () =>
+  import("@/components/dashboard/recentActivity")
+const loadAttentionTable = () =>
+  import("@/components/dashboard/attentionTable")
 
 const CompletedProjectsChart = dynamic(
-  () => import("@/components/dashboard/completedProjectsChart").then((mod) => mod.CompletedProjectsChart),
-  { ssr: false, loading: () => <ChartPanelSkeleton /> },
+  () => loadCompletedProjectsChart().then((mod) => mod.CompletedProjectsChart),
+  { ssr: false, loading: () => null },
 )
 
 const MonthlyProjectsChart = dynamic(
-  () => import("@/components/dashboard/monthlyProjects").then((mod) => mod.MonthlyProjectsChart),
-  { ssr: false, loading: () => <ChartPanelSkeleton /> },
+  () => loadMonthlyProjectsChart().then((mod) => mod.MonthlyProjectsChart),
+  { ssr: false, loading: () => null },
 )
 
 const RecentActivity = dynamic(
-  () => import("@/components/dashboard/recentActivity").then((mod) => mod.RecentActivity),
-  { ssr: false, loading: () => <ActivityPanelSkeleton /> },
+  () => loadRecentActivity().then((mod) => mod.RecentActivity),
+  { ssr: false, loading: () => null },
 )
 
 const AttentionTable = dynamic(
-  () => import("@/components/dashboard/attentionTable"),
-  { ssr: false, loading: () => <AttentionPanelSkeleton /> },
+  () => loadAttentionTable(),
+  { ssr: false, loading: () => null },
 )
 
 type DashboardResponse = {
@@ -83,6 +79,7 @@ type WorkspaceItem = {
 export default function Page() {
   const { user, profile, loading: authLoading } = useAuth()
   const [shellReady, setShellReady] = useState(false)
+  const [initialReady, setInitialReady] = useState(false)
   const [workspaceVersion, setWorkspaceVersion] = useState(0)
 
   const localRole = useMemo(() => {
@@ -159,6 +156,15 @@ export default function Page() {
     }
   }, [])
 
+  const preloadDashboardWidgets = useCallback(async () => {
+    await Promise.all([
+      loadCompletedProjectsChart(),
+      loadMonthlyProjectsChart(),
+      loadRecentActivity(),
+      loadAttentionTable(),
+    ])
+  }, [])
+
   const isRestricted = effectiveRole !== "super_admin"
 
   const supabase = useMemo(() => {
@@ -210,15 +216,25 @@ export default function Page() {
     if (!user?.id) {
       setLoading(false)
       setShellReady(true)
+      setInitialReady(true)
       return
     }
-    void Promise.all([loadShell(), loadSummary(false)])
-  }, [authLoading, loadShell, loadSummary, user?.id, workspaceVersion])
-
-  useEffect(() => {
-    if (authLoading || !user?.id) return
-    void loadActivities()
-  }, [authLoading, loadActivities, user?.id, workspaceVersion])
+    let cancelled = false
+    setInitialReady(false)
+    void Promise.all([
+      loadShell(),
+      loadSummary(false),
+      loadActivities(),
+      preloadDashboardWidgets(),
+    ]).finally(() => {
+      if (!cancelled) {
+        setInitialReady(true)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [authLoading, loadActivities, loadShell, loadSummary, preloadDashboardWidgets, user?.id, workspaceVersion])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -258,9 +274,18 @@ export default function Page() {
     }
   }, [loadSummary, loadActivities, supabase])
 
-  if (authLoading || !shellReady) {
+  if (authLoading || !shellReady || !initialReady) {
     return (
       <LoadingState title="Loading dashboard..." description="Checking your access permissions." />
+    )
+  }
+
+  if (loading && !data) {
+    return (
+      <LoadingState
+        title="Loading dashboard..."
+        description="Fetching your dashboard data."
+      />
     )
   }
 
@@ -344,31 +369,23 @@ export default function Page() {
 
       <div className="grid xl:grid-cols-3 gap-5 mx-5">
         <div className="col-span-2 rounded-xl w-full">
-          <Suspense fallback={<ChartPanelSkeleton />}>
-            <MonthlyProjectsChart />
-          </Suspense>
+          <MonthlyProjectsChart />
         </div>
 
         <div className="rounded-xl w-full h-full space-y-5">
-          <Suspense fallback={<ChartPanelSkeleton />}>
-            <CompletedProjectsChart
-              completed={dashboardData.stats.completed}
-              total={dashboardData.stats.total}
-            />
-          </Suspense>
+          <CompletedProjectsChart
+            completed={dashboardData.stats.completed}
+            total={dashboardData.stats.total}
+          />
         </div>
       </div>
 
       <div className="grid xl:grid-cols-3 gap-5 mx-5 mt-5">
-        <Suspense fallback={<ActivityPanelSkeleton />}>
-          <RecentActivity
-            activities={(dashboardData.activities || []).filter((activity) => !hiddenIds.includes(activity.id))}
-            loading={loading || activitiesLoading}
-          />
-        </Suspense>
-        <Suspense fallback={<AttentionPanelSkeleton />}>
-          <AttentionTable projects={dashboardData.lists.latestWaitingOverdue} />
-        </Suspense>
+        <RecentActivity
+          activities={(dashboardData.activities || []).filter((activity) => !hiddenIds.includes(activity.id))}
+          loading={loading || activitiesLoading}
+        />
+        <AttentionTable projects={dashboardData.lists.latestWaitingOverdue} />
       </div>
 
     </div>

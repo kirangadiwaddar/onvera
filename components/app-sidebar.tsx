@@ -423,7 +423,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </div>
         ) : null}
         <NavUser
-          user={{ name, email, avatar }}
+          user={{ id: user?.id, name, email, avatar }}
           role={displayRole}
           managedByLabel={managedByLabel}
           managedByPrefix={managedByPrefix}

@@ -385,6 +385,55 @@ function hasIncompleteSections(submissions?: Record<string, unknown>) {
   })
 }
 
+function countChecklistEntries(submissions?: Record<string, unknown>) {
+  if (!submissions || typeof submissions !== "object") return 0
+  let count = 0
+
+  Object.entries(submissions).forEach(([key, raw]) => {
+    if (key.startsWith("__")) return
+
+    if (Array.isArray(raw)) {
+      raw.forEach((row) => {
+        if (!row || typeof row !== "object") return
+        const entry = row as { name?: unknown; url?: unknown; value?: unknown }
+        const hasName = typeof entry.name === "string" && entry.name.trim().length > 0
+        const hasUrl = typeof entry.url === "string" && entry.url.trim().length > 0
+        const hasValue = typeof entry.value === "string" && entry.value.trim().length > 0
+        if (hasName || hasUrl || hasValue) count += 1
+      })
+      return
+    }
+
+    if (!raw || typeof raw !== "object") return
+    const entry = raw as { value?: unknown }
+    if (typeof entry.value === "string" && entry.value.trim().length > 0) {
+      count += 1
+    }
+  })
+
+  return count
+}
+
+function getNewlyCompletedSectionIds(
+  beforeSubmissions?: Record<string, unknown>,
+  afterSubmissions?: Record<string, unknown>,
+) {
+  if (!afterSubmissions || typeof afterSubmissions !== "object") return []
+  const before = beforeSubmissions && typeof beforeSubmissions === "object" ? beforeSubmissions : {}
+  const completed: string[] = []
+
+  Object.entries(afterSubmissions).forEach(([key, raw]) => {
+    if (!key.startsWith("__section_complete:")) return
+    if (raw !== true) return
+    const wasCompleted = (before as Record<string, unknown>)[key] === true
+    if (wasCompleted) return
+    const sectionId = key.replace("__section_complete:", "").trim()
+    completed.push(sectionId || key)
+  })
+
+  return completed
+}
+
 function shouldMarkOngoing(
   project: { status: status; submissions?: Record<string, unknown> },
 ) {
@@ -664,6 +713,88 @@ export async function PUT(
 
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 500 })
+  }
+
+  if (
+    body.submissions &&
+    typeof body.submissions === "object" &&
+    !Array.isArray(body.submissions) &&
+    currentProject.createdBy &&
+    identity.userId !== currentProject.createdBy
+  ) {
+    const beforeSubmissions = currentProject.submissions as Record<string, unknown>
+    const afterSubmissions = body.submissions
+    const beforeCount = countChecklistEntries(beforeSubmissions)
+    const afterCount = countChecklistEntries(afterSubmissions)
+    const addedItems = Math.max(0, afterCount - beforeCount)
+    const newlyCompletedSections = getNewlyCompletedSectionIds(beforeSubmissions, afterSubmissions)
+
+    if (addedItems > 0 || newlyCompletedSections.length > 0) {
+      const ownerEmail = await findEmailByUserId(admin, currentProject.createdBy)
+      if (ownerEmail) {
+        const actorLabel =
+          identity.role === "team_lead" ? "Team Lead" : identity.role === "super_admin" ? "Admin" : "Client"
+        const { data: actorProfile } = await admin
+          .from("profiles")
+          .select("full_name")
+          .eq("id", identity.userId)
+          .maybeSingle()
+        const actorName =
+          (actorProfile?.full_name || "").trim() ||
+          identity.email ||
+          actorLabel
+
+        const notifications: Array<Record<string, unknown>> = []
+
+        if (addedItems > 0) {
+          notifications.push({
+            user_id: currentProject.createdBy,
+            recipient_email: ownerEmail.toLowerCase(),
+            project_id: currentProject.id,
+            project_slug: currentProject.slug,
+            type: "checklist_submission",
+            title: `${actorName} added files to checklist`,
+            message: `${addedItems} new item${addedItems > 1 ? "s" : ""} added`,
+            actor: actorLabel,
+            status: "updated",
+            metadata: {
+              projectSlug: currentProject.slug,
+              addedItems,
+            },
+            created_by: identity.userId,
+            is_read: false,
+          })
+        }
+
+        if (newlyCompletedSections.length > 0) {
+          notifications.push({
+            user_id: currentProject.createdBy,
+            recipient_email: ownerEmail.toLowerCase(),
+            project_id: currentProject.id,
+            project_slug: currentProject.slug,
+            type: "checklist_section_completed",
+            title: `${actorName} marked checklist section completed`,
+            message: `${newlyCompletedSections.length} section${newlyCompletedSections.length > 1 ? "s" : ""} completed`,
+            actor: actorLabel,
+            status: "completed",
+            metadata: {
+              projectSlug: currentProject.slug,
+              completedSections: newlyCompletedSections,
+            },
+            created_by: identity.userId,
+            is_read: false,
+          })
+        }
+
+        try {
+          if (notifications.length > 0) {
+            await admin.from("notifications").insert(notifications)
+          }
+        } catch {
+          // Do not fail submission save when notification insert fails.
+        }
+      }
+    }
   }
 
   const { data: updatedRow } = await admin.from("projects").select("*").eq("slug", slug).maybeSingle()

@@ -4,6 +4,7 @@ import { filterProjectsForIdentity } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import { canUseNotes } from "@/lib/billing/plans"
 import { getPlanForUserId } from "@/lib/billing/server"
+import { createMentionNotifications } from "@/lib/server/notifications"
 
 type ProjectRow = {
   id: number
@@ -37,6 +38,12 @@ type TeamLike = {
   lead?: MemberLike
   members?: MemberLike[]
   createdBy?: string | null
+}
+
+function roleToActor(role?: string | null): "Admin" | "Client" | "Team Lead" {
+  if (role === "team_lead") return "Team Lead"
+  if (role === "project_member" || role === "team_member") return "Client"
+  return "Admin"
 }
 
 function normalizeMembers(raw?: unknown[] | null): MemberLike[] {
@@ -193,6 +200,17 @@ export async function PATCH(
         mentioned_email: email,
       })),
     )
+    await createMentionNotifications({
+      admin,
+      mentionEmails: uniqueMentions,
+      authorEmail: access.identity.email,
+      authorName: data.author_name,
+      actor: roleToActor(access.identity.role),
+      projectId: access.project.id,
+      projectSlug: access.project.slug,
+      createdBy: access.identity.userId,
+      message,
+    })
   }
 
   return NextResponse.json({
