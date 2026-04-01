@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { attachRelations } from "@/lib/server/data-store"
 import { filterProjectsForIdentity } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import { getAccessibleProjectRows, getTeamAccessScope } from "@/lib/server/project-access"
 import { templateStructure } from "@/lib/template-structure"
 import type { status } from "@/lib/project-status"
 import type { Section } from "@/lib/types"
@@ -206,13 +207,6 @@ function withStatus(project: Project, nextStatus: status): Project {
   return { ...project, status: nextStatus }
 }
 
-type SummaryTeamRow = {
-  id: number
-  lead?: { email?: string | null } | null
-  members?: Array<{ email?: string | null }> | null
-  created_by?: string | null
-}
-
 type SummaryProjectRow = {
   id: number
   slug: string
@@ -288,40 +282,59 @@ async function getUserDirectory(
     })
   }
 
-  let page = 1
-  const perPage = 1000
-  while (true) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
-    if (error) {
-      console.error("Supabase listUsers failed:", error.message)
-      break
-    }
-    const users = Array.isArray((data as { users?: unknown })?.users)
-      ? (data as { users: Array<{ id?: string; email?: string | null }> }).users
-      : Array.isArray(data)
-        ? (data as Array<{ id?: string; email?: string | null }>)
-        : []
+  const getUserById = (admin.auth.admin as unknown as {
+    getUserById?: (id: string) => Promise<{
+      data?: { user?: { id?: string; email?: string | null } | null }
+      error?: { message?: string } | null
+    }>
+  }).getUserById
+
+  if (typeof getUserById === "function") {
+    const users = await Promise.all(
+      ids.map(async (id) => {
+        try {
+          const result = await getUserById.call(admin.auth.admin, id)
+          return result?.data?.user ?? null
+        } catch {
+          return null
+        }
+      }),
+    )
     users.forEach((user) => {
-      const id = user?.id
-      const email = user?.email
-      if (id && email && ids.includes(id)) {
-        emailById.set(id, email)
+      if (user?.id && user.email) {
+        emailById.set(user.id, user.email)
       }
     })
-    const nextPage = (data as { nextPage?: number | null } | null)?.nextPage
-    if (!nextPage) break
-    page = nextPage
+  } else {
+    let page = 1
+    const perPage = 1000
+    const unresolved = new Set(ids)
+    while (unresolved.size > 0) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
+      if (error) {
+        console.error("Supabase listUsers failed:", error.message)
+        break
+      }
+      const users = Array.isArray((data as { users?: unknown })?.users)
+        ? (data as { users: Array<{ id?: string; email?: string | null }> }).users
+        : Array.isArray(data)
+          ? (data as Array<{ id?: string; email?: string | null }>)
+          : []
+      users.forEach((user) => {
+        const id = user?.id
+        const email = user?.email
+        if (id && email && unresolved.has(id)) {
+          unresolved.delete(id)
+          emailById.set(id, email)
+        }
+      })
+      const nextPage = (data as { nextPage?: number | null } | null)?.nextPage
+      if (!nextPage) break
+      page = nextPage
+    }
   }
 
   return { nameById, emailById }
-}
-
-const isTeamMemberInTeam = (team: SummaryTeamRow, email?: string | null) => {
-  const target = normalizeEmail(email)
-  if (!target) return false
-  const leadEmail = normalizeEmail(team.lead?.email ?? null)
-  if (leadEmail && leadEmail === target) return true
-  return (team.members || []).some((member) => normalizeEmail(member.email ?? null) === target)
 }
 
 async function getSummaryProjects(identity: RequestIdentity) {
@@ -336,21 +349,10 @@ async function getSummaryProjects(identity: RequestIdentity) {
     teamIds: number[]
   }>
 
-  const [{ data: teamRows, error: teamsError }, { data: projectRows, error: projectsError }] =
-    await Promise.all([
-      admin.from("teams").select("id,lead,members,created_by"),
-      admin
-        .from("projects")
-        .select("id,slug,title,status,created_at,updated_at,team_ids,extra_members,created_by"),
-    ])
-
-  if (teamsError || projectsError || !teamRows || !projectRows) {
-    console.error("Supabase summary fetch failed:", {
-      teamsError: teamsError?.message ?? null,
-      projectsError: projectsError?.message ?? null,
-    })
-    return []
-  }
+  const { teams: scopeTeams, memberTeamIds } = await getTeamAccessScope(admin, {
+    userId: identity.userId,
+    email: identity.email,
+  })
 
   type SummaryTeam = {
     id: number
@@ -371,7 +373,7 @@ async function getSummaryProjects(identity: RequestIdentity) {
     createdBy?: string | null
   }
 
-  const teams: SummaryTeam[] = (teamRows as SummaryTeamRow[]).map((row) => ({
+  const teams: SummaryTeam[] = scopeTeams.map((row) => ({
     id: row.id,
     lead: row.lead ? { email: row.lead.email ?? undefined } : undefined,
     members: Array.isArray(row.members)
@@ -380,7 +382,15 @@ async function getSummaryProjects(identity: RequestIdentity) {
     createdBy: row.created_by ?? null,
   }))
 
-  const projects: SummaryProject[] = (projectRows as SummaryProjectRow[]).map((row) => ({
+  const selectColumns = "id,slug,title,status,created_at,updated_at,team_ids,extra_members,created_by"
+  const rows = await getAccessibleProjectRows<SummaryProjectRow>(
+    admin,
+    { userId: identity.userId, email: identity.email },
+    selectColumns,
+    memberTeamIds,
+  )
+
+  const projects: SummaryProject[] = rows.map((row) => ({
     id: row.id,
     slug: row.slug,
     title: row.title,
@@ -417,7 +427,8 @@ export async function GET(request: Request) {
   if (!identity) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
-  const cacheKey = `projects:${summary ? "summary" : "full"}:${identity.userId}:${identity.role ?? ""}:${identity.email ?? ""}`
+  const workspaceId = request.headers.get("x-workspace-id")?.trim() || "-"
+  const cacheKey = `projects:${summary ? "summary" : "full"}:${identity.userId}:${identity.role ?? ""}:${identity.email ?? ""}:${workspaceId}`
   if (!bypassCache) {
     const cached = getCachedProjects(cacheKey)
     if (cached) {
@@ -437,74 +448,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ projects: [] })
   }
 
-  const { data: accessTeams, error: accessTeamsError } = await admin
-    .from("teams")
-    .select("id,lead,members,created_by")
+  const { teams: accessTeamRows, memberTeamIds } = await getTeamAccessScope(admin, {
+    userId: identity.userId,
+    email: identity.email,
+  })
 
-  if (accessTeamsError || !accessTeams) {
-    console.error("Supabase team access fetch failed:", accessTeamsError?.message ?? null)
-    return NextResponse.json({ projects: [] })
-  }
-
-  const accessTeamRows = accessTeams as SummaryTeamRow[]
-  const memberTeamIds = accessTeamRows
-    .filter((team) => isTeamMemberInTeam(team, identity.email ?? null))
-    .map((team) => team.id)
-
-  const ownedProjectsRequest = admin
-    .from("projects")
-    .select("id,slug,title,status,template_id,created_at,updated_at,avatar_src,team_ids,extra_members,created_by")
-    .eq("created_by", identity.userId)
-
-  const teamProjectsRequest = memberTeamIds.length > 0
-    ? admin
-        .from("projects")
-        .select("id,slug,title,status,template_id,created_at,updated_at,avatar_src,team_ids,extra_members,created_by")
-        .overlaps("team_ids", memberTeamIds)
-    : Promise.resolve({ data: [], error: null })
-
-  const emailFilter = identity.email ? [{ email: identity.email.toLowerCase() }] : []
-  const extraMemberRequest = emailFilter.length > 0
-    ? admin
-        .from("projects")
-        .select("id,slug,title,status,template_id,created_at,updated_at,avatar_src,team_ids,extra_members,created_by")
-        .contains("extra_members", emailFilter)
-    : Promise.resolve({ data: [], error: null })
-
-  const [
-    { data: ownedProjects, error: ownedError },
-    { data: teamProjects, error: teamError },
-    { data: extraMemberProjects, error: extraMemberError },
-  ] = await Promise.all([ownedProjectsRequest, teamProjectsRequest, extraMemberRequest])
-
-  let projectRows: ProjectRow[] = []
-  const hadExtraMemberError = Boolean(extraMemberError)
-
-  if (ownedError || teamError || hadExtraMemberError) {
-    if (ownedError || teamError) {
-      console.error("Supabase project access fetch failed:", {
-        ownedError: ownedError?.message ?? null,
-        teamError: teamError?.message ?? null,
-        extraMemberError: extraMemberError?.message ?? null,
-      })
-    }
-
-    const { data: fallbackProjects, error: fallbackError } = await admin
-      .from("projects")
-      .select("id,slug,title,status,template_id,created_at,updated_at,avatar_src,team_ids,extra_members,created_by")
-
-    if (fallbackError || !fallbackProjects) {
-      console.error("Supabase project fallback fetch failed:", fallbackError?.message ?? null)
-      return NextResponse.json({ projects: [] })
-    }
-    projectRows = fallbackProjects as ProjectRow[]
-  } else {
-    const merged = new Map<number, ProjectRow>()
-    ;(ownedProjects as ProjectRow[] | null | undefined)?.forEach((row) => merged.set(row.id, row))
-    ;(teamProjects as ProjectRow[] | null | undefined)?.forEach((row) => merged.set(row.id, row))
-    ;(extraMemberProjects as ProjectRow[] | null | undefined)?.forEach((row) => merged.set(row.id, row))
-    projectRows = Array.from(merged.values())
-  }
+  const projectRows = await getAccessibleProjectRows<ProjectRow>(
+    admin,
+    { userId: identity.userId, email: identity.email },
+    "id,slug,title,status,template_id,created_at,updated_at,avatar_src,team_ids,extra_members,created_by",
+    memberTeamIds,
+  )
 
   const accessTeamsNormalized: AccessTeam[] = accessTeamRows.map((row) => ({
     id: row.id,

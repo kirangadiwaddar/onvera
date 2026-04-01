@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { LayoutGrid, List, Lock, Plus, Users, TriangleAlert } from "lucide-react"
 import Link from "next/link"
 
@@ -34,8 +34,6 @@ export default function Page() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
-  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
-  const workspaceSwitchTimerRef = useRef<number | null>(null)
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingTeam, setEditingTeam] = useState<Team | null>(null)
@@ -131,22 +129,13 @@ export default function Page() {
           preferred ||
           (items.some((item) => item.id === user.id) ? user.id : fallback)
         setSelectedWorkspaceId(nextId)
-        setWorkspaceSwitching(false)
       } catch {
         setWorkspaces([])
-        setWorkspaceSwitching(false)
       }
     }
     void loadWorkspaces()
     const handleWorkspace = () => {
       if (typeof window === "undefined") return
-      setWorkspaceSwitching(true)
-      if (workspaceSwitchTimerRef.current !== null) {
-        window.clearTimeout(workspaceSwitchTimerRef.current)
-      }
-      workspaceSwitchTimerRef.current = window.setTimeout(() => {
-        setWorkspaceSwitching(false)
-      }, 1000)
       void loadWorkspaces()
     }
     window.addEventListener("workspace:changed", handleWorkspace)
@@ -155,9 +144,6 @@ export default function Page() {
       active = false
       window.removeEventListener("workspace:changed", handleWorkspace)
       window.removeEventListener("storage", handleWorkspace)
-      if (workspaceSwitchTimerRef.current !== null) {
-        window.clearTimeout(workspaceSwitchTimerRef.current)
-      }
     }
   }, [authLoading, user?.id])
 
@@ -263,9 +249,7 @@ export default function Page() {
     }
   }
 
-  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
-
-  if (loadingTeams || !workspaceReady) {
+  if (loadingTeams) {
     return (
       <LoadingState
         title="Loading Teams"

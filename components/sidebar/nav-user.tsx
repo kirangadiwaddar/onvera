@@ -123,7 +123,7 @@ export function NavUser({
     const loadActivities = async () => {
       setLoadingActivities(true)
       try {
-        const res = await fetchWithAuth("/api/dashboard?limit=50", { cache: "no-store" })
+        const res = await fetchWithAuth("/api/dashboard-details?limit=50", { cache: "no-store" })
         const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
         if (!ignore) {
           setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
@@ -155,7 +155,7 @@ export function NavUser({
         { event: "*", schema: "public", table: "projects" },
         () => {
           void (async () => {
-            const res = await fetchWithAuth("/api/dashboard?limit=50", { cache: "no-store" })
+            const res = await fetchWithAuth("/api/dashboard-details?limit=50", { cache: "no-store" })
             const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
             setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
           })()
@@ -166,7 +166,7 @@ export function NavUser({
         { event: "*", schema: "public", table: "onboarding_tokens" },
         () => {
           void (async () => {
-            const res = await fetchWithAuth("/api/dashboard?limit=50", { cache: "no-store" })
+            const res = await fetchWithAuth("/api/dashboard-details?limit=50", { cache: "no-store" })
             const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
             setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
           })()

@@ -80,15 +80,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
-  const [serverIdentity, setServerIdentity] = useState<{
-    user: { email: string | null; fullName: string | null } | null
-    profile: {
-      fullName: string | null
-      role?: string | null
-      workspaceRole?: string | null
-      plan?: string | null
-    } | null
-  } | null>(null)
   const [teamMembership, setTeamMembership] = useState<"none" | "member" | "lead">("none")
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
@@ -113,30 +104,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   useEffect(() => {
     if (authLoading || !user?.id) return
-    const loadServerIdentity = async () => {
-      try {
-        const response = await fetchWithAuth("/api/auth/me", {
-          cache: "no-store",
-        })
-        if (!response.ok) return
-        const data = await response.json()
-        setServerIdentity(data)
-      } catch {
-        setServerIdentity(null)
-      }
-    }
-
-    void loadServerIdentity()
-  }, [authLoading, user?.id])
-
-  useEffect(() => {
-    if (authLoading || !user?.id) return
     const metadataRole =
       typeof user?.user_metadata?.role === "string"
         ? user.user_metadata.role
         : null
-    const currentRole = profile?.role || serverIdentity?.profile?.role || metadataRole || null
-    const currentEmail = (user?.email || serverIdentity?.user?.email || "").trim().toLowerCase()
+    const currentRole = profile?.role || metadataRole || null
+    const currentEmail = (user?.email || "").trim().toLowerCase()
 
     const detectTeamMembership = async () => {
       if (!currentEmail || (currentRole !== "team_member" && currentRole !== "project_member")) {
@@ -172,10 +145,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     authLoading,
     user?.id,
     profile?.role,
-    serverIdentity?.profile?.role,
     user?.email,
     user?.user_metadata?.role,
-    serverIdentity?.user?.email,
   ])
 
   const ensureOwnerWorkspace = (items: WorkspaceItem[]): WorkspaceItem[] => {
@@ -264,24 +235,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const name =
     profile?.full_name ||
-    serverIdentity?.profile?.fullName ||
     user?.user_metadata?.full_name ||
-    serverIdentity?.user?.fullName ||
     user?.email?.split("@")[0] ||
     "User"
 
-  const email = user?.email || serverIdentity?.user?.email || "No email"
+  const email = user?.email || "No email"
   const avatar =
     (typeof user?.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : "") || ""
   const metadataRole =
     typeof user?.user_metadata?.role === "string"
       ? user.user_metadata.role
       : null
-  const currentRole = profile?.role || serverIdentity?.profile?.role || metadataRole || null
-  const workspaceRole = serverIdentity?.profile?.workspaceRole || null
+  const currentRole = profile?.role || metadataRole || null
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || null
   const isCreateWorkspaceView = selectedWorkspaceId === "__create__"
-  const effectiveRole = workspaceRole || currentRole
+  const effectiveRole = selectedWorkspace?.role || currentRole
   const ownsWorkspaceFlag =
     typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
   const ownsWorkspace =
@@ -297,11 +265,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const displayRole =
     isCreateWorkspaceView
       ? "project_member"
-      : selectedWorkspace?.role || workspaceRole || currentRole
-  const rawPlan = isCreateWorkspaceView ? "free" : selectedWorkspace?.plan || profile?.plan || serverIdentity?.profile?.plan || null
+      : selectedWorkspace?.role || currentRole
+  const rawPlan = isCreateWorkspaceView ? "free" : selectedWorkspace?.plan || profile?.plan || null
   const currentPlan = rawPlan ? normalizePlan(rawPlan) : null
-  const workspaceReady = !workspaceSwitching && (!workspaces.length || !!selectedWorkspaceId)
-  const roleReady = !authLoading && (!user || !!currentRole) && workspaceReady
+  const roleReady = !authLoading
   const managedByLabel =
     isOwnerWorkspace && currentPlan
       ? `${PLAN_LABELS[currentPlan]}`
@@ -520,15 +487,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   if (user?.id && !items.some((workspace) => workspace.id === user.id)) {
                     setOpenCreateWorkspace(false)
                     setShowRefreshPrompt(true)
-                  }
-                  try {
-                    const identityRes = await fetchWithAuth("/api/auth/me", { cache: "no-store" })
-                    if (identityRes.ok) {
-                      const identityData = await identityRes.json().catch(() => null)
-                      setServerIdentity(identityData)
-                    }
-                  } catch {
-                    // ignore
                   }
                   toast.success("Workspace ready", { id: toastId })
                   setOpenCreateWorkspace(false)
