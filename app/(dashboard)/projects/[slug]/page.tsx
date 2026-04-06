@@ -1045,6 +1045,7 @@ export default function ProjectDetailPage() {
 
   const shouldPromptForCompletion =
     Boolean(project) &&
+    !restrictedRole &&
     canEditProject &&
     project?.status !== "completed" &&
     checklistProgress === 100 &&
@@ -1061,27 +1062,21 @@ export default function ProjectDetailPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
         <LoadingState title="Loading Project" description="Fetching project details..." />
-      </div>
     )
   }
   if (!project) {
     return (
-      <div className="p-6">
         <EmptyState icon={<TriangleAlert className="text-destructive" />} title="Project Not Found" description="We couldn't find this project." />
-      </div>
     )
   }
   if (selectedWorkspaceId && project.createdBy && project.createdBy !== selectedWorkspaceId) {
     return (
-      <div className="p-6">
         <EmptyState
           icon={<TriangleAlert className="text-destructive" />}
           title="Wrong workspace"
           description="Switch the workspace from the sidebar to view this project."
         />
-      </div>
     )
   }
   const currentEmail = (user?.email || "").toLowerCase()
@@ -1092,7 +1087,6 @@ export default function ProjectDetailPage() {
     ),
   )
   const canManageChecklist = !isProjectLocked && (canEditProject || isLeadMember)
-  const canSubmitChecklist = !isProjectLocked && (canManageChecklist || restrictedRole)
   const isProjectCompleted = project.status === "completed"
   const canSeeAccessToken = currentRole === "super_admin"
   const inviteBaseUrl =
@@ -1524,40 +1518,42 @@ export default function ProjectDetailPage() {
 
   return (
     <>
-      <AlertDialog open={showCompletePrompt} onOpenChange={setShowCompletePrompt}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark project as completed?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The checklist is fully filled and all items are approved. Do you want to set this project to completed?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                setDismissedCompletePrompt(true)
-                setShowCompletePrompt(false)
-                if (typeof window !== "undefined" && project?.slug) {
-                  window.localStorage.setItem(
-                    `onvera:project-complete-prompt-dismissed:${project.slug}`,
-                    "true",
-                  )
-                }
-              }}
-            >
-              Not now
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                void handleStatusChange("completed")
-                setShowCompletePrompt(false)
-              }}
-            >
-              Yes, complete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {!restrictedRole ? (
+        <AlertDialog open={showCompletePrompt} onOpenChange={setShowCompletePrompt}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Mark project as completed?</AlertDialogTitle>
+              <AlertDialogDescription>
+                The checklist is fully filled and all items are approved. Do you want to set this project to completed?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                onClick={() => {
+                  setDismissedCompletePrompt(true)
+                  setShowCompletePrompt(false)
+                  if (typeof window !== "undefined" && project?.slug) {
+                    window.localStorage.setItem(
+                      `onvera:project-complete-prompt-dismissed:${project.slug}`,
+                      "true",
+                    )
+                  }
+                }}
+              >
+                Not now
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  void handleStatusChange("completed")
+                  setShowCompletePrompt(false)
+                }}
+              >
+                Yes, complete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
 
       <div className="flex flex-col py-4 md:py-6">
       <div className="flex flex-col lg:flex-row items-center justify-between px-7 pb-2 gap-4 lg:gap-5">
@@ -1835,7 +1831,7 @@ export default function ProjectDetailPage() {
                     <Avatar className="h-7 w-7">
                       <AvatarImage src={note.authorAvatar} />
                       <AvatarFallback
-                        className={`font-semibold ${getAvatarColor(note.authorEmail || note.authorName)}`}
+                        className={`font-semibold ${getAvatarColor(note.authorName || note.authorEmail || "M")}`}
                       >
                         {note.authorName.slice(0, 1).toUpperCase()}
                       </AvatarFallback>
@@ -2133,7 +2129,7 @@ export default function ProjectDetailPage() {
                     <ChecklistSection
                       section={section}
                       isAgency={true}
-                      canEdit={canSubmitChecklist}
+                      canEdit={canManageChecklist}
                       canModerate={canManageChecklist}
                       isReadOnly={isProjectCompleted}
                       submissions={project.submissions}

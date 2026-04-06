@@ -2,13 +2,16 @@ import { createClient } from "@/lib/supabase/client"
 import type { Session } from "@supabase/supabase-js"
 
 const SESSION_CACHE_MS = 3000
-const DEFAULT_GET_CACHE_MS = 1500
+const DEFAULT_GET_CACHE_MS = 2500
 const ENDPOINT_CACHE_RULES: Array<{ pattern: RegExp; ttlMs: number }> = [
-  { pattern: /\/api\/workspaces(?:\?|$)/, ttlMs: 20_000 },
+  { pattern: /\/api\/workspaces(?:\?|$)/, ttlMs: 30_000 },
   { pattern: /\/api\/auth\/me(?:\?|$)/, ttlMs: 15_000 },
-  { pattern: /\/api\/dashboard(?:\?|$)/, ttlMs: 8_000 },
-  { pattern: /\/api\/notifications(?:\?|$)/, ttlMs: 3_000 },
-  { pattern: /\/api\/projects\?summary=1(?:&|$)/, ttlMs: 8_000 },
+  { pattern: /\/api\/dashboard(?:\?|$)/, ttlMs: 30_000 },
+  { pattern: /\/api\/dashboard-counts(?:\?|$)/, ttlMs: 30_000 },
+  { pattern: /\/api\/dashboard-projects-summary(?:\?|$)/, ttlMs: 30_000 },
+  { pattern: /\/api\/dashboard-recent-activity(?:\?|$)/, ttlMs: 30_000 },
+  { pattern: /\/api\/notifications(?:\?|$)/, ttlMs: 30_000 },
+  { pattern: /\/api\/projects\?summary=1(?:&|$)/, ttlMs: 20_000 },
   { pattern: /\/api\/teams(?:\?|$)/, ttlMs: 8_000 },
   { pattern: /\/api\/templates(?:\?|$)/, ttlMs: 8_000 },
 ]

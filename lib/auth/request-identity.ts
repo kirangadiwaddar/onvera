@@ -88,7 +88,10 @@ export async function getRequestIdentityFromRequestWithOptions(
   }
 
   if (resolveWorkspaceAccess && workspaceId && admin) {
-    const { teams, projects } = await getStoreData()
+    const { teams, projects } = await getStoreData({
+      includeTemplates: false,
+      includeProjectSubmissions: false,
+    })
     const email = normalizeEmail(user.email)
     const isOwner = user.id === workspaceId
     const isLead = teams.some(

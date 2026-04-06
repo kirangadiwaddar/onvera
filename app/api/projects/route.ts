@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { attachRelations } from "@/lib/server/data-store"
+import { attachRelations, getStoreData } from "@/lib/server/data-store"
 import { filterProjectsForIdentity } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
-import { getAccessibleProjectRows, getTeamAccessScope } from "@/lib/server/project-access"
 import { templateStructure } from "@/lib/template-structure"
 import type { status } from "@/lib/project-status"
 import type { Section } from "@/lib/types"
@@ -184,39 +183,8 @@ type Project = {
   createdBy?: string | null
 }
 
-type Team = {
-  id: number
-  name: string
-  slug: string
-  description: string
-  status: "active" | "inactive"
-  lead?: Member
-  members: Member[]
-  createdAt: string
-  createdBy?: string | null
-}
-
-type AccessTeam = {
-  id: number
-  lead?: { email?: string }
-  members?: Array<{ email?: string }>
-  createdBy?: string | null
-}
-
 function withStatus(project: Project, nextStatus: status): Project {
   return { ...project, status: nextStatus }
-}
-
-type SummaryProjectRow = {
-  id: number
-  slug: string
-  title: string
-  status: status
-  created_at: string
-  updated_at?: string | null
-  team_ids?: number[] | null
-  extra_members?: Array<{ email?: string | null }> | null
-  created_by?: string | null
 }
 
 type Member = {
@@ -231,21 +199,6 @@ type Member = {
   isExternal?: boolean
 }
 
-type ProjectRow = {
-  id: number
-  slug: string
-  title: string
-  status: status
-  template_id: string
-  created_at: string
-  updated_at?: string | null
-  avatar_src?: string | null
-  team_ids?: number[] | null
-  extra_members?: Array<{ email?: string | null }> | null
-  submissions?: Record<string, unknown> | null
-  created_by?: string | null
-}
-
 type TeamRow = {
   id: number
   name: string
@@ -258,7 +211,13 @@ type TeamRow = {
   created_by?: string | null
 }
 
-const normalizeEmail = (value?: string | null) => (value || "").trim().toLowerCase()
+function sortByNewestCreatedAt<T extends { createdAt?: string; created_at?: string | null }>(items: T[]) {
+  return [...items].sort((a, b) => {
+    const aDate = new Date(a.createdAt ?? a.created_at ?? 0).getTime()
+    const bDate = new Date(b.createdAt ?? b.created_at ?? 0).getTime()
+    return bDate - aDate
+  })
+}
 
 async function getUserDirectory(
   admin: ReturnType<typeof createAdminClient>,
@@ -338,76 +297,13 @@ async function getUserDirectory(
 }
 
 async function getSummaryProjects(identity: RequestIdentity) {
-  const admin = createAdminClient()
-  if (!admin) return [] as Array<{
-    id: number
-    slug: string
-    title: string
-    status: status
-    createdAt: string
-    updatedAt?: string
-    teamIds: number[]
-  }>
-
-  const { teams: scopeTeams, memberTeamIds } = await getTeamAccessScope(admin, {
-    userId: identity.userId,
-    email: identity.email,
+  const { projects, teams } = await getStoreData({
+    includeTemplates: false,
+    includeProjectSubmissions: false,
   })
 
-  type SummaryTeam = {
-    id: number
-    lead?: { email?: string }
-    members?: Array<{ email?: string }>
-    createdBy?: string | null
-  }
-
-  type SummaryProject = {
-    id: number
-    slug: string
-    title: string
-    status: status
-    createdAt: string
-    updatedAt?: string
-    teamIds: number[]
-    extraMembers?: Array<{ email?: string }>
-    createdBy?: string | null
-  }
-
-  const teams: SummaryTeam[] = scopeTeams.map((row) => ({
-    id: row.id,
-    lead: row.lead ? { email: row.lead.email ?? undefined } : undefined,
-    members: Array.isArray(row.members)
-      ? row.members.map((member) => ({ email: member?.email ?? undefined }))
-      : [],
-    createdBy: row.created_by ?? null,
-  }))
-
-  const selectColumns = "id,slug,title,status,created_at,updated_at,team_ids,extra_members,created_by"
-  const rows = await getAccessibleProjectRows<SummaryProjectRow>(
-    admin,
-    { userId: identity.userId, email: identity.email },
-    selectColumns,
-    memberTeamIds,
-  )
-
-  const projects: SummaryProject[] = rows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    status: row.status,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at ?? undefined,
-    teamIds: row.team_ids ?? [],
-    extraMembers: Array.isArray(row.extra_members)
-      ? row.extra_members.map((member) => ({
-          email: member?.email ?? undefined,
-        }))
-      : [],
-    createdBy: row.created_by ?? null,
-  }))
-
-  const visibleProjects = filterProjectsForIdentity<SummaryProject, SummaryTeam>(projects, teams, identity)
-  return visibleProjects.map((project) => ({
+  const visibleProjects = filterProjectsForIdentity(projects, teams, identity)
+  return sortByNewestCreatedAt(visibleProjects).map((project) => ({
     id: project.id,
     slug: project.slug,
     title: project.title,
@@ -447,55 +343,11 @@ export async function GET(request: Request) {
   if (!admin) {
     return NextResponse.json({ projects: [] })
   }
-
-  const { teams: accessTeamRows, memberTeamIds } = await getTeamAccessScope(admin, {
-    userId: identity.userId,
-    email: identity.email,
+  const { projects, teams, templates } = await getStoreData({
+    includeTemplateStructure: false,
+    includeProjectSubmissions: false,
   })
-
-  const projectRows = await getAccessibleProjectRows<ProjectRow>(
-    admin,
-    { userId: identity.userId, email: identity.email },
-    "id,slug,title,status,template_id,created_at,updated_at,avatar_src,team_ids,extra_members,created_by",
-    memberTeamIds,
-  )
-
-  const accessTeamsNormalized: AccessTeam[] = accessTeamRows.map((row) => ({
-    id: row.id,
-    lead: row.lead ? { email: row.lead.email ?? undefined } : undefined,
-    members: Array.isArray(row.members)
-      ? row.members.map((member) => ({ email: member?.email ?? undefined }))
-      : [],
-    createdBy: row.created_by ?? null,
-  }))
-
-  const projectsNormalized: Project[] = projectRows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    status: row.status,
-    templateId: row.template_id,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at ?? undefined,
-    avatarSrc: row.avatar_src ?? undefined,
-    teamIds: row.team_ids ?? [],
-    extraMembers: Array.isArray(row.extra_members)
-      ? row.extra_members
-        .filter(Boolean)
-        .map((member) => ({
-          ...(member as Member),
-          email: (member as { email?: string | null }).email ?? undefined,
-        }))
-      : [],
-    submissions: {},
-    createdBy: row.created_by ?? null,
-  }))
-
-  const visibleProjects = filterProjectsForIdentity<Project, AccessTeam>(
-    projectsNormalized,
-    accessTeamsNormalized,
-    identity,
-  )
+  const visibleProjects = filterProjectsForIdentity(projects, teams, identity)
 
   const tokenExpiryBySlug = new Map<string, string | null>()
   if (visibleProjects.length > 0) {
@@ -598,87 +450,8 @@ export async function GET(request: Request) {
     }
   })
 
-  const teamIds = Array.from(new Set(projectsWithOwners.flatMap((project) => project.teamIds ?? [])))
-
-  const { data: teamRows, error: teamRowsError } = teamIds.length
-    ? await admin
-        .from("teams")
-        .select("id,name,slug,description,status,lead,members,created_at,created_by")
-        .in("id", teamIds)
-    : { data: [], error: null }
-
-  if (teamRowsError) {
-    console.error("Supabase teams fetch failed:", teamRowsError.message)
-  }
-
-  const templateIds = Array.from(new Set(projectsWithOwners.map((project) => project.templateId).filter(Boolean)))
-
-  const templatesById = templateIds.length
-    ? await admin
-        .from("templates")
-        .select("id,title,template_key,icon,badge,is_default")
-        .in("id", templateIds)
-    : { data: [], error: null }
-
-  const templatesByKey = templateIds.length
-    ? await admin
-        .from("templates")
-        .select("id,title,template_key,icon,badge,is_default")
-        .in("template_key", templateIds)
-    : { data: [], error: null }
-
-  if (templatesById.error || templatesByKey.error) {
-    console.error("Supabase templates fetch failed:", {
-      byId: templatesById.error?.message ?? null,
-      byKey: templatesByKey.error?.message ?? null,
-    })
-  }
-
-  const templateMap = new Map<string, TemplateRow>()
-  ;(templatesById.data || []).forEach((row) => templateMap.set(String((row as TemplateRow).id), row as TemplateRow))
-  ;(templatesByKey.data || []).forEach((row) => {
-    const key = (row as TemplateRow).template_key ?? (row as TemplateRow).id
-    templateMap.set(String(key), row as TemplateRow)
-  })
-
-  const templates = Array.from(templateMap.values()).map((row) => ({
-    id: String(row.id ?? ""),
-    title: String(row.title ?? "Untitled"),
-    description: "",
-    icon: String(row.icon ?? "Globe"),
-    badge: String(row.badge ?? "Custom"),
-    templateKey: row.template_key ?? row.id,
-    isDefault: typeof row.is_default === "boolean" ? row.is_default : undefined,
-  }))
-
-  const teams: Team[] = Array.isArray(teamRows)
-    ? (teamRows as TeamRow[]).map((row) => ({
-        id: row.id,
-        name: row.name,
-        slug: row.slug,
-        description: row.description ?? "",
-        status: row.status,
-        lead: row.lead
-          ? {
-              ...(row.lead as Member),
-              email: row.lead.email ?? undefined,
-            }
-          : undefined,
-        members: Array.isArray(row.members)
-          ? row.members
-            .filter(Boolean)
-            .map((member) => ({
-              ...(member as Member),
-              email: (member as { email?: string | null }).email ?? undefined,
-            }))
-          : [],
-        createdAt: row.created_at,
-        createdBy: row.created_by ?? null,
-      }))
-    : []
-
   const payload = {
-    projects: projectsWithOwners.map((project) =>
+    projects: sortByNewestCreatedAt(projectsWithOwners).map((project) =>
       attachRelations(project, teams, templates, { includeTemplateStructure: false }),
     ),
   }
@@ -807,7 +580,7 @@ export async function POST(request: Request) {
   projectsCache.clear()
   const { data: createdRow } = await admin
     .from("projects")
-    .select("*")
+    .select("id,slug,title,template_id,status,created_at,updated_at,avatar_src,team_ids,extra_members,submissions,created_by")
     .eq("slug", slug)
     .maybeSingle()
 
@@ -818,11 +591,11 @@ export async function POST(request: Request) {
   const teamIds = Array.isArray(createdRow.team_ids) ? createdRow.team_ids : []
   const [{ data: teams }, { data: templates }] = await Promise.all([
     teamIds.length > 0
-      ? admin.from("teams").select("*").in("id", teamIds)
+      ? admin.from("teams").select("id,name,slug,description,status,lead,members,created_at,created_by").in("id", teamIds)
       : Promise.resolve({ data: [] }),
     admin
       .from("templates")
-      .select("*")
+      .select("id,title,description,icon,badge,structure,template_key,is_default")
       .or(`id.eq.${createdRow.template_id},template_key.eq.${createdRow.template_id}`),
   ])
 
@@ -844,9 +617,34 @@ export async function POST(request: Request) {
   const normalizedTemplates = Array.isArray(templates)
     ? (templates as TemplateRow[]).map(normalizeTemplate)
     : []
+  const normalizedTeams = Array.isArray(teams)
+    ? (teams as TeamRow[]).map((row) => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        description: row.description ?? "",
+        status: row.status,
+        lead: row.lead
+          ? {
+              ...(row.lead as Member),
+              email: row.lead.email ?? undefined,
+            }
+          : undefined,
+        members: Array.isArray(row.members)
+          ? row.members
+            .filter(Boolean)
+            .map((member) => ({
+              ...(member as Member),
+              email: (member as { email?: string | null }).email ?? undefined,
+            }))
+          : [],
+        createdAt: row.created_at,
+        createdBy: row.created_by ?? null,
+      }))
+    : []
 
   return NextResponse.json(
-    attachRelations(project, Array.isArray(teams) ? teams : [], normalizedTemplates),
+    attachRelations(project, normalizedTeams, normalizedTemplates),
     { status: 201 },
   )
 }

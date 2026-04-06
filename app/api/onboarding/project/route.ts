@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { attachRelations, getStoreData } from "@/lib/server/data-store"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { status } from "@/lib/project-status"
+import { createProjectActivityNotifications, findUserEmailById } from "@/lib/server/notifications"
 
 type TokenRow = {
   token: string
@@ -98,6 +99,70 @@ function hasIncompleteSections(submissions?: Record<string, unknown>) {
   })
 }
 
+function countChecklistEntries(submissions?: Record<string, unknown>) {
+  if (!submissions || typeof submissions !== "object") return 0
+  let count = 0
+
+  Object.entries(submissions).forEach(([key, raw]) => {
+    if (key.startsWith("__")) return
+
+    if (Array.isArray(raw)) {
+      raw.forEach((row) => {
+        if (!row || typeof row !== "object") return
+        const entry = row as { name?: unknown; url?: unknown; value?: unknown }
+        const hasName = typeof entry.name === "string" && entry.name.trim().length > 0
+        const hasUrl = typeof entry.url === "string" && entry.url.trim().length > 0
+        const hasValue = typeof entry.value === "string" && entry.value.trim().length > 0
+        if (hasName || hasUrl || hasValue) count += 1
+      })
+      return
+    }
+
+    if (!raw || typeof raw !== "object") return
+    const entry = raw as { value?: unknown }
+    if (typeof entry.value === "string" && entry.value.trim().length > 0) {
+      count += 1
+    }
+  })
+
+  return count
+}
+
+function getNewlyCompletedSectionIds(
+  beforeSubmissions?: Record<string, unknown>,
+  afterSubmissions?: Record<string, unknown>,
+) {
+  if (!afterSubmissions || typeof afterSubmissions !== "object") return []
+  const before = beforeSubmissions && typeof beforeSubmissions === "object" ? beforeSubmissions : {}
+  const completed: string[] = []
+
+  Object.entries(afterSubmissions).forEach(([key, raw]) => {
+    if (!key.startsWith("__section_complete:")) return
+    if (raw !== true) return
+    const wasCompleted = (before as Record<string, unknown>)[key] === true
+    if (wasCompleted) return
+    const sectionId = key.replace("__section_complete:", "").trim()
+    completed.push(sectionId || key)
+  })
+
+  return completed
+}
+
+function stripSubmissionNotificationMeta(submissions?: Record<string, unknown>) {
+  if (!submissions || typeof submissions !== "object") return {}
+  return Object.fromEntries(
+    Object.entries(submissions).filter(([key]) => key !== "__last_client_update"),
+  )
+}
+
+function hasMeaningfulSubmissionChange(
+  beforeSubmissions?: Record<string, unknown>,
+  afterSubmissions?: Record<string, unknown>,
+) {
+  return JSON.stringify(stripSubmissionNotificationMeta(beforeSubmissions)) !==
+    JSON.stringify(stripSubmissionNotificationMeta(afterSubmissions))
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const slug = searchParams.get("slug")?.trim()
@@ -156,7 +221,11 @@ export async function PUT(request: Request) {
     return NextResponse.json({ message: "Invalid submissions payload" }, { status: 400 })
   }
 
-  const { projects } = await getStoreData({ bypassCache: true })
+  const { projects } = await getStoreData({
+    bypassCache: true,
+    includeTeams: false,
+    includeTemplates: false,
+  })
   const currentProject = projects.find((item) => item.slug === slug)
   if (!currentProject) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })
@@ -186,11 +255,53 @@ export async function PUT(request: Request) {
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
-
   const { projects: refreshedProjects, teams, templates } = await getStoreData({ bypassCache: true })
   const updatedProject = refreshedProjects.find((item) => item.slug === slug)
   if (!updatedProject) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })
+  }
+
+  if (currentProject.createdBy && hasMeaningfulSubmissionChange(currentProject.submissions, submissions)) {
+    const addedItems = Math.max(0, countChecklistEntries(submissions) - countChecklistEntries(currentProject.submissions))
+    const newlyCompletedSections = getNewlyCompletedSectionIds(currentProject.submissions, submissions)
+    const ownerEmail = await findUserEmailById(admin, currentProject.createdBy)
+    const teamRows = currentProject.teamIds.length > 0
+      ? await admin
+          .from("teams")
+          .select("lead,members")
+          .in("id", currentProject.teamIds)
+          .then((result) => result.data || [])
+      : []
+    const summaryParts: string[] = []
+    if (addedItems > 0) {
+      summaryParts.push(`${addedItems} new item${addedItems > 1 ? "s" : ""} added`)
+    }
+    if (newlyCompletedSections.length > 0) {
+      summaryParts.push(`${newlyCompletedSections.length} section${newlyCompletedSections.length > 1 ? "s" : ""} completed`)
+    }
+
+    await createProjectActivityNotifications({
+      admin,
+      ownerId: currentProject.createdBy,
+      ownerEmail,
+      actorName: "Client",
+      actor: "Client",
+      projectId: currentProject.id,
+      projectSlug: currentProject.slug,
+      projectTitle: currentProject.title,
+      teamRows,
+      extraMembers: currentProject.extraMembers,
+      type: "project_update",
+      title: `Client updated project ${currentProject.title}`,
+      message: summaryParts.join(" • ") || "Checklist updated",
+      status: newlyCompletedSections.length > 0 && addedItems === 0 ? "completed" : "updated",
+      metadata: {
+        addedItems,
+        completedSections: newlyCompletedSections,
+        source: "onboarding",
+      },
+      createdBy: null,
+    })
   }
 
   return NextResponse.json({ project: attachRelations(updatedProject, teams, templates) })

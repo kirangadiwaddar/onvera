@@ -213,7 +213,7 @@ export function SiteHeader() {
               <DropdownMenuTrigger asChild>
                 <Button
                   className={cn(
-                    "ml-1 flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white/80 text-zinc-500 transition hover:text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:text-white/60 dark:hover:text-white",
+                    "ml-1 flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white/80 text-zinc-500 transition hover:border-violet-200 hover:text-violet-900 hover:bg-violet-100 dark:border-white/10 dark:bg-white/5 dark:text-white/60 dark:hover:text-white",
                   )}
                   aria-label="Theme switcher"
                 >

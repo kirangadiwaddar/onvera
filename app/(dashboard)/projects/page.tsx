@@ -81,6 +81,14 @@ type ProjectItem = {
   createdBy?: string | null
 }
 
+function sortProjectsByNewest(items: ProjectItem[]) {
+  return [...items].sort((a, b) => {
+    const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return bDate - aDate
+  })
+}
+
 export default function Page() {
   const { profile, user, loading: authLoading } = useAuth()
   const [projects, setProjects] = useState<ProjectItem[]>([])
@@ -164,7 +172,7 @@ export default function Page() {
       throw new Error("Failed to load projects")
     }
     const data = await res.json()
-    setProjects(Array.isArray(data?.projects) ? data.projects : [])
+    setProjects(Array.isArray(data?.projects) ? sortProjectsByNewest(data.projects) : [])
   }
 
   const loadTemplates = async () => {
@@ -274,7 +282,7 @@ export default function Page() {
   }, [])
 
   const filteredProjects = useMemo(() => {
-    return projects.filter((project) => {
+    return sortProjectsByNewest(projects).filter((project) => {
       if (selectedWorkspaceId && project.createdBy !== selectedWorkspaceId) {
         return false
       }

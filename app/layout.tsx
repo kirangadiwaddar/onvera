@@ -4,6 +4,7 @@ import "./globals.css";
 import "@uppy/core/css/style.css";
 import "@uppy/drag-drop/css/style.css";
 import { AuthProvider } from "@/components/providers/auth-provider"
+import { QueryProvider } from "@/components/providers/query-provider"
 import { Toaster } from "sonner";
 import { BadgeCheck, BadgeX } from "lucide-react";
 
@@ -45,7 +46,9 @@ export default function RootLayout({
       </head>
       <body className={sora.className}>
         {/* <MockProvider> */}
-        <AuthProvider>{children}</AuthProvider>
+        <QueryProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </QueryProvider>
         {/* </MockProvider> */}
         <Toaster
           closeButton={false}

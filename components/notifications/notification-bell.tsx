@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Bell, CheckCheck, Trash2, X } from "lucide-react"
 
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
-import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/components/providers/auth-provider"
 import { RecentActivity } from "@/components/dashboard/recentActivity"
 import { Button } from "@/components/ui/button"
@@ -16,76 +16,39 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-
-type Activity = {
-  id: string
-  title: string
-  project?: string | { title?: string }
-  status: string
-  actor?: "Admin" | "Client" | "Team Lead"
-  created_at?: string
-  is_read?: boolean
-}
+import { useNotificationsPreviewQuery, type NotificationPreviewItem } from "@/lib/query/use-notifications-preview-query"
+import { prefetchNotificationsPreview } from "@/lib/query/notifications-query"
+import { useWorkspaceId } from "@/lib/query/use-workspace-id"
 
 export function NotificationBell() {
   const { user, loading: authLoading } = useAuth()
+  const queryClient = useQueryClient()
+  const workspaceId = useWorkspaceId()
   const [open, setOpen] = useState(false)
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [loadingActivities, setLoadingActivities] = useState(false)
-  const realtimeChannel = user?.id ? `notifications-${user.id}` : "notifications-anonymous"
+  const notificationsQuery = useNotificationsPreviewQuery({
+    userId: user?.id,
+    enabled: !authLoading && Boolean(user?.id),
+    limit: 10,
+  })
+  const activities = notificationsQuery.data?.activities || []
+  const unreadCount = notificationsQuery.data?.unreadCount || 0
+  const refetchNotifications = notificationsQuery.refetch
 
-  const supabase = useMemo(() => {
-    try {
-      return createClient()
-    } catch {
-      return null
-    }
-  }, [])
+  useEffect(() => {
+    if (!open || !user?.id) return
+    const isPreviewStale =
+      !notificationsQuery.data || Date.now() - notificationsQuery.dataUpdatedAt > 30_000
+    if (!isPreviewStale) return
+    void refetchNotifications()
+  }, [notificationsQuery.data, notificationsQuery.dataUpdatedAt, open, refetchNotifications, user?.id])
 
-  const loadActivities = async () => {
-    setLoadingActivities(true)
-    try {
-      const res = await fetchWithAuth("/api/notifications?limit=50", { cache: "no-store" })
-      const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
-      setActivities(Array.isArray(payload?.activities) ? payload!.activities! : [])
-    } catch {
-      setActivities([])
-    } finally {
-      setLoadingActivities(false)
-    }
+  const warmNotifications = () => {
+    void prefetchNotificationsPreview(queryClient, {
+      userId: user?.id,
+      workspaceId,
+      limit: 10,
+    })
   }
-
-  useEffect(() => {
-    if (authLoading) return
-    if (!user?.id) return
-    void loadActivities()
-  }, [authLoading, user?.id])
-
-  useEffect(() => {
-    if (!open) return
-    if (authLoading) return
-    if (!user?.id) return
-    void loadActivities()
-  }, [open, authLoading, user?.id])
-
-  useEffect(() => {
-    if (authLoading || !user?.id || !supabase) return
-    const userId = user.id
-    const channel = supabase
-      .channel(realtimeChannel)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-        () => void loadActivities(),
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [authLoading, realtimeChannel, supabase, user?.id])
-
-  const unreadCount = activities.reduce((count, activity) => (activity.is_read ? count : count + 1), 0)
 
   const handleMarkAllSeen = async () => {
     await fetchWithAuth("/api/notifications", {
@@ -93,7 +56,7 @@ export function NotificationBell() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "mark_all_read" }),
     }).catch(() => null)
-    void loadActivities()
+    await queryClient.invalidateQueries({ queryKey: ["notifications-preview", user?.id ?? "anonymous"] })
   }
 
   const handleClearAll = async () => {
@@ -102,7 +65,36 @@ export function NotificationBell() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "dismiss_all" }),
     }).catch(() => null)
-    void loadActivities()
+    await queryClient.invalidateQueries({ queryKey: ["notifications-preview", user?.id ?? "anonymous"] })
+  }
+
+  const handleNotificationClick = async (activity: NotificationPreviewItem) => {
+    if (!activity.id || activity.is_read) return
+
+    queryClient.setQueriesData(
+      { queryKey: ["notifications-preview", user?.id ?? "anonymous"] },
+      (current: { activities?: NotificationPreviewItem[]; unreadCount?: number } | undefined) => {
+        if (!current) return current
+        const activities = (current.activities || []).map((item) =>
+          item.id === activity.id ? { ...item, is_read: true } : item,
+        )
+        const unreadCount = Math.max(
+          0,
+          typeof current.unreadCount === "number" ? current.unreadCount - 1 : 0,
+        )
+        return { ...current, activities, unreadCount }
+      },
+    )
+
+    const res = await fetchWithAuth("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "mark_read", id: activity.id }),
+    }).catch(() => null)
+
+    if (!res?.ok) {
+      await queryClient.invalidateQueries({ queryKey: ["notifications-preview", user?.id ?? "anonymous"] })
+    }
   }
 
   return (
@@ -110,6 +102,8 @@ export function NotificationBell() {
       <button
         className="relative flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white/80 text-zinc-500 transition hover:text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:text-white/60 dark:hover:text-white"
         onClick={() => setOpen(true)}
+        onMouseEnter={warmNotifications}
+        onFocus={warmNotifications}
         aria-label="Notifications"
       >
         <Bell className="h-4 w-4" />
@@ -123,13 +117,16 @@ export function NotificationBell() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="right"
-          className="w-90 max-w-full m-2 h-[calc(100dvh-24px)] rounded-xl overflow-hidden shadow-none border border-zinc-200 dark:border-zinc-800"
+          className="rounded-2xl rounded-r-none border borer-r-0 border-zinc-200 bg-white p-0 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
           showCloseButton={false}
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
-          <SheetHeader className="border-b border-zinc-100 dark:border-white/10">
-            <div className="flex items-center justify-between">
-              <SheetTitle>Notifications</SheetTitle>
+          <SheetHeader className="border-b border-zinc-100 px-5 py-4 dark:border-white/10">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <SheetTitle>Notifications</SheetTitle>
+                <p className="text-xs text-muted-foreground">Your project & team updates</p>
+              </div>
               <TooltipProvider delayDuration={300}>
                 <div className="flex items-center gap-2 pr-2">
                   <Tooltip>
@@ -179,11 +176,12 @@ export function NotificationBell() {
               </TooltipProvider>
             </div>
           </SheetHeader>
-          <div className="px-4 h-[calc(100dvh-100px)] overflow-y-auto">
+          <div className="themed-scrollbar h-[calc(100dvh-96px)] overflow-y-auto px-2">
             <RecentActivity
               activities={activities}
-              loading={loadingActivities}
+              loading={notificationsQuery.isLoading || (notificationsQuery.isFetching && activities.length === 0)}
               variant="list"
+              onActivityClick={handleNotificationClick}
             />
           </div>
         </SheetContent>

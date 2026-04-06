@@ -1,5 +1,6 @@
 "use client"
 
+import { useQueryClient } from "@tanstack/react-query"
 import { LucideIcon } from "lucide-react"
 import { usePathname } from "next/navigation"
 import {
@@ -10,6 +11,9 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import Link from "next/link"
+import { useAuth } from "@/components/providers/auth-provider"
+import { useWorkspaceId } from "@/lib/query/use-workspace-id"
+import { prefetchDashboardData } from "@/lib/query/dashboard-query"
 
 export function NavMain({
   items,
@@ -22,16 +26,33 @@ export function NavMain({
 }) {
 
   const pathname = usePathname()
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const workspaceId = useWorkspaceId()
 
   const primaryItems = items.slice(0, 2)
   const workspaceItems = items.slice(2)
 
+  const handleWarmRoute = (url: string) => {
+    if (url !== "/dashboard") return
+    void prefetchDashboardData(queryClient, {
+      userId: user?.id,
+      workspaceId,
+      limit: 50,
+    })
+  }
+
   const renderItems = (navItems: typeof items) =>
     navItems.map((item) => {
-      const isActive = pathname.startsWith(item.url)
-      return (
+        const isActive = pathname.startsWith(item.url)
+        return (
         <SidebarMenuItem key={item.title}>
-          <Link href={item.url}>
+          <Link
+            href={item.url}
+            prefetch={false}
+            onMouseEnter={() => handleWarmRoute(item.url)}
+            onFocus={() => handleWarmRoute(item.url)}
+          >
             <SidebarMenuButton
               tooltip={item.title}
               size="default"

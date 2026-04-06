@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
   const { data: templates, error: templatesError } = await admin
     .from("templates")
-    .select("*")
+    .select("id,title,description,icon,badge,structure,template_key,is_default,created_at")
     .eq("created_by", identity.userId)
     .or("is_default.is.null,is_default.eq.false")
     .order("title", { ascending: true })

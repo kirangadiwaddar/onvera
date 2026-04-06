@@ -1,12 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { ChevronsUpDown, CircleUserRound, LogOut, CheckCheck, Trash2, CreditCard } from "lucide-react"
+import { useState } from "react"
+import { ChevronsUpDown, CircleUserRound, LogOut, CreditCard } from "lucide-react"
 import { USER_ROLE_LABELS, isUserRole } from "@/lib/auth/roles"
 import { AccountSettingsModal } from "@/components/account/account-settings-modal"
-import { RecentActivity } from "@/components/dashboard/recentActivity"
-import { fetchWithAuth } from "@/lib/auth/client-fetch"
-import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 
 import {
@@ -38,26 +35,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
 } from "@/components/ui/sidebar"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-
-type Activity = {
-  id: string
-  title: string
-  project?: string | { title?: string }
-  status: string
-  actor?: "Admin" | "Client" | "Team Lead"
-  created_at?: string
-  is_read?: boolean
-}
 
 export function NavUser({
   user,
@@ -79,77 +57,11 @@ export function NavUser({
   hideManagedBy?: boolean
   onLogout?: () => Promise<void> | void
 }) {
-  const { isMobile } = useSidebar()
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [showAccountDialog, setShowAccountDialog] = useState(false)
-  const [showNotifications, setShowNotifications] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [loadingActivities, setLoadingActivities] = useState(false)
   const roleLabel = role === "super_admin" ? "Super Admin" : role && isUserRole(role) ? USER_ROLE_LABELS[role] : "User"
   const managedBy = managedByLabel || roleLabel
-
-  const supabase = useMemo(() => {
-    try {
-      return createClient()
-    } catch {
-      return null
-    }
-  }, [])
-
-  const loadActivities = async () => {
-    setLoadingActivities(true)
-    try {
-      const res = await fetchWithAuth("/api/notifications?limit=50", { cache: "no-store" })
-      const payload = await res.json().catch(() => null) as { activities?: Activity[] } | null
-      setActivities(Array.isArray(payload?.activities) ? payload.activities : [])
-    } catch {
-      setActivities([])
-    } finally {
-      setLoadingActivities(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!showNotifications) return
-    void loadActivities()
-  }, [showNotifications])
-
-  useEffect(() => {
-    if (!showNotifications || !supabase) return
-    const userId = user.id
-    if (!userId) return
-    const channel = supabase
-      .channel(`notifications-${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-        () => void loadActivities(),
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [showNotifications, supabase, user.id])
-
-  const handleMarkAllSeen = async () => {
-    await fetchWithAuth("/api/notifications", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "mark_all_read" }),
-    }).catch(() => null)
-    void loadActivities()
-  }
-
-  const handleClearAll = async () => {
-    await fetchWithAuth("/api/notifications", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "dismiss_all" }),
-    }).catch(() => null)
-    void loadActivities()
-  }
 
   return (
     <>
@@ -212,7 +124,7 @@ export function NavUser({
               <DropdownMenuSeparator />
               <DropdownMenuGroup className="p-1">
                 <DropdownMenuItem
-                  onSelect={(event) => {
+                  onSelect={() => {
                     setShowAccountDialog(true)
                     setMenuOpen(false)
                   }}
@@ -271,42 +183,6 @@ export function NavUser({
         </AlertDialogContent>
       </AlertDialog>
       <AccountSettingsModal open={showAccountDialog} onOpenChange={setShowAccountDialog} />
-      <Sheet open={showNotifications} onOpenChange={setShowNotifications}>
-        <SheetContent side="right" className="w-90 max-w-full">
-          <SheetHeader className="border-b border-zinc-100 pr-12">
-            <div className="flex items-center justify-between">
-              <SheetTitle>Notifications</SheetTitle>
-              <TooltipProvider delayDuration={150}>
-                <div className="flex items-center gap-2 pr-2">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" onClick={handleMarkAllSeen}>
-                        <CheckCheck className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">Mark all seen</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="destructiveLight" size="icon" onClick={handleClearAll}>
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">Clear all</TooltipContent>
-                  </Tooltip>
-                </div>
-              </TooltipProvider>
-            </div>
-          </SheetHeader>
-          <div className="px-4 h-[calc(100dvh-100px)] overflow-y-auto">
-            <RecentActivity
-              activities={activities}
-              loading={loadingActivities}
-              variant="list"
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
     </>
   )
 }

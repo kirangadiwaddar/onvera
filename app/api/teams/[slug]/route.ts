@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { attachRelations, getStoreData } from "@/lib/server/data-store"
-import { isAdminRole } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import type { Team } from "@/types/team"
 import type { Project } from "@/types/project"
@@ -29,11 +28,6 @@ function getCachedTeam(key: string) {
 
 function setCachedTeam(key: string, payload: TeamCacheEntry["payload"]) {
   teamCache.set(key, { payload, expiresAt: Date.now() + TEAM_CACHE_TTL_MS })
-}
-
-type MemberLike = {
-  email?: string | null
-  isRegistered?: boolean
 }
 
 type TeamRow = {
@@ -112,9 +106,7 @@ const isTeamMember = (team: TeamRow, email?: string | null) => {
 const canViewTeam = (team: TeamRow, identity: { userId: string; email?: string | null; role?: string | null }) => {
   const owned = team.created_by === identity.userId
   const member = isTeamMember(team, identity.email ?? null)
-  if (isAdminRole(identity.role)) return owned || member
-  if (identity.role === "project_member" || identity.role === "team_member") return owned || member
-  return owned
+  return owned || member
 }
 
 const normalizeTeam = (row: TeamRow): Team => ({
@@ -136,6 +128,7 @@ const normalizeTeam = (row: TeamRow): Team => ({
       })) as Team["members"])
     : [],
   createdAt: row.created_at,
+  createdBy: row.created_by ?? null,
 })
 
 const normalizeProject = (row: ProjectRow): Project => ({
@@ -382,7 +375,12 @@ export async function PUT(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
 
-  const { teams } = await getStoreData({ bypassCache: true })
+  const { teams } = await getStoreData({
+    bypassCache: true,
+    includeProjects: false,
+    includeTemplates: false,
+    includeProjectSubmissions: false,
+  })
   const currentTeam = teams.find((item) => item.slug === slug)
   if (!currentTeam) {
     return NextResponse.json({ message: "Team not found" }, { status: 404 })
@@ -496,7 +494,12 @@ export async function PUT(
     }
   }
 
-  const { projects, teams: allTeams, templates } = await getStoreData({ bypassCache: true, includeRegisteredEmails: true })
+  const { projects, teams: allTeams, templates } = await getStoreData({
+    bypassCache: true,
+    includeRegisteredEmails: true,
+    includeTemplateStructure: false,
+    includeProjectSubmissions: false,
+  })
   const team = allTeams.find((item) => item.slug === slug)
 
   if (!team) {
@@ -521,7 +524,12 @@ export async function DELETE(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
 
-  const { teams } = await getStoreData({ bypassCache: true })
+  const { teams } = await getStoreData({
+    bypassCache: true,
+    includeProjects: false,
+    includeTemplates: false,
+    includeProjectSubmissions: false,
+  })
   const currentTeam = teams.find((item) => item.slug === slug)
   if (!currentTeam) {
     return NextResponse.json({ message: "Team not found" }, { status: 404 })
@@ -541,7 +549,6 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
-
   teamCache.clear()
   return NextResponse.json({ success: true })
 }

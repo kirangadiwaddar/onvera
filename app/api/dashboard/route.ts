@@ -241,7 +241,7 @@ export async function GET(request: Request) {
     return NextResponse.json(payload)
   }
 
-  const { projects, teams, templates } = await getStoreData()
+  const { projects, teams, templates } = await getStoreData({ includeTemplateStructure: false })
   const visibleProjects = filterProjectsForIdentity(projects, teams, identity)
 
   const completed = visibleProjects.filter((project) => project.status === "completed")

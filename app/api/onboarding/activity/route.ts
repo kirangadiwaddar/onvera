@@ -116,7 +116,10 @@ export async function GET(request: Request) {
     admin = validatedAdmin
   }
 
-  const { projects } = await getStoreData()
+  const { projects } = await getStoreData({
+    includeTeams: false,
+    includeTemplates: false,
+  })
   const project = projects.find((item) => item.slug === slug)
   if (!project) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })

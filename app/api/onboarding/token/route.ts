@@ -75,7 +75,10 @@ async function authorizeProjectAccess(request: Request, projectSlug: string, mod
     return { ok: false as const, status: 401, message: "Unauthorized" }
   }
 
-  const { projects, teams } = await getStoreData()
+  const { projects, teams } = await getStoreData({
+    includeTemplates: false,
+    includeProjectSubmissions: false,
+  })
   const visibleProjects = filterProjectsForIdentity(projects, teams, identity)
   const project = visibleProjects.find((item) => item.slug === projectSlug)
 
