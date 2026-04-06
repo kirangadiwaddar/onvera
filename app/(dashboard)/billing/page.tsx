@@ -67,10 +67,15 @@ export default function BillingPage() {
     currentWorkspace?.plan || profile?.plan || (typeof user?.user_metadata?.plan === "string" ? user.user_metadata.plan : null),
   )
   const planLimits = useMemo(() => getPlanLimits(currentPlan), [currentPlan])
-  const canManagePlan = currentWorkspace?.role === "super_admin" || profile?.role === "super_admin"
+  const effectiveWorkspaceRole =
+    currentWorkspace?.role ||
+    profile?.role ||
+    (typeof user?.user_metadata?.role === "string" ? user.user_metadata.role : null) ||
+    null
+  const canManagePlan = effectiveWorkspaceRole === "super_admin"
   const stripeLinked = Boolean(profile?.stripe_customer_id || profile?.stripe_subscription_id)
   const isFreePlan = currentPlan === "free"
-  const isSuperAdmin = currentWorkspace?.role === "super_admin" || profile?.role === "super_admin"
+  const isSuperAdmin = effectiveWorkspaceRole === "super_admin"
   const renderLimit = (value: number | null) =>
     value === null ? <Infinity className="inline h-4 w-4 align-middle" /> : value
 

@@ -25,6 +25,15 @@ type ProjectSummary = {
   createdBy?: string | null
 }
 
+type ActivityItem = {
+  id: string
+  title: string
+  project: string
+  status: string
+  actor: "Admin" | "Client" | "Team Lead"
+  timestamp: string
+}
+
 type DashboardInitCacheEntry = {
   expiresAt: number
   payload: Record<string, unknown>
@@ -90,7 +99,7 @@ export async function GET(request: Request) {
   }
 
   const [{ projects, teams, templates }, { data: userProfile }] = await Promise.all([
-    getStoreData(),
+    getStoreData({ includeTemplateStructure: false }),
     admin
       .from("profiles")
       .select("id, full_name, role, plan")
@@ -216,6 +225,35 @@ export async function GET(request: Request) {
     .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
     .slice(0, 7)
 
+  const activities: ActivityItem[] = []
+  visibleProjects.forEach((project) => {
+    activities.push({
+      id: `${project.slug}-created`,
+      title: "Project created",
+      project: project.title,
+      status: "created",
+      actor: "Admin",
+      timestamp: project.createdAt,
+    })
+
+    const submissions = (project.submissions || {}) as Record<string, unknown>
+    const lastClientUpdate = submissions.__last_client_update
+    if (typeof lastClientUpdate === "string" && lastClientUpdate.trim()) {
+      activities.push({
+        id: `${project.slug}-client-update-${lastClientUpdate}`,
+        title: "Client updated checklist",
+        project: project.title,
+        status: "updated",
+        actor: "Client",
+        timestamp: lastClientUpdate,
+      })
+    }
+  })
+
+  const recentActivities = activities
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, limit)
+
   const payload = {
     user: {
       id: identity.userId,
@@ -224,8 +262,8 @@ export async function GET(request: Request) {
       role: (userProfile?.role ?? identity.role) || null,
       plan: (userProfile?.plan ?? identity.plan) || null,
     },
-    workspaces,
-    projects: projectSummary,
+    workspaces: scope === "dashboard" ? [] : workspaces,
+    projects: scope === "full" ? projectSummary : [],
     summary: {
       total: visibleProjects.length,
       completed: completed.length,
@@ -234,6 +272,7 @@ export async function GET(request: Request) {
       ongoing: ongoing.length,
     },
     ongoingProjects,
+    activities: scope === "shell" ? [] : recentActivities,
     dashboardData:
       scope === "shell"
         ? null

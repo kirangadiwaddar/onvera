@@ -325,7 +325,6 @@ export default function Page() {
           </>
         ) : null}
         {teams.filter((team) => !selectedWorkspaceId || team.createdBy === selectedWorkspaceId).length === 0 ? (
-          <div className="px-7">
             <EmptyState
               icon={<Users />}
               title="No teams yet"
@@ -333,7 +332,6 @@ export default function Page() {
               buttonText={!createTeamDisabled ? "Create Team" : undefined}
               onClick={!createTeamDisabled ? handleOpenCreateTeam : undefined}
             />
-          </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
             {teams

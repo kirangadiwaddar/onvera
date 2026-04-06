@@ -10,7 +10,7 @@ import { LoadingState } from "@/components/loadingState"
 import { EmptyState } from "@/components/emptyState"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getAvatarColor } from "@/lib/get-avatar-colors"
-import { CalendarDays, Copy, Crown, LayoutGrid, List, Plus, Trash2, UserRoundCheck, TriangleAlert } from "lucide-react"
+import { CalendarDays, Copy, Crown, LayoutGrid, List, Plus, Trash2, UserRoundCheck, TriangleAlert, Users } from "lucide-react"
 import { ProjectCard } from "@/components/project-card"
 import { toast } from "sonner"
 import { canUseTeams, normalizePlan } from "@/lib/billing/plans"
@@ -93,6 +93,7 @@ export default function TeamDetailPage() {
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug
 
   const [team, setTeam] = useState<Team | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [allProjects, setAllProjects] = useState<ProjectSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -166,12 +167,14 @@ export default function TeamDetailPage() {
     const response = await fetchWithAuth(`/api/teams/${slug}`, { cache: "no-store" })
 
     if (!response.ok) {
-      throw new Error("Not found")
+      const payload = await response.json().catch(() => null) as { message?: string } | null
+      throw new Error(payload?.message || "Unable to load this team")
     }
 
     const data = (await response.json()) as TeamDetailResponse
     setTeam(data.team)
     setProjects(data.projects || [])
+    setLoadError(null)
 
   }, [slug])
 
@@ -179,6 +182,7 @@ export default function TeamDetailPage() {
     if (authLoading) return
     if (!user?.id) {
       setTeam(null)
+      setLoadError(null)
       setProjects([])
       setAllProjects([])
       setLoading(false)
@@ -191,8 +195,9 @@ export default function TeamDetailPage() {
     }
 
     void loadTeam()
-      .catch(() => {
+      .catch((error) => {
         setTeam(null)
+        setLoadError(error instanceof Error ? error.message : "Unable to load this team")
       })
       .finally(() => {
         setLoading(false)
@@ -234,6 +239,18 @@ export default function TeamDetailPage() {
       window.removeEventListener("storage", handleWorkspace)
     }
   }, [authLoading, user?.id])
+
+  useEffect(() => {
+    if (!team?.createdBy) return
+    if (!selectedWorkspaceId || selectedWorkspaceId === team.createdBy) return
+    const matchingWorkspace = workspaces.find((workspace) => workspace.id === team.createdBy)
+    if (!matchingWorkspace) return
+    setSelectedWorkspaceId(team.createdBy)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("onvera:workspace", team.createdBy)
+      window.dispatchEvent(new Event("workspace:changed"))
+    }
+  }, [selectedWorkspaceId, team?.createdBy, workspaces])
 
   useEffect(() => {
     if (authLoading) return
@@ -509,14 +526,20 @@ export default function TeamDetailPage() {
   }
 
   if (!team) {
-    return <EmptyState icon={<TriangleAlert className="text-destructive" />} title="Team Not Found" description="We couldn't find this team." />
+    return (
+      <EmptyState
+        icon={<TriangleAlert className="text-destructive" />}
+        title={loadError === "Forbidden" ? "Team Access Blocked" : "Team Not Found"}
+        description={loadError === "Forbidden" ? "Your account can’t access this team right now." : loadError || "We couldn't find this team."}
+      />
+    )
   }
   if (selectedWorkspaceId && team.createdBy && team.createdBy !== selectedWorkspaceId) {
     return (
       <EmptyState
         icon={<TriangleAlert className="text-destructive" />}
         title="Wrong workspace"
-        description="Switch the workspace from the sidebar to view this team."
+        description="Updating your workspace selection for this team."
       />
     )
   }
@@ -780,7 +803,7 @@ export default function TeamDetailPage() {
               ) : !team.lead ? (
                 <TableRow>
                   <TableCell colSpan={memberTableCols} className="text-center py-8 text-muted-foreground">
-                    No team members added
+                    <EmptyState icon={<Users />} title="No team members added" description="Add Team members" />                    
                   </TableCell>
                 </TableRow>
               ) : null}

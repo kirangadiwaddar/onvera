@@ -145,6 +145,21 @@ export function OnboardingNotificationBell({ slug, token, className }: Onboardin
     }
   }
 
+  const handleActivityClick = (activity: Activity) => {
+    const timestamp = getActivityTimestamp(activity)
+    if (!timestamp) return
+    setSeenAt((current) => {
+      const currentTime = current ? new Date(current).getTime() : 0
+      const nextTime = new Date(timestamp).getTime()
+      const resolved = nextTime > currentTime ? timestamp : current
+      if (typeof window !== "undefined" && resolved) {
+        window.localStorage.setItem(seenKey, resolved)
+        window.dispatchEvent(new Event("notifications:updated"))
+      }
+      return resolved
+    })
+  }
+
   return (
     <>
       <button
@@ -164,13 +179,16 @@ export function OnboardingNotificationBell({ slug, token, className }: Onboardin
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="right"
-          className="w-90 max-w-full m-2 h-[calc(100dvh-24px)] rounded-xl overflow-hidden"
+          className="rounded-2xl rounded-r-none border border-r-0 border-zinc-200 bg-white p-0 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
           showCloseButton={false}
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
-          <SheetHeader className="border-b border-zinc-100 dark:border-white/10">
-            <div className="flex items-center justify-between">
-              <SheetTitle>Project Updates</SheetTitle>
+          <SheetHeader className="border-b border-zinc-100 px-5 py-4 dark:border-white/10">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <SheetTitle>Project Updates</SheetTitle>
+                <p className="text-xs text-muted-foreground">Recent updates by your team</p>
+              </div>
               <TooltipProvider delayDuration={300}>
                 <div className="flex items-center gap-2 pr-2">
                   <Tooltip>
@@ -220,12 +238,13 @@ export function OnboardingNotificationBell({ slug, token, className }: Onboardin
               </TooltipProvider>
             </div>
           </SheetHeader>
-          <div className="px-4 h-[calc(100dvh-100px)] overflow-y-auto">
+          <div className="themed-scrollbar h-[calc(100dvh-96px)] overflow-y-auto px-2">
             <RecentActivity
               activities={visibleActivities}
               loading={loadingActivities}
               variant="list"
               seenAfter={seenAt}
+              onActivityClick={handleActivityClick}
             />
           </div>
         </SheetContent>

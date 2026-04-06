@@ -6,7 +6,6 @@ import { createAdminClient } from "@/lib/supabase/admin"
 type NotificationRow = {
   id: string
   title: string
-  message: string | null
   project_slug: string | null
   status: string
   actor: string | null
@@ -23,6 +22,17 @@ type NotificationActivity = {
   created_at: string
   is_read: boolean
 }
+
+type NotificationsPreviewCacheEntry = {
+  expiresAt: number
+  payload: {
+    activities: NotificationActivity[]
+    unreadCount: number
+  }
+}
+
+const NOTIFICATIONS_PREVIEW_CACHE_TTL_MS = 15_000
+const notificationsPreviewCache = new Map<string, NotificationsPreviewCacheEntry>()
 
 function isMissingNotificationSchemaError(error?: { code?: string } | null) {
   if (!error?.code) return false
@@ -48,6 +58,14 @@ function toActivity(row: NotificationRow): NotificationActivity {
   }
 }
 
+function clearNotificationPreviewCacheForUser(userId: string) {
+  for (const key of notificationsPreviewCache.keys()) {
+    if (key.startsWith(`${userId}:`)) {
+      notificationsPreviewCache.delete(key)
+    }
+  }
+}
+
 export async function GET(request: Request) {
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
@@ -55,33 +73,55 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url)
-  const limitRaw = Number(searchParams.get("limit") ?? "50")
-  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 50
+  const limitRaw = Number(searchParams.get("limit") ?? "10")
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 10
+  const cacheKey = `${identity.userId}:${limit}`
+  const cached = notificationsPreviewCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json(cached.payload)
+  }
+  if (cached) {
+    notificationsPreviewCache.delete(cacheKey)
+  }
 
   const admin = createAdminClient()
   if (!admin) {
     return NextResponse.json({ activities: [], unreadCount: 0 })
   }
 
-  const { data, error } = await admin
-    .from("notifications")
-    .select("id, title, message, project_slug, status, actor, created_at, is_read")
-    .eq("user_id", identity.userId)
-    .is("dismissed_at", null)
-    .order("created_at", { ascending: false })
-    .limit(limit)
+  const [{ data, error }, { count, error: unreadCountError }] = await Promise.all([
+    admin
+      .from("notifications")
+      .select("id, title, project_slug, status, actor, created_at, is_read")
+      .eq("user_id", identity.userId)
+      .is("dismissed_at", null)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+    admin
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", identity.userId)
+      .is("dismissed_at", null)
+      .eq("is_read", false),
+  ])
 
-  if (error) {
-    if (isMissingNotificationSchemaError(error as { code?: string })) {
+  if (error || unreadCountError) {
+    if (isMissingNotificationSchemaError((error || unreadCountError) as { code?: string })) {
       return NextResponse.json({ activities: [], unreadCount: 0 })
     }
-    return NextResponse.json({ message: error.message }, { status: 500 })
+    return NextResponse.json({ message: error?.message || unreadCountError?.message }, { status: 500 })
   }
 
   const activities = (data || []).map((row) => toActivity(row as NotificationRow))
-  const unreadCount = activities.reduce((count, item) => (item.is_read ? count : count + 1), 0)
+  const unreadCount = count ?? 0
+  const payload = { activities, unreadCount }
 
-  return NextResponse.json({ activities, unreadCount })
+  notificationsPreviewCache.set(cacheKey, {
+    payload,
+    expiresAt: Date.now() + NOTIFICATIONS_PREVIEW_CACHE_TTL_MS,
+  })
+
+  return NextResponse.json(payload)
 }
 
 export async function PATCH(request: Request) {
@@ -115,6 +155,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ message: error.message }, { status: 500 })
     }
 
+    clearNotificationPreviewCacheForUser(identity.userId)
     return NextResponse.json({ ok: true })
   }
 
@@ -132,6 +173,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ message: error.message }, { status: 500 })
     }
 
+    clearNotificationPreviewCacheForUser(identity.userId)
     return NextResponse.json({ ok: true })
   }
 
@@ -149,6 +191,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ message: error.message }, { status: 500 })
     }
 
+    clearNotificationPreviewCacheForUser(identity.userId)
     return NextResponse.json({ ok: true })
   }
 
@@ -166,6 +209,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ message: error.message }, { status: 500 })
     }
 
+    clearNotificationPreviewCacheForUser(identity.userId)
     return NextResponse.json({ ok: true })
   }
 

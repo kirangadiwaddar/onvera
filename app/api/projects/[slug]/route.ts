@@ -12,6 +12,7 @@ import { templateStructure } from "@/lib/template-structure"
 import type { Section } from "@/lib/types"
 import { getPlanForUserId } from "@/lib/billing/server"
 import { getPlanLimits } from "@/lib/billing/plans"
+import { createProjectActivityNotifications, findUserEmailById } from "@/lib/server/notifications"
 
 const slugify = (value: string) =>
   value
@@ -27,33 +28,6 @@ const resolveTemplateKeyFromTitle = (title?: string) => {
   return Object.keys(templateStructure).find((key) => slugify(key) === normalizedTitle)
 }
 
-async function findEmailByUserId(
-  admin: ReturnType<typeof createAdminClient>,
-  userId?: string | null,
-) {
-  if (!admin || !userId) return null
-  let page = 1
-  const perPage = 1000
-  while (true) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
-    if (error) {
-      console.error("Supabase listUsers failed:", error.message)
-      return null
-    }
-    const users = Array.isArray((data as { users?: unknown })?.users)
-      ? (data as { users: Array<{ id?: string; email?: string | null }> }).users
-      : Array.isArray(data)
-        ? (data as Array<{ id?: string; email?: string | null }>)
-        : []
-    const match = users.find((user) => user?.id === userId)
-    if (match?.email) return match.email
-    const nextPage = (data as { nextPage?: number | null } | null)?.nextPage
-    if (!nextPage) break
-    page = nextPage
-  }
-  return null
-}
-
 async function getOwnerInfo(
   admin: ReturnType<typeof createAdminClient>,
   ownerId?: string | null,
@@ -65,7 +39,7 @@ async function getOwnerInfo(
     .eq("id", ownerId)
     .maybeSingle()
   const ownerName = profile?.full_name ?? null
-  const ownerEmail = await findEmailByUserId(admin, ownerId)
+  const ownerEmail = await findUserEmailById(admin, ownerId)
   return { ownerName, ownerEmail }
 }
 
@@ -434,6 +408,21 @@ function getNewlyCompletedSectionIds(
   return completed
 }
 
+function stripSubmissionNotificationMeta(submissions?: Record<string, unknown>) {
+  if (!submissions || typeof submissions !== "object") return {}
+  return Object.fromEntries(
+    Object.entries(submissions).filter(([key]) => key !== "__last_client_update"),
+  )
+}
+
+function hasMeaningfulSubmissionChange(
+  beforeSubmissions?: Record<string, unknown>,
+  afterSubmissions?: Record<string, unknown>,
+) {
+  return JSON.stringify(stripSubmissionNotificationMeta(beforeSubmissions)) !==
+    JSON.stringify(stripSubmissionNotificationMeta(afterSubmissions))
+}
+
 function shouldMarkOngoing(
   project: { status: status; submissions?: Record<string, unknown> },
 ) {
@@ -453,6 +442,13 @@ function shouldMarkOverdue(
   return Date.now() > expiresAt
 }
 
+const PROJECT_DETAIL_SELECT =
+  "id,slug,title,template_id,status,created_at,updated_at,avatar_src,team_ids,extra_members,submissions,created_by"
+const TEAM_DETAIL_SELECT =
+  "id,name,slug,description,status,lead,members,created_at,created_by"
+const TEMPLATE_DETAIL_SELECT =
+  "id,title,description,icon,badge,structure,template_key,is_default"
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ slug: string }> },
@@ -467,17 +463,17 @@ export async function GET(
     return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
   }
 
-  const { data: projectRow } = await admin.from("projects").select("*").eq("slug", slug).maybeSingle()
+  const { data: projectRow } = await admin.from("projects").select(PROJECT_DETAIL_SELECT).eq("slug", slug).maybeSingle()
   if (!projectRow) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })
   }
 
   const teamIds = Array.isArray(projectRow.team_ids) ? projectRow.team_ids : []
   const [{ data: teamRows }, { data: templateRows }] = await Promise.all([
-    teamIds.length > 0 ? admin.from("teams").select("*").in("id", teamIds) : Promise.resolve({ data: [] }),
+    teamIds.length > 0 ? admin.from("teams").select(TEAM_DETAIL_SELECT).in("id", teamIds) : Promise.resolve({ data: [] }),
     admin
       .from("templates")
-      .select("*")
+      .select(TEMPLATE_DETAIL_SELECT)
       .or(`id.eq.${projectRow.template_id},template_key.eq.${projectRow.template_id}`),
   ])
 
@@ -599,14 +595,14 @@ export async function PUT(
     return NextResponse.json({ message: "Supabase is not configured" }, { status: 500 })
   }
 
-  const { data: projectRow } = await admin.from("projects").select("*").eq("slug", slug).maybeSingle()
+  const { data: projectRow } = await admin.from("projects").select(PROJECT_DETAIL_SELECT).eq("slug", slug).maybeSingle()
   if (!projectRow) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })
   }
 
   const teamIds = Array.isArray(projectRow.team_ids) ? projectRow.team_ids : []
   const { data: teamRows } =
-    teamIds.length > 0 ? await admin.from("teams").select("*").in("id", teamIds) : { data: [] }
+    teamIds.length > 0 ? await admin.from("teams").select(TEAM_DETAIL_SELECT).in("id", teamIds) : { data: [] }
   const teams = (Array.isArray(teamRows) ? teamRows : []).map(normalizeTeam)
   const currentProject = normalizeProject(projectRow as ProjectRow)
   const ownerPlan = await getPlanForUserId(admin, currentProject.createdBy ?? null)
@@ -720,7 +716,7 @@ export async function PUT(
     typeof body.submissions === "object" &&
     !Array.isArray(body.submissions) &&
     currentProject.createdBy &&
-    identity.userId !== currentProject.createdBy
+    hasMeaningfulSubmissionChange(currentProject.submissions as Record<string, unknown>, body.submissions)
   ) {
     const beforeSubmissions = currentProject.submissions as Record<string, unknown>
     const afterSubmissions = body.submissions
@@ -728,76 +724,52 @@ export async function PUT(
     const afterCount = countChecklistEntries(afterSubmissions)
     const addedItems = Math.max(0, afterCount - beforeCount)
     const newlyCompletedSections = getNewlyCompletedSectionIds(beforeSubmissions, afterSubmissions)
-
-    if (addedItems > 0 || newlyCompletedSections.length > 0) {
-      const ownerEmail = await findEmailByUserId(admin, currentProject.createdBy)
-      if (ownerEmail) {
-        const actorLabel =
-          identity.role === "team_lead" ? "Team Lead" : identity.role === "super_admin" ? "Admin" : "Client"
-        const { data: actorProfile } = await admin
-          .from("profiles")
-          .select("full_name")
-          .eq("id", identity.userId)
-          .maybeSingle()
-        const actorName =
-          (actorProfile?.full_name || "").trim() ||
-          identity.email ||
-          actorLabel
-
-        const notifications: Array<Record<string, unknown>> = []
-
-        if (addedItems > 0) {
-          notifications.push({
-            user_id: currentProject.createdBy,
-            recipient_email: ownerEmail.toLowerCase(),
-            project_id: currentProject.id,
-            project_slug: currentProject.slug,
-            type: "checklist_submission",
-            title: `${actorName} added files to checklist`,
-            message: `${addedItems} new item${addedItems > 1 ? "s" : ""} added`,
-            actor: actorLabel,
-            status: "updated",
-            metadata: {
-              projectSlug: currentProject.slug,
-              addedItems,
-            },
-            created_by: identity.userId,
-            is_read: false,
-          })
-        }
-
-        if (newlyCompletedSections.length > 0) {
-          notifications.push({
-            user_id: currentProject.createdBy,
-            recipient_email: ownerEmail.toLowerCase(),
-            project_id: currentProject.id,
-            project_slug: currentProject.slug,
-            type: "checklist_section_completed",
-            title: `${actorName} marked checklist section completed`,
-            message: `${newlyCompletedSections.length} section${newlyCompletedSections.length > 1 ? "s" : ""} completed`,
-            actor: actorLabel,
-            status: "completed",
-            metadata: {
-              projectSlug: currentProject.slug,
-              completedSections: newlyCompletedSections,
-            },
-            created_by: identity.userId,
-            is_read: false,
-          })
-        }
-
-        try {
-          if (notifications.length > 0) {
-            await admin.from("notifications").insert(notifications)
-          }
-        } catch {
-          // Do not fail submission save when notification insert fails.
-        }
-      }
+    const actorLabel =
+      identity.role === "team_lead" ? "Team Lead" : identity.role === "super_admin" ? "Admin" : "Client"
+    const { data: actorProfile } = await admin
+      .from("profiles")
+      .select("full_name")
+      .eq("id", identity.userId)
+      .maybeSingle()
+    const actorName =
+      (actorProfile?.full_name || "").trim() ||
+      identity.email ||
+      actorLabel
+    const ownerEmail = await findUserEmailById(admin, currentProject.createdBy)
+    const summaryParts: string[] = []
+    if (addedItems > 0) {
+      summaryParts.push(`${addedItems} new item${addedItems > 1 ? "s" : ""} added`)
     }
+    if (newlyCompletedSections.length > 0) {
+      summaryParts.push(`${newlyCompletedSections.length} section${newlyCompletedSections.length > 1 ? "s" : ""} completed`)
+    }
+
+    await createProjectActivityNotifications({
+      admin,
+      ownerId: currentProject.createdBy,
+      ownerEmail,
+      actorUserId: identity.userId,
+      actorEmail: identity.email,
+      actorName,
+      actor: actorLabel,
+      projectId: currentProject.id,
+      projectSlug: currentProject.slug,
+      projectTitle: currentProject.title,
+      teamRows: teams,
+      extraMembers: currentProject.extraMembers,
+      type: "project_update",
+      title: `${actorName} updated project ${currentProject.title}`,
+      message: summaryParts.join(" • ") || "Checklist updated",
+      status: newlyCompletedSections.length > 0 && addedItems === 0 ? "completed" : "updated",
+      metadata: {
+        addedItems,
+        completedSections: newlyCompletedSections,
+      },
+      createdBy: identity.userId,
+    })
   }
 
-  const { data: updatedRow } = await admin.from("projects").select("*").eq("slug", slug).maybeSingle()
+  const { data: updatedRow } = await admin.from("projects").select(PROJECT_DETAIL_SELECT).eq("slug", slug).maybeSingle()
   if (!updatedRow) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 })
   }
@@ -805,11 +777,11 @@ export async function PUT(
   const updatedTeamIds = Array.isArray(updatedRow.team_ids) ? updatedRow.team_ids : []
   const [{ data: updatedTeamRows }, { data: templateRows }] = await Promise.all([
     updatedTeamIds.length > 0
-      ? admin.from("teams").select("*").in("id", updatedTeamIds)
+      ? admin.from("teams").select(TEAM_DETAIL_SELECT).in("id", updatedTeamIds)
       : Promise.resolve({ data: [] }),
     admin
       .from("templates")
-      .select("*")
+      .select(TEMPLATE_DETAIL_SELECT)
       .or(`id.eq.${updatedRow.template_id},template_key.eq.${updatedRow.template_id}`),
   ])
 
@@ -872,6 +844,5 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
-
   return NextResponse.json({ success: true })
 }

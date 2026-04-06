@@ -14,16 +14,27 @@ function slugify(value: string) {
 }
 
 export async function GET(request: Request) {
-  const { projects, teams } = await getStoreData({ includeRegisteredEmails: true })
+  const { projects, teams } = await getStoreData({
+    includeRegisteredEmails: true,
+    includeTemplates: false,
+    includeProjectSubmissions: false,
+  })
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
   const visibleTeams = filterTeamsForIdentity(teams, identity)
 
+  const projectCountByTeamId = new Map<number, number>()
+  projects.forEach((project) => {
+    project.teamIds.forEach((teamId) => {
+      projectCountByTeamId.set(teamId, (projectCountByTeamId.get(teamId) ?? 0) + 1)
+    })
+  })
+
   const enrichedTeams = visibleTeams.map((team) => ({
     ...team,
-    projectsAssigned: projects.filter((project) => project.teamIds.includes(team.id)).length,
+    projectsAssigned: projectCountByTeamId.get(team.id) ?? 0,
   }))
 
   return NextResponse.json({ teams: enrichedTeams })
@@ -73,7 +84,12 @@ export async function POST(request: Request) {
     }
   }
 
-  const { teams, templates } = await getStoreData({ bypassCache: true, includeRegisteredEmails: true })
+  const { teams, templates } = await getStoreData({
+    bypassCache: true,
+    includeRegisteredEmails: true,
+    includeProjects: false,
+    includeTemplateStructure: false,
+  })
   const baseSlug = slugify(body.name)
 
   if (!baseSlug) {
@@ -131,8 +147,12 @@ export async function POST(request: Request) {
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 500 })
   }
-
-  const { teams: latestTeams, projects } = await getStoreData({ bypassCache: true, includeRegisteredEmails: true })
+  const { teams: latestTeams, projects } = await getStoreData({
+    bypassCache: true,
+    includeRegisteredEmails: true,
+    includeTemplates: false,
+    includeProjectSubmissions: false,
+  })
   const created = latestTeams.find((team) => team.slug === slug)
 
   if (!created) {

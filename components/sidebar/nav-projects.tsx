@@ -69,8 +69,10 @@ export function NavProjects() {
       }
     }
 
-    fetchProjects()
-    intervalId = setInterval(fetchProjects, POLL_INTERVAL_MS)
+    void fetchProjects()
+    intervalId = setInterval(() => {
+      void fetchProjects()
+    }, POLL_INTERVAL_MS)
 
     const handleFocus = () => {
       void fetchProjects()

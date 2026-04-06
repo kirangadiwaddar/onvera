@@ -1,17 +1,26 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 
 import { SectionCards } from "@/components/dashboard/section-cards"
 import { AlarmClockMinus, CalendarCheck, GalleryVerticalEnd, Pause, Timer, TriangleAlert } from "lucide-react"
 import { LoadingState } from "@/components/loadingState"
 import { EmptyState } from "@/components/emptyState"
-import type { Project } from "@/types/project"
+import {
+  DashboardChartCardSkeleton,
+  DashboardChartsSkeleton,
+  DashboardPanelSkeleton,
+  DashboardStatsSkeleton,
+} from "@/components/dashboard/dashboard-skeleton"
 
-import { fetchWithAuth } from "@/lib/auth/client-fetch"
-import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/components/providers/auth-provider"
+import {
+  useDashboardCountsQuery,
+  useDashboardProjectsSummaryQuery,
+  useDashboardRecentActivityQuery,
+} from "@/lib/query/use-dashboard-init-query"
+import { fetchWithAuth } from "@/lib/auth/client-fetch"
 
 const loadCompletedProjectsChart = () =>
   import("@/components/dashboard/completedProjectsChart")
@@ -24,48 +33,23 @@ const loadAttentionTable = () =>
 
 const CompletedProjectsChart = dynamic(
   () => loadCompletedProjectsChart().then((mod) => mod.CompletedProjectsChart),
-  { ssr: false, loading: () => null },
+  { ssr: false, loading: () => <DashboardChartCardSkeleton /> },
 )
 
 const MonthlyProjectsChart = dynamic(
   () => loadMonthlyProjectsChart().then((mod) => mod.MonthlyProjectsChart),
-  { ssr: false, loading: () => null },
+  { ssr: false, loading: () => <DashboardChartCardSkeleton /> },
 )
 
 const RecentActivity = dynamic(
   () => loadRecentActivity().then((mod) => mod.RecentActivity),
-  { ssr: false, loading: () => null },
+  { ssr: false, loading: () => <DashboardPanelSkeleton rows={5} /> },
 )
 
 const AttentionTable = dynamic(
   () => loadAttentionTable(),
-  { ssr: false, loading: () => null },
+  { ssr: false, loading: () => <DashboardPanelSkeleton compact rows={4} /> },
 )
-
-type DashboardResponse = {
-  stats: {
-    total: number
-    waiting: number
-    completed: number
-    overdue: number
-  }
-  lists: {
-    latestWaitingOverdue: Project[]
-  }
-  activities?: {
-    id: string
-    title: string
-    project: string
-    status: string
-    actor?: "Admin" | "Client" | "Team Lead"
-    timestamp?: string
-  }[]
-}
-
-type DashboardInitResponse = {
-  stats?: DashboardResponse["stats"]
-  lists?: DashboardResponse["lists"]
-}
 
 type WorkspaceItem = {
   id: string
@@ -75,12 +59,38 @@ type WorkspaceItem = {
   role: "super_admin" | "team_lead" | "team_member" | "project_member"
 }
 
+function ensureOwnerWorkspace(
+  items: WorkspaceItem[],
+  user: ReturnType<typeof useAuth>["user"],
+  profile: ReturnType<typeof useAuth>["profile"],
+): WorkspaceItem[] {
+  if (!user?.id) return items
+  const ownsFlag =
+    typeof window !== "undefined" && window.localStorage.getItem("onvera:ownsWorkspace") === "true"
+  const ownsByProfile =
+    profile?.role === "super_admin" ||
+    (typeof user.user_metadata?.role === "string" && user.user_metadata.role === "super_admin")
+  if (!(ownsFlag || ownsByProfile)) return items
+  if (items.some((workspace) => workspace.id === user.id)) return items
+  const fallbackName =
+    profile?.full_name ||
+    user.user_metadata?.full_name ||
+    user.email?.split("@")[0] ||
+    "Workspace"
+  const ownerWorkspace: WorkspaceItem = {
+    id: user.id,
+    name: String(fallbackName),
+    email: user.email || null,
+    plan: typeof profile?.plan === "string" ? profile.plan : "free",
+    role: "super_admin",
+  }
+  return [ownerWorkspace, ...items]
+}
 
 export default function Page() {
   const { user, profile, loading: authLoading } = useAuth()
-  const [shellReady, setShellReady] = useState(false)
-  const [initialReady, setInitialReady] = useState(false)
-  const [workspaceVersion, setWorkspaceVersion] = useState(0)
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
 
   const localRole = useMemo(() => {
     const raw =
@@ -90,93 +100,80 @@ export default function Page() {
     return raw ? raw.trim().toLowerCase().replace(/\s+/g, "_") : null
   }, [profile?.role, user?.user_metadata?.role])
 
-  const effectiveRole = localRole
+  const currentWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || null
+  const effectiveRole = currentWorkspace?.role || localRole
 
-  const [data, setData] = useState<DashboardResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [hiddenIds, setHiddenIds] = useState<string[]>([])
-  const [activitiesLoading, setActivitiesLoading] = useState(false)
 
-  const loadSummary = useCallback(async (silent = false) => {
-    try {
-      if (!silent) setLoading(true)
-      const res = await fetchWithAuth("/api/dashboard-summary", { cache: "no-store" })
-      const payload = await res.json().catch(() => null) as DashboardInitResponse | null
-
-      if (!res.ok) {
-        throw new Error((payload as { message?: string } | null)?.message || `Failed to load dashboard (${res.status})`)
-      }
-
-      if (!payload?.stats || !payload?.lists) {
-        throw new Error("Dashboard response is invalid")
-      }
-      setData((prev) => ({
-        activities: prev?.activities || [],
-        stats: payload.stats!,
-        lists: payload.lists!,
-      }))
-      setError(null)
-    } catch (fetchError) {
-      if (!silent) {
-        setError(fetchError instanceof Error ? fetchError.message : "Failed to load dashboard")
-      }
-    } finally {
-      if (!silent) setLoading(false)
-    }
-  }, [])
-
-  const loadActivities = useCallback(async () => {
-    try {
-      setActivitiesLoading(true)
-      const res = await fetchWithAuth("/api/dashboard-details?limit=50", { cache: "no-store" })
-      const payload = await res.json().catch(() => null) as { activities?: DashboardResponse["activities"] } | null
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              activities: Array.isArray(payload?.activities) ? payload.activities : [],
-            }
-          : prev,
-      )
-    } catch {
-      // keep existing activities payload
-    } finally {
-      setActivitiesLoading(false)
-    }
-  }, [])
-
-  const loadShell = useCallback(async () => {
-    try {
-      const res = await fetchWithAuth("/api/dashboard-shell", { cache: "no-store" })
-      if (!res.ok) throw new Error("Failed to load dashboard shell")
-      setShellReady(true)
-    } catch {
-      setShellReady(true)
-    }
-  }, [])
-
-  const preloadDashboardWidgets = useCallback(async () => {
+  const preloadDashboardWidgets = async () => {
     await Promise.all([
       loadCompletedProjectsChart(),
       loadMonthlyProjectsChart(),
       loadRecentActivity(),
       loadAttentionTable(),
     ])
-  }, [])
+  }
 
   const isRestricted = effectiveRole !== "super_admin"
-
-  const supabase = useMemo(() => {
-    try {
-      return createClient()
-    } catch {
-      return null
-    }
-  }, [])
+  const dashboardCountsQuery = useDashboardCountsQuery({
+    userId: user?.id,
+    enabled: !authLoading && Boolean(user?.id),
+  })
+  const dashboardProjectsSummaryQuery = useDashboardProjectsSummaryQuery({
+    userId: user?.id,
+    enabled: !authLoading && Boolean(user?.id),
+  })
+  const dashboardRecentActivityQuery = useDashboardRecentActivityQuery({
+    userId: user?.id,
+    enabled: !authLoading && Boolean(user?.id),
+    limit: 12,
+  })
+  const statsData = dashboardCountsQuery.data?.stats ?? null
+  const projectsSummary = dashboardProjectsSummaryQuery.data?.lists?.latestWaitingOverdue ?? []
+  const recentActivities = dashboardRecentActivityQuery.data?.activities ?? []
+  const error =
+    (dashboardCountsQuery.error instanceof Error ? dashboardCountsQuery.error.message : null) ||
+    (dashboardProjectsSummaryQuery.error instanceof Error ? dashboardProjectsSummaryQuery.error.message : null) ||
+    (dashboardRecentActivityQuery.error instanceof Error ? dashboardRecentActivityQuery.error.message : null)
 
   const storageBase = user?.email ? `notifications:${user.email}` : "notifications:anonymous"
   const hiddenKey = `${storageBase}:hidden`
+
+  useEffect(() => {
+    if (authLoading || !user?.id) return
+    let active = true
+    const loadWorkspaces = async () => {
+      try {
+        const res = await fetchWithAuth("/api/workspaces", { cache: "no-store" })
+        const data = await res.json().catch(() => null) as { workspaces?: WorkspaceItem[] } | null
+        if (!active) return
+        let items = Array.isArray(data?.workspaces) ? data.workspaces : []
+        items = ensureOwnerWorkspace(items, user, profile)
+        setWorkspaces(items)
+        const stored = typeof window !== "undefined" ? window.localStorage.getItem("onvera:workspace") : null
+        const preferred = stored && items.some((item) => item.id === stored) ? stored : null
+        const fallback = items[0]?.id || null
+        const nextId =
+          preferred ||
+          (items.some((item) => item.id === user.id) ? user.id : fallback)
+        setSelectedWorkspaceId(nextId)
+      } catch {
+        setWorkspaces([])
+      }
+    }
+    void loadWorkspaces()
+    const handleWorkspace = () => {
+      if (typeof window === "undefined") return
+      void loadWorkspaces()
+    }
+    window.addEventListener("workspace:changed", handleWorkspace)
+    window.addEventListener("storage", handleWorkspace)
+    return () => {
+      active = false
+      window.removeEventListener("workspace:changed", handleWorkspace)
+      window.removeEventListener("storage", handleWorkspace)
+    }
+  }, [authLoading, profile, user])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -212,80 +209,13 @@ export default function Page() {
   }, [hiddenKey])
 
   useEffect(() => {
-    if (authLoading) return
-    if (!user?.id) {
-      setLoading(false)
-      setShellReady(true)
-      setInitialReady(true)
-      return
-    }
-    let cancelled = false
-    setInitialReady(false)
-    void Promise.all([
-      loadShell(),
-      loadSummary(false),
-      loadActivities(),
-      preloadDashboardWidgets(),
-    ]).finally(() => {
-      if (!cancelled) {
-        setInitialReady(true)
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [authLoading, loadActivities, loadShell, loadSummary, preloadDashboardWidgets, user?.id, workspaceVersion])
+    if (authLoading || !user?.id) return
+    void preloadDashboardWidgets()
+  }, [authLoading, user?.id])
 
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    const syncWorkspace = () => setWorkspaceVersion((prev) => prev + 1)
-    window.addEventListener("workspace:changed", syncWorkspace)
-    window.addEventListener("storage", syncWorkspace)
-    return () => {
-      window.removeEventListener("workspace:changed", syncWorkspace)
-      window.removeEventListener("storage", syncWorkspace)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!supabase) return
-    const channel = supabase
-      .channel("dashboard-activity")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "projects" },
-        () => {
-          void loadSummary(true)
-          void loadActivities()
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "onboarding_tokens" },
-        () => {
-          void loadSummary(true)
-          void loadActivities()
-        },
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [loadSummary, loadActivities, supabase])
-
-  if (authLoading || !shellReady || !initialReady) {
+  if (authLoading) {
     return (
       <LoadingState title="Loading dashboard..." description="Checking your access permissions." />
-    )
-  }
-
-  if (loading && !data) {
-    return (
-      <LoadingState
-        title="Loading dashboard..."
-        description="Fetching your dashboard data."
-      />
     )
   }
 
@@ -299,93 +229,104 @@ export default function Page() {
     )
   }
 
-  if (error && !data) {
+  if (error && !statsData && !projectsSummary.length && !recentActivities.length) {
     return (
       <div className="py-8">
         <EmptyState
           title="Dashboard unavailable"
           description={error}
           buttonText="Retry"
-          onClick={() => void loadSummary()}
+          onClick={() => {
+            void Promise.all([
+              dashboardCountsQuery.refetch(),
+              dashboardProjectsSummaryQuery.refetch(),
+              dashboardRecentActivityQuery.refetch(),
+            ])
+          }}
           icon={<TriangleAlert />}
         />
       </div>
     )
   }
-  const dashboardData: DashboardResponse = data ?? {
-    stats: {
-      total: 0,
-      waiting: 0,
-      completed: 0,
-      overdue: 0,
-    },
-    lists: {
-      latestWaitingOverdue: [],
-    },
-    activities: [],
-  }
 
   const stats = [
     {
       title: "Total Projects",
-      value: dashboardData.stats.total,
+      value: statsData?.total ?? 0,
       icon: GalleryVerticalEnd,
       color: "text-blue-500",
     },
     {
       title: "Waiting Projects",
-      value: dashboardData.stats.waiting,
+      value: statsData?.waiting ?? 0,
       icon: Timer,
       color: "text-orange-500",
     },
     {
       title: "Completed Projects",
-      value: dashboardData.stats.completed,
+      value: statsData?.completed ?? 0,
       icon: CalendarCheck,
       color: "text-green-500",
     },
     {
       title: "Overdue Projects",
-      value: dashboardData.stats.overdue,
+      value: statsData?.overdue ?? 0,
       icon: AlarmClockMinus,
       color: "text-destructive",
     },
     {
       title: "Onhold Projects",
-      value: dashboardData.stats.overdue,
+      value: statsData?.overdue ?? 0,
       icon: Pause,
       color: "text-pink-500",
     },
   ]
 
+  const isAnyQueryRefreshing =
+    (dashboardCountsQuery.isFetching && Boolean(statsData)) ||
+    (dashboardProjectsSummaryQuery.isFetching && dashboardProjectsSummaryQuery.data !== undefined) ||
+    (dashboardRecentActivityQuery.isFetching && dashboardRecentActivityQuery.data !== undefined)
+
   return (
    <div className="flex flex-col gap-2 pb-4 md:pb-6">
-      {loading && data ? (
+      {isAnyQueryRefreshing ? (
         <div className="mx-5 rounded-lg border border-border/70 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground">
           Refreshing dashboard data...
         </div>
       ) : null}
-      <SectionCards stats={stats} />
+      {statsData ? <SectionCards stats={stats} /> : <DashboardStatsSkeleton />}
 
-      <div className="grid xl:grid-cols-3 gap-5 mx-5">
-        <div className="col-span-2 rounded-xl w-full">
-          <MonthlyProjectsChart />
-        </div>
+      {statsData ? (
+        <div className="grid xl:grid-cols-3 gap-5 mx-5">
+          <div className="col-span-2 rounded-xl w-full">
+            <MonthlyProjectsChart />
+          </div>
 
-        <div className="rounded-xl w-full h-full space-y-5">
-          <CompletedProjectsChart
-            completed={dashboardData.stats.completed}
-            total={dashboardData.stats.total}
-          />
+          <div className="rounded-xl w-full h-full space-y-5">
+            <CompletedProjectsChart
+              completed={statsData.completed}
+              total={statsData.total}
+            />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="mx-5">
+          <DashboardChartsSkeleton />
+        </div>
+      )}
 
       <div className="grid xl:grid-cols-3 gap-5 mx-5 mt-5">
         <RecentActivity
-          activities={(dashboardData.activities || []).filter((activity) => !hiddenIds.includes(activity.id))}
-          loading={loading || activitiesLoading}
+          activities={recentActivities.filter((activity) => !hiddenIds.includes(activity.id))}
+          loading={!dashboardRecentActivityQuery.data && (dashboardRecentActivityQuery.isLoading || dashboardRecentActivityQuery.isFetching)}
         />
-        <AttentionTable projects={dashboardData.lists.latestWaitingOverdue} />
+        {dashboardProjectsSummaryQuery.data ? (
+          <AttentionTable projects={projectsSummary} />
+        ) : (
+          <div className="xl:col-span-2">
+            <DashboardPanelSkeleton compact rows={4} />
+          </div>
+        )}
       </div>
 
     </div>

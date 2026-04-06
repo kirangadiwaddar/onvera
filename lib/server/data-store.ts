@@ -176,6 +176,11 @@ function normalizeTeam(row: TeamRow): Team {
 type StoreDataOptions = {
   includeRegisteredEmails?: boolean
   bypassCache?: boolean
+  includeProjects?: boolean
+  includeTeams?: boolean
+  includeTemplates?: boolean
+  includeProjectSubmissions?: boolean
+  includeTemplateStructure?: boolean
 }
 
 type StoreCacheEntry = {
@@ -187,14 +192,33 @@ const STORE_CACHE_TTL_MS = 10_000
 const storeCache = new Map<string, StoreCacheEntry>()
 
 function getStoreCacheKey(options: StoreDataOptions) {
-  return options.includeRegisteredEmails ? "with-registered" : "base"
+  return [
+    options.includeRegisteredEmails ? "with-registered" : "base",
+    options.includeProjects === false ? "no-projects" : "projects",
+    options.includeTeams === false ? "no-teams" : "teams",
+    options.includeTemplates === false ? "no-templates" : "templates",
+    options.includeProjectSubmissions === false ? "no-project-submissions" : "project-submissions",
+    options.includeTemplateStructure === false ? "no-template-structure" : "template-structure",
+  ].join(":")
 }
 
 export async function getStoreData(options: StoreDataOptions = {}): Promise<StoreData> {
   const includeRegisteredEmails = options.includeRegisteredEmails ?? false
   const bypassCache = options.bypassCache ?? false
+  const includeProjects = options.includeProjects ?? true
+  const includeTeams = options.includeTeams ?? true
+  const includeTemplates = options.includeTemplates ?? true
+  const includeProjectSubmissions = options.includeProjectSubmissions ?? true
+  const includeTemplateStructure = options.includeTemplateStructure ?? true
 
-  const cacheKey = getStoreCacheKey({ includeRegisteredEmails })
+  const cacheKey = getStoreCacheKey({
+    includeRegisteredEmails,
+    includeProjects,
+    includeTeams,
+    includeTemplates,
+    includeProjectSubmissions,
+    includeTemplateStructure,
+  })
   const cached = storeCache.get(cacheKey)
   if (!bypassCache && cached && cached.expiresAt > Date.now()) {
     return cached.data
@@ -216,9 +240,19 @@ export async function getStoreData(options: StoreDataOptions = {}): Promise<Stor
     }
   }
 
+  const projectColumns = includeProjectSubmissions
+    ? "id,slug,title,template_id,status,created_at,updated_at,avatar_src,team_ids,extra_members,submissions,created_by"
+    : "id,slug,title,template_id,status,created_at,updated_at,avatar_src,team_ids,extra_members,created_by"
+
   const fetchTemplates = async () => {
-    const result = await admin.from("templates").select("*").order("title", { ascending: true })
-    if (result.error?.message?.toLowerCase().includes("structure")) {
+    if (!includeTemplates) {
+      return { data: [] as Template[], error: null }
+    }
+    const baseColumns = includeTemplateStructure
+      ? "id,title,description,icon,badge,structure,created_at,template_key,is_default"
+      : "id,title,description,icon,badge,created_at,template_key,is_default"
+    const result = await admin.from("templates").select(baseColumns).order("title", { ascending: true })
+    if (includeTemplateStructure && result.error?.message?.toLowerCase().includes("structure")) {
       return admin
         .from("templates")
         .select("id,title,description,icon,badge,created_at,template_key,is_default")
@@ -229,8 +263,12 @@ export async function getStoreData(options: StoreDataOptions = {}): Promise<Stor
 
   const [{ data: projects, error: projectsError }, { data: teams, error: teamsError }, { data: templates, error: templatesError }] =
     await Promise.all([
-      admin.from("projects").select("*").order("created_at", { ascending: false }),
-      admin.from("teams").select("*").order("id", { ascending: true }),
+      includeProjects
+        ? admin.from("projects").select(projectColumns).order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as ProjectRow[], error: null }),
+      includeTeams
+        ? admin.from("teams").select("id,name,slug,description,status,lead,members,created_at,created_by").order("id", { ascending: true })
+        : Promise.resolve({ data: [] as TeamRow[], error: null }),
       fetchTemplates(),
     ])
 

@@ -21,7 +21,6 @@ import { useAuth } from "./providers/auth-provider"
 import { NavProjects } from "./sidebar/nav-projects"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import type { Team } from "@/types/team"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { createClient } from "@/lib/supabase/client"
 import { canUseTeams, normalizePlan, PLAN_LABELS } from "@/lib/billing/plans"
@@ -33,8 +32,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
 import { getAvatarColor } from "@/lib/get-avatar-colors"
-import { Badge } from "./ui/badge"
-import { Separator } from "./ui/separator"
 
 type WorkspaceItem = {
   id: string
@@ -80,12 +77,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
-  const [teamMembership, setTeamMembership] = useState<"none" | "member" | "lead">("none")
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
   const [creatingWorkspace, setCreatingWorkspace] = useState(false)
   const [openCreateWorkspace, setOpenCreateWorkspace] = useState(false)
-  const [workspaceSwitching, setWorkspaceSwitching] = useState(true)
+  const [, setWorkspaceSwitching] = useState(true)
   const [showRefreshPrompt, setShowRefreshPrompt] = useState(false)
 
   useEffect(() => {
@@ -102,54 +98,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
   }, [mounted, router])
 
-  useEffect(() => {
-    if (authLoading || !user?.id) return
-    const metadataRole =
-      typeof user?.user_metadata?.role === "string"
-        ? user.user_metadata.role
-        : null
-    const currentRole = profile?.role || metadataRole || null
-    const currentEmail = (user?.email || "").trim().toLowerCase()
-
-    const detectTeamMembership = async () => {
-      if (!currentEmail || (currentRole !== "team_member" && currentRole !== "project_member")) {
-        setTeamMembership("none")
-        return
-      }
-      try {
-        const response = await fetchWithAuth("/api/teams", {
-          cache: "no-store",
-        })
-        if (!response.ok) {
-          setTeamMembership("none")
-          return
-        }
-        const data = await response.json() as { teams?: Team[] }
-        const teams = Array.isArray(data.teams) ? data.teams : []
-        const leadFound = teams.some((team) => (team.lead?.email || "").trim().toLowerCase() === currentEmail)
-        if (leadFound) {
-          setTeamMembership("lead")
-          return
-        }
-        const memberFound = teams.some((team) =>
-          (team.members || []).some((member) => (member.email || "").trim().toLowerCase() === currentEmail),
-        )
-        setTeamMembership(memberFound ? "member" : "none")
-      } catch {
-        setTeamMembership("none")
-      }
-    }
-
-    void detectTeamMembership()
-  }, [
-    authLoading,
-    user?.id,
-    profile?.role,
-    user?.email,
-    user?.user_metadata?.role,
-  ])
-
-  const ensureOwnerWorkspace = (items: WorkspaceItem[]): WorkspaceItem[] => {
+  const ensureOwnerWorkspace = React.useCallback((items: WorkspaceItem[]): WorkspaceItem[] => {
     if (!user?.id) return items
     const ownerAvatar =
       typeof user.user_metadata?.avatar_url === "string" && user.user_metadata.avatar_url.trim()
@@ -185,7 +134,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       role: "super_admin",
     }
     return [ownerWorkspace, ...items]
-  }
+  }, [profile?.full_name, profile?.plan, profile?.role, user?.email, user?.id, user?.user_metadata])
 
   useEffect(() => {
     if (!mounted || authLoading || !user?.id) return
@@ -227,7 +176,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       window.removeEventListener("workspace:changed", handleWorkspace)
       window.removeEventListener("storage", handleWorkspace)
     }
-  }, [authLoading, mounted, user?.id])
+  }, [authLoading, ensureOwnerWorkspace, mounted, user?.id])
 
   if (!mounted) {
     return null
@@ -289,7 +238,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       : isCreateWorkspaceView
         ? "Managed by"
         : "Managed by"
-  const canAccessTeams = displayRole === "team_member" || displayRole === "team_lead" || teamMembership !== "none"
   const adminEmailList =
     typeof process.env.NEXT_PUBLIC_ADMIN_EMAILS === "string"
       ? process.env.NEXT_PUBLIC_ADMIN_EMAILS
@@ -305,7 +253,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const planAllowsTeams = canUseTeams(currentPlan)
   const showUpgradePrompt = isOwnerWorkspace && currentPlan === "free" && !isCreateWorkspaceView
   const hideManagedBy = effectiveRole === "super_admin" && !currentPlan
-
   const navItems = roleReady
     ? displayRole === "project_member"
       ? data.navMain.filter((item) => item.url === "/projects")
@@ -382,7 +329,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     {(workspace.name || "W").charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                    {workspace.name}'s Workspace
+                    {workspace.name}&apos;s Workspace
                   </SelectItem>
                 ))}
                 {!ownsWorkspace ? (
