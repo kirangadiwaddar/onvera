@@ -7,6 +7,7 @@ import { AuthProvider } from "@/components/providers/auth-provider"
 import { QueryProvider } from "@/components/providers/query-provider"
 import { Toaster } from "sonner";
 import { BadgeCheck, BadgeX } from "lucide-react";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const sora = Sora({
   subsets: ["latin"],
@@ -66,6 +67,7 @@ export default function RootLayout({
             },
           }}
         />
+        <SpeedInsights />
       </body>
     </html>
   );
