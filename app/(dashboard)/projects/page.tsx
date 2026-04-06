@@ -6,8 +6,8 @@ import { FolderOpenDot, LayoutGrid, List, ListFilter, Lock, MoreVertical, Pencil
 import { ProjectCard } from "@/components/project-card"
 import { ProjectModal, type ProjectFormValues } from "@/components/projects/project-modal"
 import { DeleteProjectAlert } from "@/components/projects/delete-project-alert"
+import { ProjectsPageSkeleton } from "@/components/dashboard/dashboard-skeleton"
 import { EmptyState } from "@/components/emptyState"
-import { LoadingState } from "@/components/loadingState"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -474,13 +474,8 @@ export default function Page() {
     }
   }
 
-  if (loading) {
-    return (
-      <LoadingState
-        title="Loading Projects..."
-        description="Fetching your projects, please wait."
-      />
-    )
+  if (authLoading || loading) {
+    return <ProjectsPageSkeleton />
   }
 
   return (

@@ -121,7 +121,7 @@ export function CompletedProjectsChart({ completed, total }: Props) {
             </PolarRadiusAxis>
           </RadialBarChart>
         </ChartContainer>
-        <div className="flex items-center justify-center gap-2 leading-none font-medium mt-10 text-sm">
+        <div className="flex items-center justify-center gap-2 leading-none font-medium mt-6 text-sm">
           {percentage}% completion rate <TrendingUp className="size-4" />
         </div>
       </CardContent>

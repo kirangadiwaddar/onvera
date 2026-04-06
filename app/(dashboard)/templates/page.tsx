@@ -1,11 +1,10 @@
 "use client"
 
 import TemplateCards from '@/components/templateCard'
+import { ProjectsPageSkeleton } from '@/components/dashboard/dashboard-skeleton'
 import { EmptyState } from '@/components/emptyState'
-import { LoadingState } from '@/components/loadingState'
 import { useAuth } from '@/components/providers/auth-provider'
 import React, { useEffect, useState } from 'react'
-import { Spinner } from '@/components/ui/spinner'
 import { TriangleAlert } from 'lucide-react'
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 
@@ -89,12 +88,7 @@ export default function Page() {
   }, [loading, user?.id])
 
   if (loading) {
-    return (
-      <LoadingState
-        title="Loading Templates"
-        description="Checking your access permissions."
-      />
-    )
+    return <ProjectsPageSkeleton />
   }
 
   if (!canAccessTemplates) {

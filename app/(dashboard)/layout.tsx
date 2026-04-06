@@ -22,7 +22,7 @@ export default function AdminLayout({
     >
       <AuthGuard />
       <AppSidebar variant="inset" />
-      <SidebarInset className="shadow-none! border border-border bg-background overflow-hidden">
+      <SidebarInset className="overflow-hidden bg-zinc-50 shadow-none dark:bg-zinc-950">
         <SiteHeader />
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">

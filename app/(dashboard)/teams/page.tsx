@@ -5,6 +5,7 @@ import { LayoutGrid, List, Lock, Plus, Users, TriangleAlert } from "lucide-react
 import Link from "next/link"
 
 import TeamCard from "@/components/teamCard"
+import { ProjectsPageSkeleton } from "@/components/dashboard/dashboard-skeleton"
 import { TeamModal, type TeamFormValues } from "@/components/teams/team-modal"
 import { DeleteTeamAlert } from "@/components/teams/delete-team-alert"
 import { Button } from "@/components/ui/button"
@@ -14,7 +15,6 @@ import type { Team } from "@/types/team"
 import { useAuth } from "@/components/providers/auth-provider"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { toast } from "sonner"
-import { LoadingState } from "@/components/loadingState"
 import { EmptyState } from "@/components/emptyState"
 import { canUseTeams, getPlanLimits, normalizePlan } from "@/lib/billing/plans"
 
@@ -148,12 +148,7 @@ export default function Page() {
   }, [authLoading, user?.id])
 
   if (authLoading) {
-    return (
-      <LoadingState
-        title="Loading Teams"
-        description="Checking your access permissions."
-      />
-    )
+    return <ProjectsPageSkeleton />
   }
 
   const handleCreateTeam = async (values: TeamFormValues) => {
@@ -250,12 +245,7 @@ export default function Page() {
   }
 
   if (loadingTeams) {
-    return (
-      <LoadingState
-        title="Loading Teams"
-        description="Fetching your teams and assignments."
-      />
-    )
+    return <ProjectsPageSkeleton />
   }
 
   if (!planAllowsTeams && isSuperAdmin) {
