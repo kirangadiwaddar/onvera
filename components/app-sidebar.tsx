@@ -301,11 +301,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <Select
               value={selectedWorkspaceId ?? ""}
               onValueChange={(value) => {
+                if (value === selectedWorkspaceId) return
                 setWorkspaceSwitching(true)
                 setSelectedWorkspaceId(value)
                 if (value !== "__create__" && typeof window !== "undefined") {
                   window.localStorage.setItem("onvera:workspace", value)
                   window.dispatchEvent(new Event("workspace:changed"))
+                  router.replace("/projects")
+                  router.refresh()
                 }
                 if (value === "__create__") {
                   setOpenCreateWorkspace(true)

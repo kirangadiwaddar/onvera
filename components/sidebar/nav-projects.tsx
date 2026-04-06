@@ -14,24 +14,17 @@ import {
 import type { Project } from "@/types/project"
 import { fetchWithAuth } from "@/lib/auth/client-fetch"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useWorkspaceId } from "@/lib/query/use-workspace-id"
 
 export function NavProjects() {
   const [projects, setProjects] = useState<
     Array<Pick<Project, "id" | "slug" | "title" | "status" | "createdAt" | "updatedAt" | "createdBy">>
   >([])
   const { user, loading: authLoading } = useAuth()
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
+  const selectedWorkspaceId = useWorkspaceId()
 
   useEffect(() => {
     if (authLoading || !user?.id) return
-    const handleWorkspace = () => {
-      if (typeof window === "undefined") return
-      const stored = window.localStorage.getItem("onvera:workspace")
-      setSelectedWorkspaceId(stored)
-    }
-    handleWorkspace()
-    window.addEventListener("workspace:changed", handleWorkspace)
-    window.addEventListener("storage", handleWorkspace)
     let isActive = true
     let intervalId: ReturnType<typeof setInterval> | null = null
     const POLL_INTERVAL_MS = 30000
@@ -71,6 +64,9 @@ export function NavProjects() {
 
     void fetchProjects()
     intervalId = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return
+      }
       void fetchProjects()
     }, POLL_INTERVAL_MS)
 
@@ -90,8 +86,6 @@ export function NavProjects() {
       if (intervalId) clearInterval(intervalId)
       window.removeEventListener("focus", handleFocus)
       document.removeEventListener("visibilitychange", handleVisibility)
-      window.removeEventListener("workspace:changed", handleWorkspace)
-      window.removeEventListener("storage", handleWorkspace)
     }
   }, [authLoading, selectedWorkspaceId, user?.id])
 
