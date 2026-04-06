@@ -267,7 +267,11 @@ export async function getStoreData(options: StoreDataOptions = {}): Promise<Stor
         ? admin.from("projects").select(projectColumns).order("created_at", { ascending: false })
         : Promise.resolve({ data: [] as ProjectRow[], error: null }),
       includeTeams
-        ? admin.from("teams").select("id,name,slug,description,status,lead,members,created_at,created_by").order("id", { ascending: true })
+        ? admin
+            .from("teams")
+            .select("id,name,slug,description,status,lead,members,created_at,created_by")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
         : Promise.resolve({ data: [] as TeamRow[], error: null }),
       fetchTemplates(),
     ])

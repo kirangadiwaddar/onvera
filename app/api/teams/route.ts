@@ -36,6 +36,11 @@ export async function GET(request: Request) {
     ...team,
     projectsAssigned: projectCountByTeamId.get(team.id) ?? 0,
   }))
+  enrichedTeams.sort((a, b) => {
+    const createdAtDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    if (createdAtDiff !== 0) return createdAtDiff
+    return b.id - a.id
+  })
 
   return NextResponse.json({ teams: enrichedTeams })
 }

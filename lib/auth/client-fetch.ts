@@ -70,6 +70,16 @@ function clearResponseCache() {
   inflightGetRequests.clear()
 }
 
+function createNetworkErrorResponse() {
+  return new Response(JSON.stringify({ message: "Network error" }), {
+    status: 503,
+    statusText: "Network error",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  })
+}
+
 export async function fetchWithAuth(input: RequestInfo | URL, init: RequestInit = {}) {
   let session = await getSessionCached()
 
@@ -116,7 +126,7 @@ export async function fetchWithAuth(input: RequestInfo | URL, init: RequestInit 
     try {
       return await fetch(input, { ...init, method, headers })
     } catch {
-      return new Response(null, { status: 0, statusText: "Network error" })
+      return createNetworkErrorResponse()
     }
   }
 
@@ -126,7 +136,7 @@ export async function fetchWithAuth(input: RequestInfo | URL, init: RequestInit 
     const response = await pending
     inflightGetRequests.delete(cacheKey)
 
-    if (response.status !== 0) {
+    if (response.ok) {
       const ttlMs = getCacheTtlMs(url)
       if (ttlMs > 0) {
         responseCache.set(cacheKey, {
@@ -145,6 +155,6 @@ export async function fetchWithAuth(input: RequestInfo | URL, init: RequestInit 
     }
     return response
   } catch {
-    return new Response(null, { status: 0, statusText: "Network error" })
+    return createNetworkErrorResponse()
   }
 }

@@ -73,7 +73,7 @@ export function RecentActivity({
         className={
           isBare
             ? "activity-list divide-y divide-zinc-100 px-0 dark:divide-white/10"
-            : "activity-list max-h-118 overflow-y-auto divide-y divide-zinc-100 px-3 dark:divide-white/10"
+            : "activity-list themed-scrollbar max-h-118 overflow-y-auto divide-y divide-zinc-100 px-3 dark:divide-white/10"
         }
       >
         {loading ? (
@@ -125,7 +125,7 @@ export function RecentActivity({
                 {isList ? (
                   <div className={isUnread ? "mr-0.5 mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-violet-500" : "mr-0.5 mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-700"} />
                 ) : null}
-                <div className={isList ? "min-w-0 flex-1 space-y-1" : "space-y-1 max-w-[78%]"}>
+                <div className={isList ? "min-w-0 flex-1 space-y-1" : "space-y-1 max-w-[74%]"}>
                   <div className={isList ? "flex items-start gap-2 text-sm" : "text-sm flex items-center gap-1"}>
                     <p className={`leading-5 text-xs capitalize ${isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/90"}`}>{activity.title}</p>
                     <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${statusTone(isFailure, isUnread)}`}>

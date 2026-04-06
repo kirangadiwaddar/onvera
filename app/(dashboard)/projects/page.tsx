@@ -692,7 +692,7 @@ export default function Page() {
                                   </Avatar>
                                 ))}
                                 {project.members.length > 3 && (
-                                  <AvatarGroupCount className="bg-primary text-white">+{project.members.length - 3}</AvatarGroupCount>
+                                  <AvatarGroupCount className="bg-primary text-white dark:bg-violet-900">+{project.members.length - 3}</AvatarGroupCount>
                                 )}
                               </AvatarGroup>
                             ) : (
