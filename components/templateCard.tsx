@@ -29,7 +29,7 @@ import { AVATAR_COLOR_CLASSES } from "@/lib/avatar-colors";
 import { ProjectModal, type ProjectFormValues } from "@/components/projects/project-modal";
 import { fetchWithAuth } from "@/lib/auth/client-fetch";
 import { useAuth } from "@/components/providers/auth-provider"
-import { LoadingState } from "@/components/loadingState";
+import { ProjectsPageSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { toast } from "sonner";
 import {
     AlertDialog,
@@ -440,12 +440,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
     }
 
     if (loadingTemplates) {
-        return (
-            <LoadingState
-                title="Loading Templates"
-                description="Fetching your project templates."
-            />
-        )
+        return <ProjectsPageSkeleton />
     }
 
     return (

@@ -5,12 +5,12 @@ import dynamic from "next/dynamic"
 
 import { SectionCards } from "@/components/dashboard/section-cards"
 import { AlarmClockMinus, CalendarCheck, GalleryVerticalEnd, Pause, Timer, TriangleAlert } from "lucide-react"
-import { LoadingState } from "@/components/loadingState"
 import { EmptyState } from "@/components/emptyState"
 import {
   DashboardChartCardSkeleton,
   DashboardChartsSkeleton,
   DashboardPanelSkeleton,
+  DashboardPageSkeleton,
   DashboardStatsSkeleton,
 } from "@/components/dashboard/dashboard-skeleton"
 
@@ -214,9 +214,7 @@ export default function Page() {
   }, [authLoading, user?.id])
 
   if (authLoading) {
-    return (
-      <LoadingState title="Loading dashboard..." description="Checking your access permissions." />
-    )
+    return <DashboardPageSkeleton />
   }
 
   if (user && isRestricted) {
@@ -247,6 +245,15 @@ export default function Page() {
         />
       </div>
     )
+  }
+
+  const isDashboardLoading =
+    dashboardCountsQuery.isPending ||
+    dashboardProjectsSummaryQuery.isPending ||
+    dashboardRecentActivityQuery.isPending
+
+  if (isDashboardLoading && !statsData && !projectsSummary.length && !recentActivities.length) {
+    return <DashboardPageSkeleton />
   }
 
   const stats = [

@@ -704,7 +704,7 @@ export default function OnveraLandingV2Page() {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="themed-scrollbar overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-white/[0.03] text-zinc-600 dark:text-white/70">
                 <tr>

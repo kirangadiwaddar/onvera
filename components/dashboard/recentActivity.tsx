@@ -127,7 +127,7 @@ export function RecentActivity({
                 ) : null}
                 <div className={isList ? "min-w-0 flex-1 space-y-1" : "space-y-1 max-w-[74%]"}>
                   <div className={isList ? "flex items-start gap-2 text-sm" : "text-sm flex items-center gap-1"}>
-                    <p className={`leading-5 text-xs capitalize ${isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/90"}`}>{activity.title}</p>
+                    <p className={`leading-5 text-sm capitalize ${isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/90"}`}>{activity.title}</p>
                     <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${statusTone(isFailure, isUnread)}`}>
                       {isFailure ? (
                         <BadgeX size={12} />

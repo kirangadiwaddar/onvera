@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Sora } from "next/font/google";
 import "./globals.css";
 import "@uppy/core/css/style.css";
 import "@uppy/drag-drop/css/style.css";
@@ -8,12 +7,6 @@ import { QueryProvider } from "@/components/providers/query-provider"
 import { Toaster } from "sonner";
 import { BadgeCheck, BadgeX } from "lucide-react";
 import { SpeedInsights } from "@vercel/speed-insights/next"
-
-const sora = Sora({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-sora",
-})
 
 // import { MockProvider } from '../src/mocks/MockProvider'
 
@@ -45,7 +38,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className={sora.className}>
+      <body className="font-sans">
         {/* <MockProvider> */}
         <QueryProvider>
           <AuthProvider>{children}</AuthProvider>
