@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
+export const revalidate = 30
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import { createPrivateApiCacheHeaders } from "@/lib/server/cache-headers"
 import { getAccessibleProjectRows, getTeamAccessScope } from "@/lib/server/project-access"
 import type { status } from "@/lib/project-status"
 
@@ -11,6 +13,7 @@ type DashboardSummaryCacheEntry = {
 
 const DASHBOARD_SUMMARY_CACHE_TTL_MS = 8_000
 const dashboardSummaryCache = new Map<string, DashboardSummaryCacheEntry>()
+const cacheHeaders = createPrivateApiCacheHeaders(8, 24)
 
 type ProjectRow = {
   id: number
@@ -34,7 +37,7 @@ export async function GET(request: Request) {
   const cacheKey = `dashboard-summary:${identity.userId}:${identity.role ?? ""}:${identity.email ?? ""}:${workspaceId}`
   const cached = dashboardSummaryCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json(cached.payload)
+    return NextResponse.json(cached.payload, { headers: cacheHeaders })
   }
   if (cached) {
     dashboardSummaryCache.delete(cacheKey)
@@ -46,7 +49,7 @@ export async function GET(request: Request) {
       stats: { total: 0, completed: 0, waiting: 0, overdue: 0, ongoing: 0 },
       charts: { completed: 0, total: 0 },
       lists: { latestWaitingOverdue: [] },
-    })
+    }, { headers: cacheHeaders })
   }
 
   const { memberTeamIds } = await getTeamAccessScope(admin, {
@@ -124,5 +127,5 @@ export async function GET(request: Request) {
     expiresAt: Date.now() + DASHBOARD_SUMMARY_CACHE_TTL_MS,
   })
 
-  return NextResponse.json(payload)
+  return NextResponse.json(payload, { headers: cacheHeaders })
 }

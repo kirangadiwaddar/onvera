@@ -624,10 +624,10 @@ export default function ClientOnboardingPage() {
           {/* <div className="text-sm text-muted-foreground">
             Team Members: {project.members?.length || 1}
           </div> */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 md:gap-3">
             {members.length > 0 ? (
               <div className="flex items-center gap-2 rounded-full border border-zinc-200 bg-violet-100 p-2 pl-3 dark:border-white/10 dark:bg-violet-500/15">
-                <p className="text-sm font-medium text-violet-900 dark:text-violet-200">Team Members </p>
+                <p className="hidden md:block text-sm font-medium text-violet-900 dark:text-violet-200">Team Members </p>
                 <AvatarGroup>
                   {visibleMembers.map((member) => (
                     <Avatar key={member.id} size="sm">
@@ -693,14 +693,14 @@ export default function ClientOnboardingPage() {
       </header>
 
       {/* Main Layout */}
-      <div className="max-w-7xl mx-auto px-6 sm:grid sm:grid-cols-3 gap-10 min-h-[calc(100dvh-85px)]">
+      <div className="md:max-w-7xl mx-auto px-6 sm:grid sm:grid-cols-3 gap-10 min-h-[calc(100dvh-85px)]">
 
         {/* LEFT 60% */}
-        <div className="left-block col-span-2 space-y-8 border-r border-zinc-200 py-10 pr-10 h-full dark:border-white/10">
+        <div className="left-block col-span-2 space-y-8 md:border-r border-zinc-200 py-10 md:pr-10 h-full dark:border-white/10">
 
           {/* Project Title */}
           <div className="space-y-2">
-            <h1 className="text-3xl font-semibold">
+            <h1 className="text-2xl md:text-3xl font-semibold">
               {project.title}
             </h1>
             <p className="text-muted-foreground">
@@ -738,7 +738,7 @@ export default function ClientOnboardingPage() {
                   strokeDashoffset={progressOffset}
                 />
               </svg>
-              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-zinc-700">
+              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-zinc-700 dark:text-zinc-200">
                 {progress === 100 ? (
                   <Check strokeWidth={3} className="size-6 text-emerald-500" />
                 ) : (

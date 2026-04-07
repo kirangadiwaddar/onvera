@@ -67,9 +67,9 @@ export function NavUser({
     <>
     {!hideManagedBy ? (
       <div className="text-center group-data-[collapsible=icon]:hidden">
-        <div className="inline-block rounded-sm bg-violet-100 px-2 py-1 text-xs capitalize text-primary dark:bg-violet-500/15">
+        <div className="inline-block rounded-sm bg-violet-100 px-2 py-1 text-xs font-medium capitalize text-primary dark:bg-violet-500/15">
           {managedByPrefix} -{" "}
-          <span className="text-violet-900 font-semibold capitalize dark:text-violet-200">
+          <span className="text-violet-600 font-semibold capitalize dark:text-violet-300">
             {managedBy}
           </span>
         </div>

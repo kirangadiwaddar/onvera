@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
+export const revalidate = 30
 
 import { getRequestIdentityFromRequestWithOptions } from "@/lib/auth/request-identity"
 import { resolveDashboardWorkspaceId } from "@/lib/server/dashboard-data"
+import { createPrivateApiCacheHeaders } from "@/lib/server/cache-headers"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 type DashboardCountsCacheEntry = {
@@ -11,6 +13,7 @@ type DashboardCountsCacheEntry = {
 
 const DASHBOARD_COUNTS_CACHE_TTL_MS = 8_000
 const dashboardCountsCache = new Map<string, DashboardCountsCacheEntry>()
+const cacheHeaders = createPrivateApiCacheHeaders(8, 24)
 
 export async function GET(request: Request) {
   const identity = await getRequestIdentityFromRequestWithOptions(request, {
@@ -24,7 +27,7 @@ export async function GET(request: Request) {
   const cacheKey = `dashboard-counts:${identity.userId}:${identity.role ?? ""}:${identity.email ?? ""}:${workspaceId}`
   const cached = dashboardCountsCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json(cached.payload)
+    return NextResponse.json(cached.payload, { headers: cacheHeaders })
   }
   if (cached) {
     dashboardCountsCache.delete(cacheKey)
@@ -35,7 +38,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       stats: { total: 0, completed: 0, waiting: 0, overdue: 0, ongoing: 0 },
       charts: { completed: 0, total: 0 },
-    })
+    }, { headers: cacheHeaders })
   }
 
   const { data } = await admin
@@ -81,5 +84,5 @@ export async function GET(request: Request) {
     expiresAt: Date.now() + DASHBOARD_COUNTS_CACHE_TTL_MS,
   })
 
-  return NextResponse.json(payload)
+  return NextResponse.json(payload, { headers: cacheHeaders })
 }

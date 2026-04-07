@@ -204,7 +204,7 @@ export function ProjectCard({
                                 {title}
                             </h3>
                             {templateTitle && (
-                                <p className="text-xs text-muted-foreground truncate">
+                                <p className="text-sm text-muted-foreground truncate">
                                     {templateTitle}
                                 </p>
                             )}
@@ -212,7 +212,7 @@ export function ProjectCard({
                     </div>
 
                     {variant === "default" && teams.length > 0 && (
-                        <p className="text-xs text-muted-foreground truncate">
+                        <p className="text-sm text-muted-foreground truncate">
                             {teams.map(t => t.name).join(", ")}
                         </p>
                     )}

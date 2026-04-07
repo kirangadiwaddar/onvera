@@ -21,7 +21,7 @@ type Props = {
 
 export function SectionCards({ stats }: Props) {
   return (
-    <div className="*:data-[slot=card]:p-5 *:data-[slot=card]:border-none *:data-[slot=card]:shadow-xs *:data-[slot=card]:rounded-2xl *:data-[slot=card]:bg-white/90 *:data-[slot=card]:backdrop-blur-2xl dark:*:data-[slot=card]:bg-white/5 dark:*:data-[slot=card]:border dark:*:data-[slot=card]:border-white/10 grid grid-cols-1 gap-5 bg-linear-to-b from-violet-50 to-transparent p-5 lg:px-4 dark:from-violet-500/10 @xl/main:grid-cols-5 @5xl/main:grid-cols-5">
+    <div className="*:data-[slot=card]:p-5 *:data-[slot=card]:border-none *:data-[slot=card]:shadow-xs *:data-[slot=card]:rounded-2xl *:data-[slot=card]:bg-white/90 *:data-[slot=card]:backdrop-blur-2xl dark:*:data-[slot=card]:bg-white/5 dark:*:data-[slot=card]:border dark:*:data-[slot=card]:border-white/10 grid grid-cols-2 gap-4 bg-linear-to-b from-violet-50 to-transparent px-4 py-4 sm:px-5 sm:py-5 dark:from-violet-500/10 md:grid-cols-2 xl:grid-cols-3 @xl/main:grid-cols-5 @5xl/main:grid-cols-5">
       {stats.map((stat) => {
         const Icon = stat.icon
 

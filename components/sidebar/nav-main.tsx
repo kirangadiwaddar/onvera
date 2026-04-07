@@ -9,6 +9,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import Link from "next/link"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -29,6 +30,7 @@ export function NavMain({
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const workspaceId = useWorkspaceId()
+  const { isMobile, setOpenMobile } = useSidebar()
 
   const primaryItems = items.slice(0, 2)
   const workspaceItems = items.slice(2)
@@ -38,8 +40,13 @@ export function NavMain({
     void prefetchDashboardData(queryClient, {
       userId: user?.id,
       workspaceId,
-      limit: 50,
+      limit: 12,
     })
+  }
+
+  const handleNavigate = () => {
+    if (!isMobile) return
+    setOpenMobile(false)
   }
 
   const renderItems = (navItems: typeof items) =>
@@ -52,6 +59,7 @@ export function NavMain({
             prefetch={false}
             onMouseEnter={() => handleWarmRoute(item.url)}
             onFocus={() => handleWarmRoute(item.url)}
+            onClick={handleNavigate}
           >
             <SidebarMenuButton
               tooltip={item.title}

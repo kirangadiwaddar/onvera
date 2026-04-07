@@ -117,7 +117,7 @@ export function NotificationBell() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="right"
-          className="rounded-2xl rounded-r-none border borer-r-0 border-zinc-200 bg-white p-0 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
+          className="w-[90%] md:w-auto rounded-2xl rounded-r-none border borer-r-0 border-zinc-200 bg-white p-0 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
           showCloseButton={false}
           onOpenAutoFocus={(event) => event.preventDefault()}
         >

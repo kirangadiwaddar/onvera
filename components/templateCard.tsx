@@ -445,9 +445,10 @@ export default function TemplateCards({ canSeed = true }: Props) {
 
     return (
         <>
-            <div className="flex items-center justify-between px-7 pt-0">
+            <div className="flex flex-col gap-4 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-5">
                 <p className="text-sm flex-1 lg:line-clamp-2">Stop starting from scratch — build smarter with structured templates.</p>
-                <div className="flex items-center gap-3">
+                <div className="right-actions flex w-full flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:w-auto">
+                    <div className="right-combine-actions flex items-center justify-between gap-3 sm:justify-end">
                     <div className="flex items-center gap-1 rounded-full border border-zinc-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/5">
                         <Button
                             size="icon-sm"
@@ -478,6 +479,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
                         <LayoutPanelTop />
                         Default templates
                     </Button>
+                    </div>
                     <Button
                         variant="gradient"
                         onClick={() => {
@@ -496,7 +498,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
             </div>
             <Separator className="my-0 bg-border" />
             {templates.length === 0 ? (
-                <div className="p-7 pb-0 pt-0">
+                <div className="px-4 pt-0 pb-0 sm:px-6">
                     <EmptyState
                         icon={<LayoutPanelTop />}
                         title="No templates yet"
@@ -506,7 +508,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
                     />
                 </div>
             ) : viewMode === "grid" ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
+                <div className="grid grid-cols-1 gap-4 px-4 pt-0 pb-0 sm:px-6 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {templates.map((template, index) => {
                         const avatarClassName = AVATAR_COLOR_CLASSES[index % AVATAR_COLOR_CLASSES.length]
                         const isTemplateLocked = lockedTemplateIds.has(template.id)
@@ -582,7 +584,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
 
                                 <CardContent className="flex-1 mb-3 px-5">
                                     <CardTitle className="font-medium text-sm truncate mb-2">{template.title}</CardTitle>
-                                    <p className="text-xs text-muted-foreground line-clamp-2 min-w-0">
+                                    <p className="text-sm text-muted-foreground line-clamp-2 min-w-0">
                                         {template.description}
                                     </p>
                                 </CardContent>
@@ -650,9 +652,9 @@ export default function TemplateCards({ canSeed = true }: Props) {
                     })}
                 </div>
             ) : (
-                <div className="p-7 pb-0 pt-0">
+                <div className="px-4 pt-0 pb-0 sm:px-6">
                     <div className="rounded-2xl border border-zinc-200 dark:border-white/10 overflow-hidden">
-                        <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-4 text-sm">
+                        <Table className="text-sm [&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-4">
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Template</TableHead>
@@ -859,7 +861,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
                         }
                     }}
                 >
-                    <DialogContent className="sm:max-w-2xl overflow-hidden">
+                    <DialogContent className="overflow-hidden sm:max-w-2xl">
                         <DialogHeader>
                             <div>
                                 <DialogTitle>Select the templates you want to add</DialogTitle>
@@ -880,14 +882,14 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                     No default templates found.
                                 </div>
                             ) : null}
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span className="text-[11px]">
+                            <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                                <span className="text-xs">
                                     Choose up to {Number.isFinite(seedRemaining) ? seedRemaining : "all"} templates
                                 </span>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <button
                                         type="button"
-                                        className="rounded-full border border-transparent px-2 py-1 text-[11px] text-violet-700 hover:border-violet-200 hover:bg-violet-50 dark:hover:border-violet-500/30 dark:hover:bg-violet-500/10"
+                                        className="rounded-full border border-transparent px-2 py-1 text-xs text-violet-700 hover:border-violet-200 hover:bg-violet-50 dark:hover:border-violet-500/30 dark:hover:bg-violet-500/10"
                                         onClick={() => {
                                             const keys = selectableSeedTemplates.map((t) => t.template_key ?? t.id)
                                             if (seedRemaining !== Number.POSITIVE_INFINITY) {
@@ -902,7 +904,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                     </button>
                                     <button
                                         type="button"
-                                        className="rounded-full border border-transparent px-2 py-1 text-[11px] text-zinc-600 hover:border-zinc-200 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:border-white/10 dark:hover:bg-white/5"
+                                        className="rounded-full border border-transparent px-2 py-1 text-xs text-zinc-600 hover:border-zinc-200 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:border-white/10 dark:hover:bg-white/5"
                                         onClick={() => setSelectedSeedKeys([])}
                                         disabled={loadingDefaults}
                                     >
@@ -910,7 +912,7 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                     </button>
                                 </div>
                             </div>
-                            <div className="max-h-[45vh] grid grid-cols-2 gap-3 overflow-y-auto pr-1">
+                            <div className="grid max-h-[45vh] grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
                                 {defaultTemplates.map((template: DefaultTemplate) => {
                                     const key = template.template_key ?? template.id
                                     const checked = selectedSeedKeys.includes(key)
@@ -942,10 +944,10 @@ export default function TemplateCards({ canSeed = true }: Props) {
                                                 }}
                                             />
                                             <div className="min-w-0">
-                                                <p className="text-xs font-medium leading-5">{template.title}</p>
-                                                <p className="text-[10px] text-muted-foreground line-clamp-2">{template.description}</p>
+                                                <p className="text-sm font-medium leading-5">{template.title}</p>
+                                                <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
                                                 {isExisting ? (
-                                                    <p className="text-[11px] text-emerald-600 mt-1">Already added</p>
+                                                    <p className="text-xs text-emerald-600 mt-1">Already added</p>
                                                 ) : null}
                                             </div>
                                             <span

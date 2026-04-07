@@ -115,7 +115,7 @@ export function RecentActivity({
                 type="button"
                 onClick={() => onActivityClick?.(activity)}
                 className={
-                  `${isList ? "rounded-2xl px-3 border-none group flex w-full items-start justify-between gap-4 py-3.5 text-left" : "activity-item w-full flex items-start justify-between py-4 gap-6 text-left"} ` +
+                  `${isList ? "rounded-2xl px-3 border-none group flex w-full items-start justify-between gap-2 py-3.5 text-left" : "activity-item w-full flex items-start justify-between py-4 gap-6 text-left"} ` +
                   `${isUnread
                     ? "unread-notification bg-violet-50 dark:bg-violet-900/10 hover:bg-violet-100! dark:hover:bg-violet-900/20! mb-2"
                     : "read-notification"} ` +
@@ -123,18 +123,19 @@ export function RecentActivity({
                 }
               >
                 {isList ? (
-                  <div className={isUnread ? "mr-0.5 mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-violet-500" : "mr-0.5 mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-700"} />
+                  <div className={isUnread ? "mr-0.5 mt-1.25 h-2.5 w-2.5 shrink-0 rounded-full bg-violet-500" : "mr-0.5 mt-1.25 h-2.5 w-2.5 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-700"} />
                 ) : null}
                 <div className={isList ? "min-w-0 flex-1 space-y-1" : "space-y-1 max-w-[74%]"}>
-                  <div className={isList ? "flex items-start gap-2 text-sm" : "text-sm flex items-center gap-1"}>
-                    <p className={`leading-5 text-sm capitalize ${isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/90"}`}>{activity.title}</p>
-                    <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${statusTone(isFailure, isUnread)}`}>
+                  <div className={isList ? "flex items-start gap-1 text-sm" : "text-sm flex items-center gap-1"}>
+                    <p className={`leading-5 truncate text-sm capitalize ${isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/90"}`}>{activity.title}</p>
+                    <span className={`inline-block shrink-0 relative top-0.75 rounded-full ${statusTone(isFailure, isUnread)}`}>
                       {isFailure ? (
-                        <BadgeX size={12} />
+                        <BadgeX size={14} />
                       ) : (
-                        <BadgeCheck size={12} />
+                        <BadgeCheck size={14} />
                       )}
                     </span>
+                    
                   </div>
                   <p className="truncate text-xs capitalize text-muted-foreground">                    
                     <span className="font-medium text-violet-900 dark:text-violet-300">{activity.actor ? `${activity.actor} • ` : ""}</span>

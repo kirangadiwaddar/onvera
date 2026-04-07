@@ -532,11 +532,12 @@ export default function ProjectDetailPage() {
   const formatNoteTime = (value: string) => {
     const date = new Date(value)
     if (!Number.isFinite(date.getTime())) return ""
-    return date.toLocaleString("en-GB", {
+    return date.toLocaleString("en-US", {
       day: "2-digit",
       month: "short",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
     })
   }
 
@@ -1556,21 +1557,21 @@ export default function ProjectDetailPage() {
       ) : null}
 
       <div className="flex flex-col py-4 md:py-6">
-      <div className="flex flex-col lg:flex-row items-center justify-between px-7 pb-2 gap-4 lg:gap-5">
+      <div className="flex flex-col gap-4 px-4 pb-2 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-5">
         {/* <h1 className="text-3xl font-semibold">
           {project.title}
         </h1> */}
 
-        <div className="flex items-center gap-2">
-          <Badge className="py-2 px-3 text-cyan-900 bg-cyan-100 dark:bg-cyan-950 dark:text-white">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className="p-2 text-cyan-900 bg-cyan-100 dark:bg-cyan-950 dark:text-white">
             {project.templateTitle}
           </Badge>
-          <Badge className="bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-sky-300 py-2 px-3 overflow-hidden">
+          <Badge className="bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-sky-300 p-2 overflow-hidden">
             <CalendarCheck />{" "}
             {new Date(project.createdAt).toLocaleDateString("en-GB")}
           </Badge>
           {isProjectLocked ? (
-            <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200 py-2 px-3">
+            <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200 p-2">
               <Lock className="size-4" />
               Locked
             </Badge>
@@ -1601,7 +1602,7 @@ export default function ProjectDetailPage() {
           )}
         </div>
 
-        <div className="flex gap-3 flex-wrap items-center">
+        <div className="flex flex-wrap items-center gap-3">
           {canManageChecklist ? (
             <ClientAccessModal projectSlug={project.slug} canManage={canManageChecklist} />
           ) : null}
@@ -2034,8 +2035,8 @@ export default function ProjectDetailPage() {
         </Sheet>
       ) : null}
 
-      <div className="px-7 py-0 grid grid-cols-3">
-        <div className="left-block col-span-2 border-r border-zinc-100 dark:border-zinc-700 h-full py-5 pb-7 pr-5">
+      <div className="grid grid-cols-1 gap-6 px-4 py-0 sm:px-6 xl:grid-cols-3">
+        <div className="left-block h-full py-5 pb-7 xl:col-span-2 xl:border-r xl:border-zinc-100 xl:pr-5 dark:xl:border-zinc-700">
           <div className="flex items-center justify-between gap-6 mb-6">
             <div>
               <h3 className="text-sm text-muted-foreground">
@@ -2199,7 +2200,7 @@ export default function ProjectDetailPage() {
             )}
           </div>}
         </div>
-        <div className="right-block p-5 space-y-6">
+        <div className="right-block space-y-6 border-t border-zinc-100 pt-5 pb-5 sm:pb-0 xl:border-t-0 xl:pt-5 dark:border-zinc-700/70">
           {getUploadedEntries(project.submissions || {}, [...templateSections, ...customSections]).length === 0 ? (
             <EmptyState icon={<Files />} title="No Files Uploaded" description="Client onboarding is pending" />
           ) :
@@ -2259,9 +2260,9 @@ export default function ProjectDetailPage() {
 
       <Separator className=" bg-border" />
 
-      <div className="p-7 space-y-8">
+      <div className="space-y-8 px-4 py-6 sm:px-6 sm:py-7">
         <div>
-          <div className="title-flex flex items-center justify-between gap-3 mb-5">
+          <div className="title-flex mb-5 flex gap-3 justify-between items-center flex-wrap">
             <h3 className="text-base font-medium">
               {teamAccessEnabled ? "Teams & Members" : "Project Members"}
             </h3>
@@ -2300,7 +2301,7 @@ export default function ProjectDetailPage() {
               // }}
             />
           ) : (
-            <div className="rounded-xl border overflow-hidden">
+            <div className="overflow-hidden rounded-xl border">
               <Table className="[&_th]:px-5 [&_th]:py-5 [&_td]:px-5 [&_td]:py-4 text-sm">
                 <TableHeader>
                   <TableRow>
@@ -2650,8 +2651,8 @@ export default function ProjectDetailPage() {
             <DialogTitle>{viewTeam?.name || "Team Members"}</DialogTitle>
           </DialogHeader>
           {viewTeam ? (
-            <div className="overflow-hidden -mx-5">
-              <Table className="[&_th]:px-5 [&_th]:py-4 [&_td]:px-5 [&_td]:py-4 text-sm">
+            <div className="-mx-5 overflow-x-auto">
+              <Table className="text-sm [&_th]:px-5 [&_th]:py-4 [&_td]:px-5 [&_td]:py-4">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
