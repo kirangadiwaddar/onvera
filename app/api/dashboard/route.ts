@@ -3,10 +3,11 @@ import { attachRelations, getStoreData } from "@/lib/server/data-store"
 import { filterProjectsForIdentity } from "@/lib/auth/access"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
 import type { RequestIdentity } from "@/lib/auth/request-identity"
+import { createPrivateApiCacheHeaders } from "@/lib/server/cache-headers"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 export const dynamic = "force-dynamic"
-export const revalidate = 0
+export const revalidate = 30
 
 type DashboardCacheEntry = {
   expiresAt: number
@@ -16,6 +17,8 @@ type DashboardCacheEntry = {
 const DASHBOARD_CACHE_TTL_MS = 8_000
 const ACTIVITIES_CACHE_TTL_MS = 5_000
 const dashboardCache = new Map<string, DashboardCacheEntry>()
+const fullCacheHeaders = createPrivateApiCacheHeaders(8, 24)
+const activityCacheHeaders = createPrivateApiCacheHeaders(5, 15)
 
 type ActivityItem = {
   id: string
@@ -135,7 +138,9 @@ export async function GET(request: Request) {
   const cacheKey = `dashboard:${scope || "full"}:${limit}:${identity.userId}:${identity.role ?? ""}:${identity.email ?? ""}:${workspaceId}`
   const cached = dashboardCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json(cached.payload)
+    return NextResponse.json(cached.payload, {
+      headers: scope === "activities" ? activityCacheHeaders : fullCacheHeaders,
+    })
   }
   if (cached) {
     dashboardCache.delete(cacheKey)
@@ -238,7 +243,7 @@ export async function GET(request: Request) {
         .slice(0, limit),
     }
     dashboardCache.set(cacheKey, { payload, expiresAt: Date.now() + ACTIVITIES_CACHE_TTL_MS })
-    return NextResponse.json(payload)
+    return NextResponse.json(payload, { headers: activityCacheHeaders })
   }
 
   const { projects, teams, templates } = await getStoreData({ includeTemplateStructure: false })
@@ -446,5 +451,5 @@ export async function GET(request: Request) {
     activities: recentActivities,
   }
   dashboardCache.set(cacheKey, { payload, expiresAt: Date.now() + DASHBOARD_CACHE_TTL_MS })
-  return NextResponse.json(payload)
+  return NextResponse.json(payload, { headers: fullCacheHeaders })
 }

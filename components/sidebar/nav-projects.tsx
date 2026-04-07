@@ -9,6 +9,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 import type { Project } from "@/types/project"
@@ -22,6 +23,7 @@ export function NavProjects() {
   >([])
   const { user, loading: authLoading } = useAuth()
   const selectedWorkspaceId = useWorkspaceId()
+  const { isMobile, setOpenMobile } = useSidebar()
 
   useEffect(() => {
     if (authLoading || !user?.id) return
@@ -89,6 +91,11 @@ export function NavProjects() {
     }
   }, [authLoading, selectedWorkspaceId, user?.id])
 
+  const handleNavigate = () => {
+    if (!isMobile) return
+    setOpenMobile(false)
+  }
+
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       {/* <Separator className="mb-5"/> */}
@@ -111,7 +118,7 @@ export function NavProjects() {
               className="text-xs text-zinc-600 dark:text-zinc-400 hover:dark:text-white h-auto py-1"
               size="sm"
             >
-              <Link href={`/projects/${project.slug}`}>
+              <Link href={`/projects/${project.slug}`} onClick={handleNavigate}>
                 <span>{project.title}</span>
               </Link>
             </SidebarMenuButton>

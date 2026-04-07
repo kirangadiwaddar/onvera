@@ -490,12 +490,13 @@ export default function Page() {
         />
       ) : (
         <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-          <div className="flex flex-col lg:flex-row items-center justify-between px-7 gap-4 lg:gap-5">
-            <p className="text-sm flex-1 lg:line-clamp-2">
+          <div className="flex flex-col gap-4 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-5">
+            <p className="flex-1 text-sm lg:line-clamp-2">
               Manage and track all your projects and stay on top of deadlines in one place.
             </p>
-            <div className="right-actions flex items-center gap-3 justify-end">
-              <div className="flex items-center gap-1 rounded-full border border-zinc-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/5">
+            <div className="right-actions flex w-full flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:w-auto">
+              <div className="right-combine-actions flex justify-between items-center gap-3 sm:justify-end">
+                <div className="flex items-center gap-1 self-start rounded-full border border-zinc-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/5">
                 <Button
                   size="icon-sm"
                   variant={projectsView === "grid" ? "secondary" : "ghost"}
@@ -517,7 +518,7 @@ export default function Page() {
                   <List className="size-4" />
                 </Button>
               </div>
-              <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden dark:border-white/10 dark:bg-white/5">
+              <div className="flex overflow-hidden rounded-lg border border-gray-300 dark:border-white/10 dark:bg-white/5">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -580,6 +581,7 @@ export default function Page() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
+              </div>
               {canManageProjects && (
                 <Button
                   variant="gradient"
@@ -595,7 +597,7 @@ export default function Page() {
           <Separator className="my-0 bg-border" />
 
           {filteredProjects.length === 0 ? (
-            <div className="px-7 pb-0 pt-0">
+            <div className="px-4 pt-0 pb-0 sm:px-6">
               <EmptyState
                 title="No Projects Found"
                 description="No projects match the selected template or status."
@@ -609,7 +611,7 @@ export default function Page() {
             </div>
           ) : (
             projectsView === "grid" ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
+              <div className="grid grid-cols-1 gap-4 px-4 pt-0 pb-0 sm:px-6 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {projectsToShow.map((project) => (
                   <ProjectCard
                     key={project.id}
@@ -628,9 +630,9 @@ export default function Page() {
                 ))}
               </div>
             ) : (
-              <div className="px-7 pb-0 pt-0">
+              <div className="px-4 pt-0 pb-0 sm:px-6">
                 <div className="rounded-2xl border border-zinc-200 dark:border-white/10 overflow-hidden">
-                  <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
+                  <Table className="text-sm [&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Project</TableHead>
@@ -648,7 +650,7 @@ export default function Page() {
                             <div className="flex items-center gap-3">
                               <Avatar className="h-9 w-9 rounded-lg">
                                 {project.avatarSrc && <AvatarImage src={project.avatarSrc} />}
-                                <AvatarFallback className={`font-semibold ${getAvatarColor(project.title)}`}>
+                                <AvatarFallback className={`font-semibold rounded-lg! ${getAvatarColor(project.title)}`}>
                                   {project.title.substring(0, 2).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
@@ -663,7 +665,7 @@ export default function Page() {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
+                          <TableCell className="text-sm">
                             {project.templateTitle || "-"}
                           </TableCell>
                           <TableCell>
@@ -691,10 +693,10 @@ export default function Page() {
                                 )}
                               </AvatarGroup>
                             ) : (
-                              <span className="text-xs text-muted-foreground">No members</span>
+                              <span className="text-sm text-muted-foreground">No members</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
+                          <TableCell className="text-sm">
                             {project.createdAt
                               ? new Date(project.createdAt).toLocaleDateString("en-GB", {
                                   day: "2-digit",

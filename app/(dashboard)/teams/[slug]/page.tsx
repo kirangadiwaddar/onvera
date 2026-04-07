@@ -556,16 +556,16 @@ export default function TeamDetailPage() {
 
   return (
     <div className="team-inner-page">
-      <div className="team-header flex items-center justify-between gap-10 p-6">
-        <p className="text-sm text-muted-foreground">{team.description}</p>
-        <div className="right-badges flex items-center justify-end gap-2">
-          <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 py-2 px-3">
+      <div className="team-header flex flex-col gap-4 p-4 sm:p-6 lg:flex-row lg:items-center lg:justify-between lg:gap-10">
+        <p className="text-sm">{team.description}</p>
+        <div className="right-badges flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+          <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 p-2">
             <CalendarDays /> {formattedDate}
           </Badge>
-          <Badge className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 py-2 px-3 capitalize">
+          <Badge className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 p-2 capitalize">
             Status: {team.status}
           </Badge>
-          <Badge className="bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 py-2 px-3">
+          <Badge className="bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 p-2">
             Projects Assigned: {projects.length}
           </Badge>
         </div>
@@ -573,8 +573,8 @@ export default function TeamDetailPage() {
 
       <Separator className="my-0 bg-border" />
 
-      <div className="space-y-6 p-6">
-        <div className="flex items-center gap-10 justify-between">
+      <div className="space-y-6 p-4 sm:p-6">
+        <div className="flex gap-4 items-center justify-between">
           <h2 className="text-lg font-semibold">Team Members</h2>
           {canInviteMembers && (
             <Button variant="gradient" onClick={() => setOpenInvite(true)}>
@@ -583,8 +583,8 @@ export default function TeamDetailPage() {
           )}
         </div>
 
-        <div className="rounded-xl border overflow-hidden">
-          <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
+        <div className="overflow-hidden rounded-xl border">
+          <Table className="text-sm [&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3">
             <TableHeader>
               <TableRow>
                 <TableHead className="">Member</TableHead>
@@ -845,10 +845,10 @@ export default function TeamDetailPage() {
 
       <Separator className="my-0 bg-border" />
 
-      <div className="space-y-6 p-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 p-4 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">Projects Assigned ({projects.length})</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1 rounded-full border border-zinc-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/5">
               <Button
                 size="icon-sm"
@@ -910,8 +910,8 @@ export default function TeamDetailPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-2xl border border-zinc-200 dark:border-white/10 overflow-hidden">
-              <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3 text-sm">
+            <div className="overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/10">
+              <Table className="text-sm [&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-3">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Project</TableHead>

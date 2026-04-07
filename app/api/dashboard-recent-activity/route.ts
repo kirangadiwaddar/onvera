@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
+export const revalidate = 30
 
 import { getRequestIdentityFromRequestWithOptions } from "@/lib/auth/request-identity"
+import { createPrivateApiCacheHeaders } from "@/lib/server/cache-headers"
 import { resolveDashboardWorkspaceId } from "@/lib/server/dashboard-data"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -46,6 +48,7 @@ function mergeRecentActivities(
 
 const DASHBOARD_RECENT_ACTIVITY_CACHE_TTL_MS = 15_000
 const dashboardRecentActivityCache = new Map<string, DashboardRecentActivityCacheEntry>()
+const cacheHeaders = createPrivateApiCacheHeaders(15, 45)
 
 export async function GET(request: Request) {
   const identity = await getRequestIdentityFromRequestWithOptions(request, {
@@ -62,7 +65,7 @@ export async function GET(request: Request) {
   const cacheKey = `dashboard-recent-activity:${limit}:${identity.userId}:${identity.role ?? ""}:${identity.email ?? ""}:${workspaceId}`
   const cached = dashboardRecentActivityCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json(cached.payload)
+    return NextResponse.json(cached.payload, { headers: cacheHeaders })
   }
   if (cached) {
     dashboardRecentActivityCache.delete(cacheKey)
@@ -70,7 +73,7 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient()
   if (!admin) {
-    return NextResponse.json({ activities: [] })
+    return NextResponse.json({ activities: [] }, { headers: cacheHeaders })
   }
 
   const [createdRowsResult, updatedRowsResult] = await Promise.all([
@@ -115,5 +118,5 @@ export async function GET(request: Request) {
     expiresAt: Date.now() + DASHBOARD_RECENT_ACTIVITY_CACHE_TTL_MS,
   })
 
-  return NextResponse.json(payload)
+  return NextResponse.json(payload, { headers: cacheHeaders })
 }

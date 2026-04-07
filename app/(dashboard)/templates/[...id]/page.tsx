@@ -312,13 +312,13 @@ export default function TemplateChecklistPage() {
 
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-      <div className="px-7 flex flex-col gap-2">
-        <div className="flex items-end justify-between gap-4">
+      <div className="flex flex-col gap-2 px-4 sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             {/* <h1 className="text-lg font-semibold">{template?.title ?? "Template Checklist"}</h1> */}
-            <p className="text-sm text-muted-foreground">{template?.description}</p>
+            <p className="text-sm">{template?.description}</p>
           </div>
-          <div className="right-btns flex items-center gap-3">
+          <div className="right-btns flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
             <Button
               variant="outline"
               className="border border-zinc-300 dark:border-white/10"
@@ -336,11 +336,11 @@ export default function TemplateChecklistPage() {
       <Separator className="my-0 bg-border" />
 
       <TooltipProvider>
-        <div className="px-7 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold flex items-center gap-3">
+        <div className="space-y-4 px-4 sm:px-6">
+          <div className="flex flex-col gap-3">
+            <h2 className="flex flex-col gap-1 text-sm font-semibold sm:flex-row sm:items-center sm:gap-3">
               Checklist Builder
-              <p className="text-xs font-normal text-muted-foreground">
+              <p className="font-normal text-muted-foreground">
                 {template && !templateStructure[template.templateKey ?? template.template_key ?? template.id]
                   ? "Start from scratch or load a default checklist for quick setup."
                   : "Start with the default checklist below and add sections or items as needed."}
@@ -453,7 +453,7 @@ export default function TemplateChecklistPage() {
                                 }
                                 placeholder="Item label"
                               />
-                              <div className="right-actions flex items-center gap-5">
+                              <div className="right-actions flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
                                     <Select
                                 value={item.fieldType}
                                 onValueChange={(value) =>
@@ -474,7 +474,7 @@ export default function TemplateChecklistPage() {
                               <Button
                                 variant="destructiveLight"
                                 size="icon"
-                                className="rounded-full"
+                                className="rounded-full self-start sm:self-auto"
                                 onClick={() => requestDeleteItem(section.id, item)}
                                 aria-label="Remove item"
                               >

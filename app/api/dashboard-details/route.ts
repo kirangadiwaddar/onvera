@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
+export const revalidate = 30
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getRequestIdentityFromRequest } from "@/lib/auth/request-identity"
+import { createPrivateApiCacheHeaders } from "@/lib/server/cache-headers"
 import { getAccessibleProjectRows, getTeamAccessScope } from "@/lib/server/project-access"
 
 type ActivityItem = {
@@ -19,6 +21,7 @@ type DetailsCacheEntry = {
 
 const DASHBOARD_DETAILS_CACHE_TTL_MS = 5_000
 const dashboardDetailsCache = new Map<string, DetailsCacheEntry>()
+const cacheHeaders = createPrivateApiCacheHeaders(5, 15)
 
 type ProjectRow = {
   id: number
@@ -43,7 +46,7 @@ export async function GET(request: Request) {
   const cacheKey = `dashboard-details:${limit}:${identity.userId}:${identity.role ?? ""}:${identity.email ?? ""}:${workspaceId}`
   const cached = dashboardDetailsCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json(cached.payload)
+    return NextResponse.json(cached.payload, { headers: cacheHeaders })
   }
   if (cached) {
     dashboardDetailsCache.delete(cacheKey)
@@ -51,7 +54,7 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient()
   if (!admin) {
-    return NextResponse.json({ activities: [] })
+    return NextResponse.json({ activities: [] }, { headers: cacheHeaders })
   }
 
   const { memberTeamIds } = await getTeamAccessScope(admin, {
@@ -110,5 +113,5 @@ export async function GET(request: Request) {
     expiresAt: Date.now() + DASHBOARD_DETAILS_CACHE_TTL_MS,
   })
 
-  return NextResponse.json(payload)
+  return NextResponse.json(payload, { headers: cacheHeaders })
 }

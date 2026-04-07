@@ -184,7 +184,7 @@ export function SiteHeader() {
         <SidebarTrigger className="-ml-1" />
         <Separator
           orientation="vertical"
-          className="mx-2 data-[orientation=vertical]:h-4"
+          className="mx-1 sm:mx-2 data-[orientation=vertical]:h-4"
         />
 
         {isDetailPage && !hideBackForPath && (<>
@@ -198,22 +198,22 @@ export function SiteHeader() {
           </Button>
           <Separator
             orientation="vertical"
-            className="mx-2 data-[orientation=vertical]:h-4"
+            className="mx-1 sm:mx-2 data-[orientation=vertical]:h-4"
           />
         </>
         )}
 
 
-        <h1 className="text-base font-medium">{getTitle()}</h1>
-        <div className="ml-auto flex items-center gap-2">
-          <div className="flex items-center gap-2">
+        <h1 className="text-base font-medium truncate">{getTitle()}</h1>
+        <div className="ml-auto flex items-center">
+          <div className="flex items-center gap-1">
             <NotificationBell />
-            <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-5" />
+            <Separator orientation="vertical" className="mx-1 sm:mx-2 data-[orientation=vertical]:h-5" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   className={cn(
-                    "ml-1 flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white/80 text-zinc-500 transition hover:border-violet-200 hover:text-violet-900 hover:bg-violet-100 dark:border-white/10 dark:bg-white/5 dark:text-white/60 dark:hover:text-white",
+                  "flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white/80 text-zinc-500 transition hover:border-violet-200 hover:text-violet-900 hover:bg-violet-100 dark:border-white/10 dark:bg-white/5 dark:text-white/60 dark:hover:text-white",
                   )}
                   aria-label="Theme switcher"
                 >

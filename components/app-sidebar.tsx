@@ -15,6 +15,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import Logo from "./ui/logo"
 import { useAuth } from "./providers/auth-provider"
@@ -83,6 +84,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [openCreateWorkspace, setOpenCreateWorkspace] = useState(false)
   const [, setWorkspaceSwitching] = useState(true)
   const [showRefreshPrompt, setShowRefreshPrompt] = useState(false)
+  const { isMobile, setOpenMobile } = useSidebar()
 
   useEffect(() => {
     setMounted(true)
@@ -277,6 +279,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     })
   }
 
+  const handleSidebarNavigate = () => {
+    if (!isMobile) return
+    setOpenMobile(false)
+  }
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -363,7 +370,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <p className="mt-1 text-xs text-violet-700 dark:text-white/40">
                     Teams, notes, and unlimited templates.
                   </p>
-              <Link href="/billing" className="mt-3 inline-block w-full">
+              <Link href="/billing" className="mt-3 inline-block w-full" onClick={handleSidebarNavigate}>
                 <Button variant="gradient" size="sm" className="rounded-full text-xs py-2">
                   <Sparkles className="w-3.5! h-3.5!" /> Upgrade plan
                 </Button>

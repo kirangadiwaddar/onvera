@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
+export const revalidate = 30
 
 import { getRequestIdentityFromRequestWithOptions } from "@/lib/auth/request-identity"
+import { createPrivateApiCacheHeaders } from "@/lib/server/cache-headers"
 import { resolveDashboardWorkspaceId } from "@/lib/server/dashboard-data"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -11,6 +13,7 @@ type DashboardProjectsSummaryCacheEntry = {
 
 const DASHBOARD_PROJECTS_SUMMARY_CACHE_TTL_MS = 8_000
 const dashboardProjectsSummaryCache = new Map<string, DashboardProjectsSummaryCacheEntry>()
+const cacheHeaders = createPrivateApiCacheHeaders(8, 24)
 
 export async function GET(request: Request) {
   const identity = await getRequestIdentityFromRequestWithOptions(request, {
@@ -24,7 +27,7 @@ export async function GET(request: Request) {
   const cacheKey = `dashboard-projects-summary:${identity.userId}:${identity.role ?? ""}:${identity.email ?? ""}:${workspaceId}`
   const cached = dashboardProjectsSummaryCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json(cached.payload)
+    return NextResponse.json(cached.payload, { headers: cacheHeaders })
   }
   if (cached) {
     dashboardProjectsSummaryCache.delete(cacheKey)
@@ -32,7 +35,7 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient()
   if (!admin) {
-    return NextResponse.json({ lists: { latestWaitingOverdue: [] } })
+    return NextResponse.json({ lists: { latestWaitingOverdue: [] } }, { headers: cacheHeaders })
   }
 
   const { data: overdueRows } = await admin
@@ -91,5 +94,5 @@ export async function GET(request: Request) {
     expiresAt: Date.now() + DASHBOARD_PROJECTS_SUMMARY_CACHE_TTL_MS,
   })
 
-  return NextResponse.json(payload)
+  return NextResponse.json(payload, { headers: cacheHeaders })
 }

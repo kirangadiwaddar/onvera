@@ -273,12 +273,12 @@ export default function Page() {
       <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
         {teams.length > 0 ? (
           <>
-            <div className="flex flex-col lg:flex-row items-center justify-between px-7 gap-4 lg:gap-5">
-              <p className="text-sm flex-1 lg:line-clamp-2">
+            <div className="flex flex-col gap-4 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-5">
+              <p className="flex-1 text-sm lg:line-clamp-2">
                 Create a team to manage projects more effectively and keep collaboration structured.
               </p>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1 rounded-full border border-zinc-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/5">
+              <div className="flex w-full gap-3 items-center sm:justify-end lg:w-auto">
+                <div className="flex items-center gap-1 self-start rounded-full border border-zinc-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/5">
                   <Button
                     size="icon-sm"
                     variant={viewMode === "grid" ? "secondary" : "ghost"}
@@ -323,7 +323,7 @@ export default function Page() {
               onClick={!createTeamDisabled ? handleOpenCreateTeam : undefined}
             />
         ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-7 pb-0 pt-0">
+          <div className="grid grid-cols-1 gap-4 px-4 pt-0 pb-0 sm:px-6 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {teams
               .filter((team) => !selectedWorkspaceId || team.createdBy === selectedWorkspaceId)
               .map((team) => (
@@ -347,9 +347,9 @@ export default function Page() {
             ))}
           </div>
         ) : (
-          <div className="p-7 pb-0 pt-0">
+          <div className="px-4 pt-0 pb-0 sm:px-6">
             <div className="rounded-2xl border border-zinc-200 dark:border-white/10 overflow-hidden">
-              <Table className="[&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-4 text-sm">
+              <Table className="text-sm [&_th]:px-5 [&_th]:py-3 [&_td]:px-5 [&_td]:py-4">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Team</TableHead>

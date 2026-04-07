@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
+export const revalidate = 30
 import { getRequestIdentityFromRequestWithOptions } from "@/lib/auth/request-identity"
+import { createPrivateApiCacheHeaders } from "@/lib/server/cache-headers"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 type DashboardShellCacheEntry = {
@@ -9,6 +11,7 @@ type DashboardShellCacheEntry = {
 
 const DASHBOARD_SHELL_CACHE_TTL_MS = 10_000
 const dashboardShellCache = new Map<string, DashboardShellCacheEntry>()
+const cacheHeaders = createPrivateApiCacheHeaders(10, 30)
 
 export async function GET(request: Request) {
   const identity = await getRequestIdentityFromRequestWithOptions(request, {
@@ -24,7 +27,7 @@ export async function GET(request: Request) {
   const cacheKey = `dashboard-shell:${identity.userId}:${identity.role ?? ""}:${workspaceId}`
   const cached = dashboardShellCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json(cached.payload)
+    return NextResponse.json(cached.payload, { headers: cacheHeaders })
   }
   if (cached) {
     dashboardShellCache.delete(cacheKey)
@@ -57,6 +60,5 @@ export async function GET(request: Request) {
     expiresAt: Date.now() + DASHBOARD_SHELL_CACHE_TTL_MS,
   })
 
-  return NextResponse.json(payload)
+  return NextResponse.json(payload, { headers: cacheHeaders })
 }
-

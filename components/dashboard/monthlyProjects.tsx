@@ -62,7 +62,7 @@ export function MonthlyProjectsChart() {
   React.useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const res = await fetchWithAuth("/api/projects", {
+        const res = await fetchWithAuth("/api/projects?summary=1", {
           cache: "no-store",
         })
 
@@ -166,8 +166,8 @@ export function MonthlyProjectsChart() {
   }
 
   return (
-    <Card className="py-0 shadow-none relative gap-0 overflow-hidden">
-      <CardHeader className="flex items-center justify-between border-b border-border py-4! bg-card/80 mb-0">
+    <Card className="relative gap-0 overflow-hidden py-0 shadow-none">
+      <CardHeader className="mb-0 flex flex-col gap-3 border-b border-border bg-card/80 py-4! sm:flex-row sm:items-center sm:justify-between">
         <div>
           <CardTitle className="text-sm">Monthly Project Overview</CardTitle>
           <CardDescription className="text-xs">
@@ -176,7 +176,7 @@ export function MonthlyProjectsChart() {
         </div>
 
         <Select value={range} onValueChange={setRange}>
-          <SelectTrigger className="w-40 rounded-full text-xs">
+          <SelectTrigger className="w-full rounded-full text-xs sm:w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -187,12 +187,12 @@ export function MonthlyProjectsChart() {
         </Select>
       </CardHeader>
 
-     <CardContent className="relative px-0 pt-1 overflow-visible">
+     <CardContent className="relative overflow-visible px-0 pt-1">
   <div className="chart-grid absolute inset-0 z-0 opacity-40 pointer-events-none" />
 
   <ChartContainer
     config={chartConfig}
-    className="h-[280px] w-full overflow-visible"
+    className="h-[240px] w-full overflow-visible sm:h-[280px]"
   >
     <AreaChart
       data={filteredData}

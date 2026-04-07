@@ -127,7 +127,7 @@ export default function TeamCard({
                     <h3 className="text-base font-medium mb-2">
                         {team.name}
                     </h3>
-                    <p className="text-xs text-muted-foreground line-clamp-2 leading-4.5 min-w-0">{team.description}</p>
+                    <p className="text-sm text-muted-foreground line-clamp-2 leading-4.5 min-w-0">{team.description}</p>
 
                     {/* Lead */}
                     {/* {team.lead && (

@@ -13,6 +13,7 @@ import {
   DashboardPageSkeleton,
   DashboardStatsSkeleton,
 } from "@/components/dashboard/dashboard-skeleton"
+import { Spinner } from "@/components/ui/spinner"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import {
@@ -91,6 +92,7 @@ export default function Page() {
   const { user, profile, loading: authLoading } = useAuth()
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
+  const [workspacesLoading, setWorkspacesLoading] = useState(true)
 
   const localRole = useMemo(() => {
     const raw =
@@ -135,6 +137,10 @@ export default function Page() {
     (dashboardCountsQuery.error instanceof Error ? dashboardCountsQuery.error.message : null) ||
     (dashboardProjectsSummaryQuery.error instanceof Error ? dashboardProjectsSummaryQuery.error.message : null) ||
     (dashboardRecentActivityQuery.error instanceof Error ? dashboardRecentActivityQuery.error.message : null)
+  const isAnyQueryFetching =
+    dashboardCountsQuery.isFetching ||
+    dashboardProjectsSummaryQuery.isFetching ||
+    dashboardRecentActivityQuery.isFetching
 
   const storageBase = user?.email ? `notifications:${user.email}` : "notifications:anonymous"
   const hiddenKey = `${storageBase}:hidden`
@@ -144,6 +150,7 @@ export default function Page() {
     let active = true
     const loadWorkspaces = async () => {
       try {
+        if (active) setWorkspacesLoading(true)
         const res = await fetchWithAuth("/api/workspaces", { cache: "no-store" })
         const data = await res.json().catch(() => null) as { workspaces?: WorkspaceItem[] } | null
         if (!active) return
@@ -159,6 +166,8 @@ export default function Page() {
         setSelectedWorkspaceId(nextId)
       } catch {
         setWorkspaces([])
+      } finally {
+        if (active) setWorkspacesLoading(false)
       }
     }
     void loadWorkspaces()
@@ -174,6 +183,13 @@ export default function Page() {
       window.removeEventListener("storage", handleWorkspace)
     }
   }, [authLoading, profile, user])
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!user?.id) {
+      setWorkspacesLoading(false)
+    }
+  }, [authLoading, user?.id])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -213,7 +229,12 @@ export default function Page() {
     void preloadDashboardWidgets()
   }, [authLoading, user?.id])
 
-  if (authLoading) {
+  const isResolvingDashboardAccess =
+    Boolean(user?.id) &&
+    workspacesLoading &&
+    !effectiveRole
+
+  if (authLoading || isResolvingDashboardAccess) {
     return <DashboardPageSkeleton />
   }
 
@@ -227,7 +248,13 @@ export default function Page() {
     )
   }
 
-  if (error && !statsData && !projectsSummary.length && !recentActivities.length) {
+  if (
+    error &&
+    !isAnyQueryFetching &&
+    !statsData &&
+    !projectsSummary.length &&
+    !recentActivities.length
+  ) {
     return (
       <div className="py-8">
         <EmptyState
@@ -295,16 +322,17 @@ export default function Page() {
     (dashboardRecentActivityQuery.isFetching && dashboardRecentActivityQuery.data !== undefined)
 
   return (
-   <div className="flex flex-col gap-2 pb-4 md:pb-6">
+   <div className="sm:flex flex-col gap-2 pb-4 md:pb-6">
       {isAnyQueryRefreshing ? (
-        <div className="mx-5 rounded-lg border border-border/70 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground">
-          Refreshing dashboard data...
+        <div className="mx-4 flex items-center gap-2 rounded-lg border border-emerald-200/80 bg-emerald-50/80 px-3 py-2 text-xs font-medium text-emerald-700 sm:mx-5 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+          <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-300" />
+          <span>Refreshing Dashboard Data</span>
         </div>
       ) : null}
       {statsData ? <SectionCards stats={stats} /> : <DashboardStatsSkeleton />}
 
       {statsData ? (
-        <div className="grid xl:grid-cols-3 gap-5 mx-5">
+        <div className="mx-4 space-y-5 sm:space-y-0 sm:grid gap-5 sm:mx-5 md:space-y-0 lg:grid-cols-3">
           <div className="col-span-2 rounded-xl w-full">
             <MonthlyProjectsChart />
           </div>
@@ -317,12 +345,12 @@ export default function Page() {
           </div>
         </div>
       ) : (
-        <div className="mx-5">
+        <div className="mx-4 sm:mx-5">
           <DashboardChartsSkeleton />
         </div>
       )}
 
-      <div className="grid xl:grid-cols-3 gap-5 mx-5 mt-5">
+      <div className="mx-4 mt-5 space-y-5 sm:space-y-0 sm:grid gap-5 sm:mx-5 md:space-y-0 lg:grid-cols-3">
         <RecentActivity
           activities={recentActivities.filter((activity) => !hiddenIds.includes(activity.id))}
           loading={!dashboardRecentActivityQuery.data && (dashboardRecentActivityQuery.isLoading || dashboardRecentActivityQuery.isFetching)}

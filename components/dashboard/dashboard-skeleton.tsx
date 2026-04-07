@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 export function DashboardStatsSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-5 px-5 pt-5 @xl/main:grid-cols-5 @5xl/main:grid-cols-5">
+    <div className="grid grid-cols-1 gap-4 px-4 pt-4 sm:px-5 sm:pt-5 md:grid-cols-2 @xl/main:grid-cols-5 @5xl/main:grid-cols-5">
       {Array.from({ length: 5 }).map((_, index) => (
         <div
           key={index}
@@ -52,7 +52,7 @@ export function DashboardPanelSkeleton({
 
 export function DashboardChartsSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-5 px-5 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 px-4 sm:px-5 lg:grid-cols-2">
       <DashboardChartCardSkeleton />
       <DashboardChartCardSkeleton />
     </div>
@@ -76,7 +76,7 @@ export function DashboardPageSkeleton() {
     <div className="flex flex-col gap-2 pb-4 md:pb-6">
       <DashboardStatsSkeleton />
       <DashboardChartsSkeleton />
-      <div className="mx-5 mt-5 grid gap-5 xl:grid-cols-3">
+      <div className="mx-4 mt-5 grid gap-5 sm:mx-5 xl:grid-cols-3">
         <DashboardPanelSkeleton rows={5} />
         <div className="xl:col-span-2">
           <DashboardPanelSkeleton compact rows={4} />
@@ -89,18 +89,18 @@ export function DashboardPageSkeleton() {
 export function ProjectsPageSkeleton() {
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-      <div className="flex flex-col items-center justify-between gap-4 px-7 lg:flex-row lg:gap-5">
+      <div className="flex flex-col items-center justify-between gap-4 px-4 sm:px-6 lg:flex-row lg:gap-5">
         <div className="w-full flex-1 space-y-2">
           <Skeleton className="h-4 w-80 max-w-full bg-zinc-200 dark:bg-zinc-800" />
           <Skeleton className="h-4 w-60 max-w-full bg-zinc-200 dark:bg-zinc-800" />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
           <Skeleton className="h-10 w-24 rounded-full bg-zinc-200 dark:bg-zinc-800" />
           <Skeleton className="h-10 w-44 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
           <Skeleton className="h-10 w-32 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 p-7 pb-0 pt-0 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 px-4 pt-0 pb-0 sm:px-6 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {Array.from({ length: 8 }).map((_, index) => (
           <div key={index} className="rounded-2xl bg-zinc-100 p-5 dark:bg-zinc-900">
             <div className="space-y-4">

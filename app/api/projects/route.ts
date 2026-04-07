@@ -8,6 +8,7 @@ import type { status } from "@/lib/project-status"
 import type { Section } from "@/lib/types"
 import type { RequestIdentity } from "@/lib/auth/request-identity"
 import { getPlanLimits } from "@/lib/billing/plans"
+import { getAccessibleProjectRows, getTeamAccessScope } from "@/lib/server/project-access"
 
 type ProjectsCacheEntry = {
   expiresAt: number
@@ -296,35 +297,57 @@ async function getUserDirectory(
   return { nameById, emailById }
 }
 
-async function getSummaryProjects(identity: RequestIdentity) {
-  const { projects, teams } = await getStoreData({
-    includeTemplates: false,
-    includeProjectSubmissions: false,
+async function getSummaryProjects(identity: RequestIdentity, limit?: number) {
+  const admin = createAdminClient()
+  if (!admin) return []
+
+  const { memberTeamIds } = await getTeamAccessScope(admin, {
+    userId: identity.userId,
+    email: identity.email,
   })
 
-  const visibleProjects = filterProjectsForIdentity(projects, teams, identity)
-  return sortByNewestCreatedAt(visibleProjects).map((project) => ({
+  const rows = await getAccessibleProjectRows<{
+    id: number
+    slug: string
+    title: string
+    status: status
+    created_at: string
+    updated_at?: string | null
+    team_ids?: number[] | null
+    created_by?: string | null
+  }>(
+    admin,
+    { userId: identity.userId, email: identity.email },
+    "id,slug,title,status,created_at,updated_at,team_ids,created_by",
+    memberTeamIds,
+  )
+
+  const normalized = sortByNewestCreatedAt(rows).map((project) => ({
     id: project.id,
     slug: project.slug,
     title: project.title,
     status: project.status,
-    createdAt: project.createdAt,
-    updatedAt: project.updatedAt,
-    teamIds: project.teamIds,
-    createdBy: project.createdBy ?? null,
+    createdAt: project.created_at,
+    updatedAt: project.updated_at ?? undefined,
+    teamIds: project.team_ids ?? [],
+    createdBy: project.created_by ?? null,
   }))
+
+  return typeof limit === "number" ? normalized.slice(0, limit) : normalized
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const summary = searchParams.get("summary") === "1"
   const bypassCache = searchParams.get("cache") === "0"
+  const limitRaw = Number(searchParams.get("limit") ?? "")
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 1000) : undefined
   const identity = await getRequestIdentityFromRequest(request)
   if (!identity) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
   const workspaceId = request.headers.get("x-workspace-id")?.trim() || "-"
-  const cacheKey = `projects:${summary ? "summary" : "full"}:${identity.userId}:${identity.role ?? ""}:${identity.email ?? ""}:${workspaceId}`
+  const cacheKey = `projects:${summary ? "summary" : "full"}:${limit ?? "all"}:${identity.userId}:${identity.role ?? ""}:${identity.email ?? ""}:${workspaceId}`
   if (!bypassCache) {
     const cached = getCachedProjects(cacheKey)
     if (cached) {
@@ -332,7 +355,7 @@ export async function GET(request: Request) {
     }
   }
   if (summary) {
-    const projects = await getSummaryProjects(identity)
+    const projects = await getSummaryProjects(identity, limit)
     const payload = { projects }
     if (!bypassCache) {
       setCachedProjects(cacheKey, payload)
